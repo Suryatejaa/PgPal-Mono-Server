@@ -1,6 +1,7 @@
 const { json } = require('express');
 const Property = require('../models/propertyModel');
 const axios = require('axios');
+const mongoose = require('mongoose');
 
 const increaseViewCount = async (id) => {
     const property = await Property.findById(id);
@@ -86,12 +87,30 @@ module.exports = {
     },
 
     async getPropertyForRoom(req, res) {
+        const id = req.params.id;
+        const ppid = req.query.ppid;
         try {
-            const property = await Property.findById(req.params.id);
+        
+            const property = await Property.findById(id);
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
 
+            res.status(200).json({ ...property._doc, views: property.views });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+
+    async getPropertyByPpid(req, res) {
+        const ppid = req.params.ppid
+
+        try {
+            const property = await Property.findOne({ pgpalId: ppid });
+    
+            if (!property) {
+                return res.status(404).json({ error: 'Property not found' });
+            }
             res.status(200).json({ ...property._doc, views: property.views });
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -191,7 +210,7 @@ module.exports = {
     },
 
 
-    async searchProperties(req, res) {  
+    async searchProperties(req, res) {
         try {
             const { city, state, query } = req.query;
             const searchCriteria = [];
@@ -225,7 +244,8 @@ module.exports = {
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
-            res.status(200).json(property.availability || {});
+            const propertyObj = property.toObject();
+            res.status(200).json(propertyObj.availableBeds || {});
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
@@ -252,18 +272,17 @@ module.exports = {
     async getOwnerInfo(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
         try {
-            const property = await Property.findById(req.params.id).populate('ownerId', 'username email phoneNumber');
+            const property = await Property.findById(req.params.id);
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
-            const owner = await axios.get(`http://localhost:4000/api/auth-service/user/${property.ownerId}`,
+            const owner = await axios.get(`http://localhost:4000/api/auth-service/user?id=${property.ownerId}`,
                 {
                     headers: {
                         'x-internal-service': 'true',
                     },
                 }
             );
-
             res.status(200).json({
                 ownerId: property.ownerId,
                 ownerName: owner.data.username,

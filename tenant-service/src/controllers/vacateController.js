@@ -41,7 +41,16 @@ exports.raiseVacate = async (req, res) => {
             return res.status(400).json({ error: 'Invalid request' });
         }
 
-        const vacateDate = isImmediateVacate ? new Date() : new Date(Date.now() + (currentStay.noticePeriodInMonths * 30 * 24 * 60 * 60 * 1000));
+        let d = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+        let closureNote;
+        if (isImmediateVacate) {
+            closureNote = 'Since its an immediate vacate, you can not withdraw the request post 24 hours';
+        } else {
+            closureNote = `You can withdraw the request before ${d.toDateString()}`;
+        }
+
+        const vacateDate = isImmediateVacate ? new Date() : new Date(Date.now() + currentStay.noticePeriodInMonths * 30 * 24 * 60 * 60 * 1000);
 
         const stayHistory = {
             propertyId: currentStay.propertyPpid,
@@ -83,7 +92,10 @@ exports.raiseVacate = async (req, res) => {
         };
 
         const clearBedResponse = await clearBed(currentStay.roomPpid, currentStay.bedId, currentUser);
-        if (!clearBedResponse) return res.status(400).json({ error: 'Failed to clear bed' });
+        if (!clearBedResponse) return res.status(400).json({
+            error: 'Failed to clear bed',
+            message: clearBedResponse
+        });
 
         const updatedTenant = await Tenant.findByIdAndUpdate(tenant[0]._id, updateProfile, { new: true });
         if (!updatedTenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -110,6 +122,7 @@ exports.raiseVacate = async (req, res) => {
         res.status(201).json({
             Comments: {
                 message: 'Vacate request created successfully',
+                closureNote: closureNote,
                 Notes: endMessage,
             }, vacateRequest: vacateRequest
         });
@@ -134,23 +147,22 @@ exports.withdrawVacate = async (req, res) => {
         if (!tenant || tenant.length === 0) return res.status(404).json({ error: 'Tenant not found' });
 
         const profile = tenant[0];
-
-
-
-        if (!profile.isInNoticePeriod) return res.status(400).json({ error: 'Tenant is not in notice period' });
-
         const vacate = await Vacates.findOne({ tenantId: profile.pgpalId });
         if (!vacate) return res.status(404).json({ error: 'Vacate request not found' });
-
+        if (vacate.removedByOwner) return res.status(400).json({ error: 'This tenant was removed by the owner, please check with owner' });
+        
+        if (!profile.isInNoticePeriod) return res.status(400).json({ error: 'Tenant is not in notice period' });
+        
+        const withdrawWindow = vacate.isImmediateVacate ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+        const currentTime = new Date().getTime();
+        const vacateRaisedAtTime = new Date(vacate.vacateRaisedAt).getTime();
+       
+        const isWithdrawWindowOpen = currentTime - vacateRaisedAtTime <= withdrawWindow;
+        if (!isWithdrawWindowOpen) return res.status(400).json({ error: 'Withdraw window is closed' });        
+       
         if (vacate.status === 'withdrawn') return res.status(400).json({ error: 'Vacate request is already withdrawn' });
-        if (vacate.status === 'completed') return res.status(400).json({ error: 'Vacate request is already completed' });
+        if (vacate.status === 'completed' && !vacate.isImmediateVacate) return res.status(400).json({ error: 'Vacate request is already completed' });
 
-        if (vacate.vacateRaisedAt < new Date(Date.now() - (7 * 24 * 60 * 60 * 1000))) {
-            return res.status(400).json({ error: 'You cannot withdraw vacate request after 7 days' });
-        }
-        if (vacate.isImmediateVacate) {
-            return res.status(400).json({ error: 'You cannot withdraw vacate request for immediate vacate' });
-        }
 
         const previousSnapshot = vacate.previousSnapshot;
         const backupStay = {
@@ -203,3 +215,4 @@ exports.withdrawVacate = async (req, res) => {
         res.status(400).json({ error: err.message });
     }
 };
+

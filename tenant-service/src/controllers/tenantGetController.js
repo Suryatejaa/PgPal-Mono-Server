@@ -10,7 +10,6 @@ exports.getTenants = async (req, res) => {
         const ownerid = currentUser.data.user._id;
         console.log(ownerid, role);
 
-        const myPG = await getOwnProperty(ownerid, currentUser);
         let tenants;
         if (role === 'owner') {
             tenants = await Tenant.find({ createdBy: currentUser.data.user._id });

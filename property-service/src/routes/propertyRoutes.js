@@ -12,6 +12,7 @@ router.get('/own', PropertyController.getProperties);
 router.get('/search', PropertyController.searchProperties);
 router.get('/:id', PropertyController.getPropertyById);
 router.get('/property/:id', PropertyController.getPropertyForRoom);
+router.get('/property-ppid/:ppid', PropertyController.getPropertyByPpid);
 router.put('/:id', PropertyController.updateProperty);
 router.delete('/:id', PropertyController.deleteProperty);
 

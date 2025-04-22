@@ -1,9 +1,15 @@
 const Room = require('../models/roomModel');
 const axios = require('axios');
 
-const getOwnProperty = async (propertyId, currentUser) => {
+const getOwnProperty = async (propertyId, currentUser, ppid) => {
+    let url;
+    if (ppid) {
+        url = `http://localhost:4000/api/property-service/property?ppid=${propertyId}`;
+    } else {
+        url = `http://localhost:4000/api/property-service/property?id=${propertyId}`;
+    }
     try {
-        const response = await axios.get(`http://localhost:4000/api/property-service/property/${propertyId}`,
+        const response = await axios.get(url,
             {
                 headers: {
                     'x-internal-service': true,
@@ -36,7 +42,7 @@ exports.addRoom = async (req, res) => {
         return res.status(400).json({ error: 'Property ID is required' });
     }
 
-    const property = await getOwnProperty(propertyId, currentUser);
+    const property = await getOwnProperty(propertyId, currentUser, ppid=false);
 
     if (!property) {
         return res.status(404).json({ error: 'Property not found' });
@@ -164,7 +170,7 @@ exports.updateRoom = async (req, res) => {
 
         const room = await Room.findById(req.params.roomId);
         const propertyId = room.propertyId;
-        const property = await getOwnProperty(propertyId, currentUser);
+        const property = await getOwnProperty(propertyId, currentUser,ppid=false);
 
         if (!property) {
             return res.status(404).json({ error: 'Property not found' });

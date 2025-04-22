@@ -2,8 +2,9 @@ const Room = require('../models/roomModel');
 const axios = require('axios');
 
 const getOwnProperty = async (propertyId, currentUser) => {
+    
     try {
-        const response = await axios.get(`http://localhost:4000/api/property-service/property/${propertyId}`,
+        const response = await axios.get(`http://localhost:4000/api/property-service/property?id=${propertyId}`,
             {
                 headers: {
                     'x-internal-service': true,

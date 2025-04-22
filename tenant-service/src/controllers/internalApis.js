@@ -1,8 +1,15 @@
 const axios = require('axios');
 
-const getOwnProperty = async (propertyId, currentUser) => {
+const getOwnProperty = async (propertyId, currentUser, ppid) => {
+    let url;
+    if (ppid) {
+        url = `http://localhost:4000/api/property-service/property-ppid/${propertyId}`;
+    } else {
+        url = `http://localhost:4000/api/property-service/property/${propertyId}`;
+    }
+    console.log(url)
     try {
-        const response = await axios.get(`http://localhost:4000/api/property-service/property/${propertyId}`, {
+        const response = await axios.get(url, {
             headers: {
                 'x-user': JSON.stringify(currentUser),
                 'x-internal-service': true
@@ -93,6 +100,7 @@ const assignBed = async (roomId, bedId, tenantPhone, tenantPpt, currentUser) => 
 };
 
 const clearBed = async (roomId, bedId, currentUser) => {
+    console.log('room and bed ', roomId, bedId)
     try {
         const response = await axios.patch(
             `http://localhost:4000/api/room-service/rooms/${roomId}/clear-bed`,
@@ -107,7 +115,7 @@ const clearBed = async (roomId, bedId, currentUser) => {
         return response.data;
     } catch (error) {
         console.error('[clearBed] Error:', error.message);
-        return null;
+        return error;
     }
 };
 

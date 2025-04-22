@@ -26,6 +26,10 @@ const vacateScehma = new Schema({
         type: Boolean,
         default: false
     },
+    isDeppositRefunded: {
+        type: Boolean,
+        default: false
+    },
     vacateDate: {
         type: Date,
         default: vacateDate => {
@@ -55,6 +59,11 @@ const vacateScehma = new Schema({
     createdBy: {
         type: String
     },
+    removedByOwner: {
+        type: Boolean,
+        default: false
+    },
+
     previousSnapshot: {
         type: Object,
         default: null

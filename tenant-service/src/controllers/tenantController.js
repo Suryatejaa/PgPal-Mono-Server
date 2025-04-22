@@ -22,7 +22,7 @@ exports.addTenant = async (req, res) => {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
-        const property = await getOwnProperty(propertyId, currentUser);
+        const property = await getOwnProperty(propertyId, currentUser, ppid=false);
         if (!property || property.ownerId !== ownerId) {
             return res.status(403).json({ error: 'You do not own this property' });
         }
