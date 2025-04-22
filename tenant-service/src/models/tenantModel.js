@@ -8,7 +8,7 @@ const tenantSchema = new Schema({
     },
     email: {
         type: String,
-        sparse:true
+        sparse: true
     },
     pgpalId: {
         type: String,
@@ -35,10 +35,12 @@ const tenantSchema = new Schema({
         propertyPpid: { type: String },
         roomPpid: { type: String },
         rent: { type: Number },
+        deposit: { type: Number },
         bedId: { type: String },
-        assignedAt: { type: Date, default: Date.now }
+        assignedAt: { type: Date, default: Date.now },
+        noticePeriodInMonths: { type: Number, default: 1 },
+        isInNoticePeriod: { type: Boolean, default: false }
     },
-    
     status: {
         type: String,
         enum: ['active', 'inactive'],
@@ -46,18 +48,34 @@ const tenantSchema = new Schema({
     },
     stayHistory: [
         {
-            propertyId: mongoose.Schema.Types.ObjectId,
-            roomId: mongoose.Schema.Types.ObjectId,
+            propertyId: String,
+            roomId: String,
             bedId: String,
             from: Date,
             to: Date
         }
     ],
+    isInNoticePeriod: {
+        type: Boolean,
+        default: false
+    },
+    noticePeriodStartDate: {
+        type: Date,
+        default: null
+    },
+    noticePeriodEndDate: {
+        type: Date,
+        default: null
+    },
     createdBy: {
         type: String,
         required: true,
     },
     createdAt: {
+        type: Date,
+        default: Date.now,
+    },
+    updatedAt: {
         type: Date,
         default: Date.now,
     },

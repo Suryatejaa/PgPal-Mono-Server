@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const UserController = require('../controllers/authController');
+const passwordController = require('../controllers/passwordController');
 const authenticate = require('../utils/authenticate');
 const validateRequest = require('../utils/validateRequest');
 const validateLogin = require('../utils/validatelogin');
@@ -25,10 +26,10 @@ router.post('/otp/send', validateRequest, UserController.sendOtp);
 router.post('/otp/verify', UserController.verifyOtp);
 router.get('/user',restrictToInternal, UserController.getUserById);
 
-router.post('/forgot-password-request', UserController.forgotPasswordRequestUser);
-router.post('/forgot-password-verify-otp', UserController.forgotPasswordVerifyOtp);
-router.post('/forgot-password-reset', UserController.forgotPasswordResetUser);
-router.patch('/password-reset', authenticate, UserController.passwordResetUser);
+router.post('/forgot-password-request', passwordController.forgotPasswordRequestUser);
+router.post('/forgot-password-verify-otp', passwordController.forgotPasswordVerifyOtp);
+router.post('/forgot-password-reset', passwordController.forgotPasswordResetUser);
+router.patch('/password-reset', authenticate, passwordController.passwordResetUser);
 
 router.post('/logout', authenticate, UserController.logoutUser);
 

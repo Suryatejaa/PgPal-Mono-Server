@@ -164,7 +164,7 @@ exports.updateRoom = async (req, res) => {
 
         const room = await Room.findById(req.params.roomId);
         const propertyId = room.propertyId;
-        const property = await getOwnProperty(propertyId, currentUser.token);
+        const property = await getOwnProperty(propertyId, currentUser);
 
         if (!property) {
             return res.status(404).json({ error: 'Property not found' });
@@ -283,59 +283,3 @@ exports.deleteRoom = async (req, res) => {
     }
 };
 
-exports.assignBed = async (req, res) => {
-    const internalService = req.headers['x-internal-service'];
-    if (!internalService) {
-        return res.status(403).json({ error: 'Forbidden: Only internal service can assign beds' });
-    }
-
-    const roomId = req.params.roomId;
-    const bedId = req.body.bedId;
-    const tenantNo = req.body.phone;
-    const tenantPpt = req.body.tenantPpt;
-    const currentUser = JSON.parse(req.headers['x-user']) || {};
-    const id = currentUser.data.user._id;
-    const role = currentUser.data.user.role;
-
-    console.log(roomId, bedId, tenantNo, tenantPpt, id, role);
-
-    if (!id) {
-        return res.status(401).json({ error: 'Unauthorized: Missing userId' });
-    }
-    if (role !== 'owner') {
-        return res.status(403).json({ error: 'Forbidden: Only owners can assign beds' });
-    }
-    if (!roomId || !bedId || !tenantNo) {
-        return res.status(400).json({ error: 'Room ID, Bed ID, and Tenant No are required' });
-    }
-    try {
-        const room = await Room.findById(roomId);
-        const propertyId = room.propertyId;
-        const property = await getOwnProperty(propertyId, currentUser.token);
-        if (!property) {
-            return res.status(404).json({ error: 'Property not found' });
-        }
-        if (property.ownerId.toString() !== id) {
-            return res.status(403).json({ error: `Forbidden: You didn't own this property` });
-        }
-
-        if (!room) return res.status(404).json({ error: 'Room not found' });
-
-        const bed = room.beds.find(b => b.bedId === bedId);
-        if (!bed) return res.status(404).json({ error: 'Bed not found' });
-        if (bed.status === 'occupied') {
-            return res.status(400).json({ error: 'Bed is already occupied' });
-        }
-        bed.status = 'occupied';
-        bed.tenantNo = tenantNo;
-        bed.tenantPpt = tenantPpt;
-        room.status = room.beds.every(b => b.status === 'occupied') ? 'occupied' : 'partially occupied';
-        await room.save();
-        console.log("Bed assigned successfully", room);
-        res.status(200).json({ status: 200, message: 'Bed assigned successfully', room });
-    }
-    catch (error) {
-        console.error('Error assigning bed:', error.message);
-        res.status(400).json({ error: error.message });
-    }
-};

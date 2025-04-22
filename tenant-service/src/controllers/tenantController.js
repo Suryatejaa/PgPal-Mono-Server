@@ -1,98 +1,8 @@
 const Tenant = require('../models/tenantModel');
-const axios = require('axios');
 const { generatePPT } = require('../utils/idGenerator'); // Assuming you have a function to generate PPT IDs
+const {assignBed, getOwnProperty, getUserByPhone, getRoomByNumber, getUserByPpid} = require('./internalApis'); // Assuming you have a function to generate PPT IDs
 
 // Helper to fetch property & verify ownership
-const getOwnProperty = async (propertyId, currentUser) => {
-    try {
-        const response = await axios.get(`http://localhost:4000/api/property-service/property/${propertyId}`, {
-            headers: {
-                'x-user': JSON.stringify(currentUser),
-                'x-internal-service': true
-            }
-        });
-        return response.data;
-    } catch (error) {
-        return null;
-    }
-};
-
-const getUserByPhone = async (phone, currentUser) => {
-    try {
-        const response = await axios.get(`http://localhost:4000/api/auth-service/user?phnum=${phone}`, {
-            headers: {
-                'x-user': JSON.stringify(currentUser),
-                'x-internal-service': true
-            }
-        }
-        );
-        return response.data;
-    } catch (error) {
-        console.error('[getUserByPhone] Error:', error.message);
-        return null;
-    }
-};
-
-const getRoomByNumber = async (propertyId, roomNumber, currentUser) => {
-    try {
-        const response = await axios.get(
-            `http://localhost:4000/api/room-service/${propertyId}/rooms`,
-            {
-                headers: {
-                    'x-user': JSON.stringify(currentUser),
-                    'x-internal-service': true
-                }
-            }
-        );
-
-        const room = response.data.find(r => r.roomNumber == roomNumber);
-
-        return room || null;
-    } catch (error) {
-        console.error('[getRoomByNumber] Error:', error.message);
-        return null;
-    }
-};
-
-
-const getUserByPpid = async (ppt, currentUser) => {
-    try {
-        const response = await axios.get(
-            `http://localhost:4000/api/auth-service/user?ppid=${ppt}`,
-            {
-                headers: {
-                    'x-user': JSON.stringify(currentUser),
-                    'x-internal-service': true
-                }
-            }
-        );
-        return response.data;
-    } catch (error) {
-        console.error('[getUserByPpid] Error:', error.message);
-        return null;
-    }
-};
-
-
-const assignBed = async (roomId, bedId, tenantPhone, tenantPpt, currentUser) => {
-    try {
-        const response = await axios.patch(
-            `http://localhost:4000/api/room-service/rooms/${roomId}/assign-bed`,
-            { bedId, phone: tenantPhone, tenantPpt },
-            {
-                headers: {
-                    'x-user': JSON.stringify(currentUser),
-                    'x-internal-service': true
-                }
-            }
-        );
-        return response.data;
-    } catch (error) {
-        console.error('[assignBed] Error:', error.message);
-        return null;
-    }
-};
-
 
 exports.addTenant = async (req, res) => {
     try {
@@ -106,9 +16,9 @@ exports.addTenant = async (req, res) => {
             return res.status(403).json({ error: 'Only owners can add tenants' });
         }
 
-        const { name, email, phone, gender, address, aadhar, propertyId, roomNumber, bedId } = req.body;
+        const { name, email, phone, gender, address, aadhar, propertyId, roomNumber, bedId, deposit, noticePeriodInMonths } = req.body;
 
-        if (!name || !phone || !propertyId || !roomNumber || !bedId || !aadhar) {
+        if (!name || !phone || !propertyId || !roomNumber || !bedId || !aadhar || deposit === undefined || noticePeriodInMonths === undefined) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
@@ -138,8 +48,6 @@ exports.addTenant = async (req, res) => {
             return res.status(400).json({ error: 'Bed not available' });
         }
 
-
-
         let tenantPpt;
         // Create tenant
         const existingUser = await getUserByPhone(phone, currentUser);
@@ -155,7 +63,7 @@ exports.addTenant = async (req, res) => {
             tenantPpt = existingUser.pgpalId;
         }
 
-        const assigned = await assignBed(room._id, bedId, phone, tenantPpt, currentUser);
+        const assigned = await assignBed(roomPPR, bedId, phone, tenantPpt, currentUser);
         if (assigned?.status !== 200) {
             return res.status(400).json({ error: 'Failed to assign bed' });
         }
@@ -171,9 +79,12 @@ exports.addTenant = async (req, res) => {
                 propertyPpid: propertyPPP,
                 roomPpid: roomPPR,
                 rent: room.rentPerBed,
+                deposit: deposit,
+                noticePeriodInMonths: noticePeriodInMonths,
+                isInNoticePeriod: false,
                 bedId
             },
-            createdBy: ownerId
+            createdBy: ownerId           
         };
 
         if (email) {
@@ -194,72 +105,15 @@ exports.addTenant = async (req, res) => {
 };
 
 
-// ✅ Get all tenants (owned or added by this PG owner)
-exports.getTenants = async (req, res) => {
-    try {
-        const currentUser = JSON.parse(req.headers['x-user']);
-        const role = currentUser.data.user.role;
-        const ownerid = currentUser.data.user._id;
-        console.log(ownerid, role);
-
-        const myPG = await getOwnProperty(ownerid, currentUser);
-        let tenants;
-        if (role === 'owner') {
-            tenants = await Tenant.find({ createdBy: currentUser.data.user._id });
-        } else {
-            tenants = await Tenant.find(); // For admin role or future use
-        }
-
-        res.status(200).json(tenants);
-
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-};
-
-// ✅ Get tenant by ID
-exports.getTenantByQuery = async (req, res) => {
+// ✅ Update tenant
+exports.updateTenant = async (req, res) => {
     const phone = req.query.phnum;
     const pgpalId = req.query.ppid;
     const _id = req.query.id;
-    const status = req.query.status;
-
-    try {
-        const tenant = await Tenant.find({ $or: [{ phone }, { pgpalId }, { _id }, { status }] });
-        if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
-        const ppId = tenant.map((t) => t.pgpalId);
-        console.log(ppId[0]);
-        res.status(200).json(tenant);
-    } catch (err) {
-        res.status(400).json({ error: err.message });
-    }
-};
-
-exports.getTenantByPhNum = async (req, res) => {
-    console.log('getTenantByPhNum called');
-    const internalService = req.headers['x-internal-service'];
-    if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
-
-    const phone = req.params.phnum;
-
-    try {
-        const tenant = await Tenant.find({ phone });
-        if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
-        const ppId = tenant.map((t) => t.pgpalId);
-        console.log(ppId[0]);
-        res.status(200).json(ppId[0]);
-    } catch (err) {
-        console.log(err);
-        res.status(400).json({ error: err.message });
-    }
-};
-
-// ✅ Update tenant
-exports.updateTenant = async (req, res) => {
     try {
         const updates = req.body;
 
-        const updatedTenant = await Tenant.findByIdAndUpdate(req.params.id, updates, {
+        const updatedTenant = await Tenant.findByIdAndUpdate({ $or: [{ phone }, { pgpalId }, { _id }] }, updates, {
             new: true,
             runValidators: true
         });
@@ -276,8 +130,10 @@ exports.updateTenant = async (req, res) => {
 
 // ✅ Delete tenant
 exports.deleteTenant = async (req, res) => {
+    const phone = req.query.phnum;
+    const pgpalId = req.query.ppid;
     try {
-        const deleted = await Tenant.findByIdAndDelete(req.params.id);
+        const deleted = await Tenant.findOneAndDelete({ $or: [{ phone }, { pgpalId }] });
         if (!deleted) return res.status(404).json({ error: 'Tenant not found' });
 
         res.status(200).json({ message: 'Tenant deleted successfully' });
