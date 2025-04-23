@@ -2,7 +2,7 @@ const Room = require('../models/roomModel');
 const axios = require('axios');
 
 const getOwnProperty = async (propertyId, currentUser) => {
-    
+
     try {
         const response = await axios.get(`http://localhost:4000/api/property-service/property?id=${propertyId}`,
             {
@@ -33,6 +33,8 @@ exports.getRoomsByPropertyId = async (req, res) => {
 };
 
 exports.getRoomById = async (req, res) => {
+    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    console.log(currentUser.data.user.pgpalId);
     if (!req.params.roomId) {
         return res.status(400).json({ error: 'Room ID is required' });
     }
@@ -48,6 +50,7 @@ exports.getRoomById = async (req, res) => {
 
 
 exports.getPropertySummary = async (req, res) => {
+   
     try {
         const propertyId = req.params.id;
 
@@ -160,7 +163,7 @@ exports.getPropertySummaryByType = async (req, res) => {
         }
         let totalTypes = 0;
         let typesSummary = {};
-        let totalSummary = {}
+        let totalSummary = {};
         rooms.forEach(room => {
             if (!typesSummary[room.type]) {
                 typesSummary[room.type] = {
@@ -220,7 +223,7 @@ exports.searchRooms = async (req, res) => {
         if (status && status !== 'available') {
             query.status = status;
         }
-        console.log(query)
+        console.log(query);
 
         const rooms = await Room.find({ propertyId, ...query }).populate('propertyId', 'name location totalRooms ownerId');
         if (!rooms || rooms.length === 0) {
@@ -231,3 +234,20 @@ exports.searchRooms = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+
+exports.getRoomByTenantId = async (req, res) => {
+    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    const id = currentUser.data.user.pgpalId
+    try {
+        const tenantId = req.params.tenantId;
+        if (!tenantId) {
+            return res.status(400).json({ error: 'Tenant ID is required' });
+        }
+        const room = await Room.findOne({ tenantId }).populate('propertyId', 'name location totalRooms ownerId');
+        if (!room) return res.status(404).json({ error: 'Room not found' });
+        res.status(200).json(room);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}

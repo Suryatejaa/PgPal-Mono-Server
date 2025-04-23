@@ -271,11 +271,27 @@ module.exports = {
 
     async getOwnerInfo(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
-        try {
-            const property = await Property.findById(req.params.id);
+
+        const propertyId = req.params.id;
+
+        const isValidObjectId = mongoose.Types.ObjectId.isValid(propertyId);
+
+        let property;
+
+        if (!isValidObjectId) {
+            property = await Property.findOne({ pgpalId: propertyId });
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
+        }
+        else {
+            property = await Property.findById(propertyId);
+            if (!property) {
+                return res.status(404).json({ error: 'Property not found' });
+            }
+        }
+       
+        try {
             const owner = await axios.get(`http://localhost:4000/api/auth-service/user?id=${property.ownerId}`,
                 {
                     headers: {
