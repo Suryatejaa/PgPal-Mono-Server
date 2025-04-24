@@ -106,6 +106,12 @@ app.use('/api/complaint-service', authenticate, attachUserHeader,
         target: 'http://localhost:4006', // Updated target
         changeOrigin: true,
     }));
+
+app.use('/api/kitchen-service', authenticate, attachUserHeader,
+    createProxyMiddleware({
+        target: 'http://localhost:4007', // Updated target
+        changeOrigin: true,
+    }));
 // Start the API Gateway
 
 const PORT = process.env.PORT || 4000;
