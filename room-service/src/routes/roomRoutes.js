@@ -17,6 +17,10 @@ router.get('/:id/rooms', roomGetController.getRoomsByPropertyId);
 router.get('/:id/rooms/search', roomGetController.searchRooms);
 router.get('/:id/rooms/:type', roomGetController.getRoomAvailabilityByType);
 
+router.get('/roomDocs/:pppid', roomGetController.getRoomDocs);
+router.get('/bedDocs/:pppid', roomGetController.getBedDocs);
+
+
 // Room summary and availability of property
 router.get('/:id/summary', roomGetController.getPropertySummary);
 router.get('/:id/summary-type', roomGetController.getPropertySummaryByType);

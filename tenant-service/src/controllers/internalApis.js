@@ -7,7 +7,6 @@ const getOwnProperty = async (propertyId, currentUser, ppid) => {
     } else {
         url = `http://localhost:4000/api/property-service/property/${propertyId}`;
     }
-    console.log(url)
     try {
         const response = await axios.get(url, {
             headers: {
@@ -17,7 +16,8 @@ const getOwnProperty = async (propertyId, currentUser, ppid) => {
         });
         return response.data;
     } catch (error) {
-        return null;
+        console.log(error);
+        return error.message;
     }
 };
 
@@ -48,8 +48,8 @@ const getRoomByNumber = async (propertyId, roomNumber, currentUser) => {
                 }
             }
         );
-
-        const room = response.data.find(r => r.roomNumber == roomNumber);
+        console.log(response.data.rooms);
+        const room = response.data.rooms.find(r => r.roomNumber == roomNumber);
 
         return room || null;
     } catch (error) {
@@ -78,17 +78,15 @@ const getUserByPpid = async (ppt, currentUser) => {
 };
 
 
-const assignBed = async (roomId, bedId, tenantPhone, tenantPpt, currentUser) => {
+const assignBed = async (roomId, bedId, tenantPhone, rentPerBed, tenantPpt, currentUser) => {
     try {
         const response = await axios.patch(
             `http://localhost:4000/api/room-service/rooms/${roomId}/assign-bed`,
-            { bedId, phone: tenantPhone, tenantPpt },
+            { bedId, phone: tenantPhone, rentPerBed, tenantPpt },
             {
                 headers: {
                     'x-user': JSON.stringify(currentUser),
                     'x-internal-service': true,
-                    
-
                 }
             }
         );
@@ -100,7 +98,7 @@ const assignBed = async (roomId, bedId, tenantPhone, tenantPpt, currentUser) => 
 };
 
 const clearBed = async (roomId, bedId, currentUser) => {
-    console.log('room and bed ', roomId, bedId)
+    console.log('room and bed ', roomId, bedId);
     try {
         const response = await axios.patch(
             `http://localhost:4000/api/room-service/rooms/${roomId}/clear-bed`,

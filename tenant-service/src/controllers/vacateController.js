@@ -65,10 +65,18 @@ exports.raiseVacate = async (req, res) => {
             roomId: currentStay.roomPpid,
             bedId: currentStay.bedId,
             rent: currentStay.rent,
+            rentPaid: currentStay.rentPaid,
+            rentDue: currentStay.rentDue,
+            rentPaidDate: currentStay.rentPaidDate,
+            rentDueDate: currentStay.rentDueDate,
+            rentPaidStatus: currentStay.rentPaidStatus,
+            rentPaidMethod: currentStay.rentPaidMethod,
+            rentPaidTransactionId: currentStay.rentPaidTransactionId,
+            nextRentDueDate: currentStay.nextRentDueDate,
             deposit: currentStay.deposit,
             assignedAt: currentStay.assignedAt,
             noticePeriodInMonths: currentStay.noticePeriodInMonths,
-            isInNoticePeriod: currentStay.isInNoticePeriod,
+            isInNoticePeriod: currentStay.isInNoticePeriod
         };
 
 
@@ -170,6 +178,14 @@ exports.withdrawVacate = async (req, res) => {
             roomPpid: previousSnapshot.roomId,
             bedId: previousSnapshot.bedId,
             rent: previousSnapshot.rent,
+            rentPaid: previousSnapshot.rentPaid,
+            rentDue: previousSnapshot.rentDue,
+            rentPaidDate: previousSnapshot.rentPaidDate,
+            rentDueDate: previousSnapshot.rentDueDate,
+            rentPaidStatus: previousSnapshot.rentPaidStatus,
+            rentPaidMethod: previousSnapshot.rentPaidMethod,
+            rentPaidTransactionId: previousSnapshot.rentPaidTransactionId,
+            nextRentDueDate: previousSnapshot.nextRentDueDate,
             deposit: previousSnapshot.deposit,
             assignedAt: previousSnapshot.assignedAt,
             noticePeriodInMonths: previousSnapshot.noticePeriodInMonths,
@@ -196,8 +212,7 @@ exports.withdrawVacate = async (req, res) => {
 
         updateProfile.stayHistory = [...profile.stayHistory];
 
-
-        const assignBedResponse = await assignBed(previousSnapshot.roomId, previousSnapshot.bedId, profile.phone, pgpalId, currentUser);
+        const assignBedResponse = await assignBed(previousSnapshot.roomId, previousSnapshot.bedId, profile.phone, previousSnapshot.rent, pgpalId, currentUser);
         if (!assignBedResponse) return res.status(400).json({ error: 'Failed to assign bed' });
 
         const updatedTenant = await Tenant.findByIdAndUpdate(tenant[0]._id, updateProfile, { new: true });

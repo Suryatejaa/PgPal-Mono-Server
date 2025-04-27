@@ -1,5 +1,6 @@
 
 const Tenant = require('../models/tenantModel');
+const Vacates = require('../models/vacatesModel');
 const { getOwnProperty } = require('./internalApis'); // Assuming you have a function to generate PPT IDs
 
 // ✅ Get all tenants (owned or added by this PG owner)
@@ -8,7 +9,6 @@ exports.getTenants = async (req, res) => {
         const currentUser = JSON.parse(req.headers['x-user']);
         const role = currentUser.data.user.role;
         const ownerid = currentUser.data.user._id;
-        console.log(ownerid, role);
 
         let tenants;
         if (role === 'owner') {
@@ -27,14 +27,28 @@ exports.getTenants = async (req, res) => {
 // ✅ Get tenant by ID
 exports.getTenantByQuery = async (req, res) => {
     const phone = req.query.phnum;
-    const pgpalId = req.query.ppid;
+    const pgpalId = req.query.ppid; //tenantID
     const _id = req.query.id;
     const status = req.query.status;
+    const propertyId = req.query.propertyId;
+
+    console.log('called with ', phone || pgpalId || _id || status || propertyId)
+    
+    const query = {
+        $or: [
+            phone ? { phone } : null,
+            pgpalId ? { pgpalId } : null,
+            _id ? { _id } : null,
+            status ? { status } : null,
+            propertyId ? { "currentStay.propertyPpid": propertyId } : null
+        ].filter(Boolean) // Remove null values
+    };
+
     try {
-        const tenant = await Tenant.find({ $or: [{ phone }, { pgpalId }, { _id }, { status }] });
+        const tenant = await Tenant.findOne(query);
+
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
-        const ppId = tenant.map((t) => t.pgpalId);
-        console.log(ppId[0]);
+        console.log(tenant.pgpalId)
         res.status(200).json(tenant);
     } catch (err) {
         res.status(400).json({ error: err.message });
@@ -42,7 +56,6 @@ exports.getTenantByQuery = async (req, res) => {
 };
 
 exports.getTenantByPhNum = async (req, res) => {
-    console.log('getTenantByPhNum called');
     const internalService = req.headers['x-internal-service'];
     if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
 
@@ -52,24 +65,37 @@ exports.getTenantByPhNum = async (req, res) => {
         const tenant = await Tenant.find({ phone });
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
         const ppId = tenant.map((t) => t.pgpalId);
-        console.log(ppId[0]);
         res.status(200).json(ppId[0]);
     } catch (err) {
-        console.log(err);
         res.status(400).json({ error: err.message });
     }
 };
 
 exports.getTenantStayStatus = async (req, res) => {
     const phone = req.query.phnum;
-    const pgpalId = req.query.ppid;
+    const pgpalId = req.query.ppid; //tenantID
     const _id = req.query.id;
-    console.log('Queries ', phone, pgpalId, _id, status);
 
     try {
         const tenant = await Tenant.find({ $or: [{ phone }, { pgpalId }, { _id }] });
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
-        console.log(tenant[0].currentStay);
+        res.status(200).json({ currentStay: tenant[0].currentStay });
+    }
+    catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+};
+
+exports.getMyStay = async (req, res) => {
+    const currentUser = JSON.parse(req.headers['x-user']);
+    const role = currentUser.data.user.role;
+    const pgpalId = currentUser.data.user.pgpalId;
+    const _id = currentUser.data.user._id;
+    if (role !== 'tenant') return res.status(403).json({ error: 'Forbidden, Access denied' });
+
+    try {
+        const tenant = await Tenant.find({ $or: [{ phone: currentUser.data.user.phone }, { pgpalId }, { _id }] });
+        if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
         res.status(200).json({ currentStay: tenant[0].currentStay });
     }
     catch (err) {
@@ -102,7 +128,6 @@ exports.getTenantsByRoom = async (req, res) => {
         const tenant = await Tenant.find({ $and: [{ "currentStay.propertyPpid": propertyPpid }, { "currentStay.roomPpid": roomPpid }] });
         if (!tenant || tenant.length === 0) return res.status(404).json({ error: 'Tenant not found' });
         const ppId = tenant.map((t) => t.pgpalId);
-        console.log(ppId[0]);
         res.status(200).json(tenant);
     }
     catch (err) {
@@ -130,5 +155,79 @@ exports.getTenantProfile = async (req, res) => {
     catch (err) {
         res.status(400).json({ error: err.message });
     }
+}
+
+exports.getTenantDocs = async (req, res) => {
+    const internalService = req.headers['x-internal-service'];
+    if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
+
+    const pppid = req.params.pppid;
+    try{
+        const tenantsCount = await Tenant.countDocuments({ 'currentStay.propertyPpid': pppid, status: 'active' });
+        if (tenantsCount === 0) return res.status(404).json({ error: 'Tenant not found' });
+
+       
+        res.status(200).json({ activeTenants: tenantsCount });
+    }
+    catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+
+}
+
+exports.getCheckins = async (req, res) => {
+    const internalService = req.headers['x-internal-service'];
+    if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
+
+    const pppid = req.params.pppid;
+    const period = req.query.period || 'week'; // 'week' or 'month'
+    const days = period === 'month' ? 30 : 7;
+    const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+
+    try {
+        const checkins = await Tenant.find({
+            'currentStay.propertyPpid': pppid,
+            status: 'active',
+            'currentStay.assignedAt': { $gte: fromDate }
+        }).countDocuments();
+
+        res.json({
+            period,
+            checkins
+        });
+    }
+    catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+
+}
+
+
+exports.getVacates = async (req, res) => {
+    const internalService = req.headers['x-internal-service'];
+    if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
+
+    const pppid = req.params.pppid;
+    const period = req.query.period || 'week'; // 'week' or 'month'
+    const days = period === 'month' ? 30 : 7;
+    const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+
+    try {
+        const vacates = await Vacates.find({
+            propertyId: pppid,
+            vacateDate: { $gte: fromDate }
+        }).countDocuments();
+
+        res.json({
+            period,
+            vacates
+        });
+    }
+    catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+
 }
 

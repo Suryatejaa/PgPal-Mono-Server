@@ -63,10 +63,18 @@ exports.removeTenant = async (req, res) => {
             roomId: currentStay.roomPpid,
             bedId: currentStay.bedId,
             rent: currentStay.rent,
+            rentPaid: currentStay.rentPaid,
+            rentDue: currentStay.rentDue,
+            rentPaidDate: currentStay.rentPaidDate,
+            rentDueDate: currentStay.rentDueDate,
+            rentPaidStatus: currentStay.rentPaidStatus,
+            rentPaidMethod: currentStay.rentPaidMethod,
+            rentPaidTransactionId: currentStay.rentPaidTransactionId,
+            nextRentDueDate: currentStay.nextRentDueDate,
             deposit: currentStay.deposit,
             assignedAt: currentStay.assignedAt,
             noticePeriodInMonths: currentStay.noticePeriodInMonths,
-            isInNoticePeriod: false,
+            isInNoticePeriod: currentStay.isInNoticePeriod
         };
 
         const updateProfile = {
@@ -152,15 +160,23 @@ exports.retainTenant = async (req, res) => {
         if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
 
 
-        const previousStaySnapshot = vacate.previousSnapshot;
+        const previousSnapshot = vacate.previousSnapshot;
         const backupStay = {
-            propertyPpid: previousStaySnapshot.propertyId,
-            roomPpid: previousStaySnapshot.roomId,
-            bedId: previousStaySnapshot.bedId,
-            rent: previousStaySnapshot.rent,
-            deposit: previousStaySnapshot.deposit,
-            assignedAt: previousStaySnapshot.assignedAt,
-            noticePeriodInMonths: previousStaySnapshot.noticePeriodInMonths,
+            propertyPpid: previousSnapshot.propertyId,
+            roomPpid: previousSnapshot.roomId,
+            bedId: previousSnapshot.bedId,
+            rent: previousSnapshot.rent,
+            rentPaid: previousSnapshot.rentPaid,
+            rentDue: previousSnapshot.rentDue,
+            rentPaidDate: previousSnapshot.rentPaidDate,
+            rentDueDate: previousSnapshot.rentDueDate,
+            rentPaidStatus: previousSnapshot.rentPaidStatus,
+            rentPaidMethod: previousSnapshot.rentPaidMethod,
+            rentPaidTransactionId: previousSnapshot.rentPaidTransactionId,
+            nextRentDueDate: previousSnapshot.nextRentDueDate,
+            deposit: previousSnapshot.deposit,
+            assignedAt: previousSnapshot.assignedAt,
+            noticePeriodInMonths: previousSnapshot.noticePeriodInMonths,
             isInNoticePeriod: false,
             updatedAt: new Date()
         };
@@ -182,7 +198,8 @@ exports.retainTenant = async (req, res) => {
 
         updateProfile.stayHistory = [...profile.stayHistory];
 
-        const assignBedResponse = await assignBed(previousStaySnapshot.roomId, previousStaySnapshot.bedId, profile.phone, pgpalId, currentUser);
+
+        const assignBedResponse = await assignBed(previousSnapshot.roomId, previousSnapshot.bedId, profile.phone, previousSnapshot.rent, pgpalId, currentUser);
         if (!assignBedResponse) return res.status(400).json({ error: 'Failed to assign bed' });
 
         const updatedTenant = await Tenant.findByIdAndUpdate(tenant._id, updateProfile, { new: true });

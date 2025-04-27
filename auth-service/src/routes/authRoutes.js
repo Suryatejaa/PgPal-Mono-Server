@@ -7,6 +7,8 @@ const validateRequest = require('../utils/validateRequest');
 const validateLogin = require('../utils/validatelogin');
 const passport = require('../controllers/googleLogin');
 const updateProfileGoogle = require('../controllers/updateProfileGoogle');
+const cacheMiddleware = require('../utils/cacheMiddleware');
+
 // const ProfileController = require('../Apis/Profile.api');
 // const authRoutes = require('../Middleware/refreshToken');
 
@@ -20,7 +22,7 @@ const restrictToInternal = (req, res, next) => {
 
 router.post('/register', validateRequest, UserController.registerUser);
 router.post('/login', validateLogin, UserController.loginUser);
-router.get('/me', authenticate, UserController.getUser);
+router.get('/me', authenticate, cacheMiddleware, UserController.getUser);
 router.patch('/me', validateRequest, authenticate, UserController.updateUser);
 router.post('/otp/send', validateRequest, UserController.sendOtp);
 router.post('/otp/verify', UserController.verifyOtp);

@@ -2,6 +2,8 @@ const User = require('../models/userModel');
 const otpStore = {};
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
+const redisClient = require('../utils/redis.js'); // Adjust the path as needed
+
 
 
 const setHeader = (res, token) => {
@@ -48,7 +50,8 @@ const loginUser = async (req, res) => {
                     $or: [
                         { email: credential },
                         { phoneNumber: credential },
-                        { username: credential }
+                        { username: credential },
+                        { pgpalId: credential }
                     ]
                 },
                 { role: role } // Ensure the role matches
@@ -125,11 +128,17 @@ const logoutUser = async (req, res) => {
 
 const getUser = async (req, res) => {
     try {
+
+        const cacheKey = req.originalUrl;
+
         const token = req.cookies.token;
         if (!token) {
             return res.status(401).json({ message: "Not authenticated" });
         }
         const user = req.user;
+        if (redisClient.isReady) {
+            await redisClient.set(cacheKey, JSON.stringify(user), { EX: 600 });
+        }
         res.send(user);
     } catch (error) {
         res.status(400).send({

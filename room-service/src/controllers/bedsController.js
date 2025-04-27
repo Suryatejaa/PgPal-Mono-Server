@@ -9,7 +9,7 @@ const getOwnProperty = async (propertyId, currentUser, ppid) => {
     else {
         url = `http://localhost:4000/api/property-service/property/${propertyId}`;
     }
-    console.log(url)
+    console.log(url);
     try {
         const response = await axios.get(url,
             {
@@ -52,7 +52,7 @@ exports.assignBed = async (req, res) => {
     try {
         const room = await Room.findOne({ pgpalId: roomId });
         const propertyId = room.propertyId;
-        const property = await getOwnProperty(propertyId, currentUser, ppid=false);
+        const property = await getOwnProperty(propertyId, currentUser, ppid = false);
         if (!property) {
             return res.status(404).json({ error: 'Property not found' });
         }
@@ -62,6 +62,7 @@ exports.assignBed = async (req, res) => {
 
         if (!room) return res.status(404).json({ error: 'Room not found' });
 
+        console.log(room.rentPerBed);
         const bed = room.beds.find(b => b.bedId === bedId);
         if (!bed) return res.status(404).json({ error: 'Bed not found' });
         if (bed.status === 'occupied') {
@@ -105,7 +106,7 @@ exports.clearBed = async (req, res) => {
         const room = await Room.findOne({ pgpalId: roomId });
 
         if (!room) return res.status(404).json({ error: 'Room not found' });
-        
+
         const bed = room.beds.find(b => b.bedId === bedId);
         console.log('Clearing bed:', bed);
         if (!bed) return res.status(404).json({ error: 'Bed not found' });

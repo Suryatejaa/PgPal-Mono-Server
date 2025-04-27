@@ -2,6 +2,7 @@ const WeeklyMenu = require('../models/kitchenMenuModel');
 const { getPropertyOwner } = require('./internalApis');
 const { getTenantConfirmation } = require('./internalApis');
 const { getFormattedDayName } = require('../utils/getFormatedDay');
+const redisClient = require('../utils/redis')
 
 exports.selectMenu = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']);
@@ -85,6 +86,9 @@ exports.addWeeklyMenu = async (req, res) => {
             updatedAt: new Date()
         });
 
+        await redisClient.del(`/api/kitchen-service/${propertyPpid}`);
+        await redisClient.del(`/api/kitchen-service/${propertyPpid}/menu-today`);
+
         res.status(201).json(weeklyMenu);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -121,13 +125,14 @@ exports.getTodayMenu = async (req, res) => {
 
     if (role === 'tenant') {
         const tenantConfirmation = await getTenantConfirmation(ppid, currentUser);
+        console.log(tenantConfirmation)
         if (!tenantConfirmation) {
             return res.status(404).json({ error: 'Tenant not found' });
         }
-        if (tenantConfirmation[0].status !== 'active') {
+        if (tenantConfirmation.status !== 'active') {
             return res.status(403).json({ error: 'Tenant is not active' });
         }
-        if (propertyId !== tenantConfirmation[0].currentStay.propertyPpid) {
+        if (propertyId !== tenantConfirmation.currentStay.propertyPpid) {
             return res.status(403).json({ error: 'Tenant is not staying in this property' });
         }
     }
@@ -135,7 +140,7 @@ exports.getTodayMenu = async (req, res) => {
     const dayName = getFormattedDayName();
 
     try {
-        const menu = await WeeklyMenu.find({ propertyPpid: propertyId })
+        const menu = await WeeklyMenu.find({ propertyPpid: propertyId, selected:true })
             .populate('menu.meals.items', 'name');
         if (!menu || menu.length === 0) return res.status(404).json({ error: 'Menu not found' });
 
@@ -174,12 +179,18 @@ exports.getTodayMenu = async (req, res) => {
             })
         }));
 
-        res.status(200).json({
+        const response = {
             propertyId,
             day: dayName,
             totalMenus: formattedMenus.length,
             meals: formattedMenus
-        });
+        };
+
+        // Cache the response in Redis with a TTL of 10 minutes
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.status(200).json(response);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -210,11 +221,17 @@ exports.getMenuList = async (req, res) => {
         const menus = await WeeklyMenu.find({ propertyPpid : propertyId }).populate('menu.meals.items', 'name');
         if (!menus || menus.length === 0) return res.status(404).json({ error: 'No menus found' });
 
-        res.status(200).json({
+        const response = {
             propertyId,
             totalMenus: menus.length,
-            menus: menus
-        });
+            menus
+        };
+
+        // Cache the response in Redis with a TTL of 10 minutes
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.status(200).json(response);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -244,22 +261,28 @@ exports.updateWeeklyMenu = async (req, res) => {
     if (existingMenu === 0) {
         return res.status(404).json({ error: 'Menu not found' });
     }
-    console.log(existingMenu);
     try {
-        const updatedMenu = existingMenu.menu.map(dayMenu => {
-            const updatedDay = meals.find(newDay => newDay.day === dayMenu.day);
-            if (updatedDay) {
-                // Replace the day's meals with the new meals
-                return { ...dayMenu, meals: updatedDay.meals };
+        const updatedMenu = [...existingMenu.menu];
+
+        meals.forEach(newDay => {
+            const existingDayIndex = updatedMenu.findIndex(dayMenu => dayMenu.day === newDay.day);
+            if (existingDayIndex !== -1) {
+                // Update existing day's meals
+                updatedMenu[existingDayIndex].meals = newDay.meals;
+            } else {
+                // Append new day
+                updatedMenu.push(newDay);
             }
-            // Keep the existing day's meals if not updated
-            return dayMenu;
         });
 
         existingMenu.menu = updatedMenu;
         existingMenu.updatedAt = new Date();
 
         const savedMenu = await existingMenu.save();
+
+        await redisClient.del(`/api/kitchen-service/${propertyPpid}`);
+        await redisClient.del(`/api/kitchen-service/${propertyPpid}/menu-today`);
+
         res.status(200).json(savedMenu);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -301,6 +324,10 @@ exports.deleteWeeklyMenu = async (req, res) => {
                 await menu.save(); // Save the updated menu
             })
         );
+
+        await redisClient.del(`/api/kitchen-service/${propertyPpid}`);
+        await redisClient.del(`/api/kitchen-service/${propertyPpid}/menu-today`);
+
         // Send the updated menus as response
         res.status(200).json(remainingMenus);
 

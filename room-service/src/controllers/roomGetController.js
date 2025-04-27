@@ -1,3 +1,4 @@
+const { default: mongoose } = require('mongoose');
 const Room = require('../models/roomModel');
 const axios = require('axios');
 
@@ -12,6 +13,7 @@ const getOwnProperty = async (propertyId, currentUser) => {
                 }
             }
         );
+        console.log(response.data);
         return response.data;
     } catch (error) {
         console.error('[getOwnProperty] Error:', error.response?.data || error.message);
@@ -26,7 +28,10 @@ exports.getRoomsByPropertyId = async (req, res) => {
         if (!rooms || rooms.length === 0) {
             return res.status(404).json({ error: 'No rooms found' });
         }
-        res.status(200).json(rooms);
+        res.status(200).json({
+            totalRooms: rooms.length,
+            rooms: rooms,
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -88,6 +93,8 @@ exports.getRoomAvailability = async (req, res) => {
         const roomId = req.params.roomId;
         const room = await Room.findById(roomId).populate('propertyId', 'name location totalRooms ownerId');
         if (!room) return res.status(404).json({ error: 'Room not found' });
+
+
         const property = await getOwnProperty(room.propertyId, currentUser);
         const availability = room.beds.map(bed => {
             if (bed.status === 'vacant') {
@@ -249,5 +256,77 @@ exports.getRoomByTenantId = async (req, res) => {
         res.status(200).json(room);
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+};
+
+exports.getRoomDocs = async (req, res) => {
+    const internalService = req.headers['x-internal-service'];
+    if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
+
+    const currentUser = JSON.parse(req.headers['x-user']);
+
+    const pppid = req.params.pppid;
+    
+    try {
+        const roomDocs = await Room.countDocuments({ propertyId: pppid });
+        if (roomDocs === 0) return res.status(404).json({ error: 'Room not found' });
+        res.status(200).json({ count: roomDocs });
+    }
+    catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+}
+
+exports.getBedDocs = async (req, res) => {
+    const internalService = req.headers['x-internal-service'];
+    if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
+
+    const pppid = req.params.pppid;
+    if (!pppid) {
+        return res.status(400).json({ error: 'Property ID is required' });
+    }
+
+    const pppObjectId = new mongoose.Types.ObjectId(pppid);
+
+
+    console.log(pppObjectId);
+    try {
+        const beds = await Room.aggregate([
+            { $match: { propertyId: pppObjectId } },
+            { $unwind: '$beds' },
+            {
+                $group: {
+                    _id: '$propertyId', 
+                    totalBeds: { $sum: 1 },
+                    occupiedBeds: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ['$beds.status', 'occupied'] }, // Check if bed status is 'occupied'
+                                1,
+                                0
+                            ]
+                        }
+                    },
+                    availableBeds: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ['$beds.status', 'available'] },
+                                1,
+                                0
+                            ]
+                        }
+                    }
+                }
+            }
+        ]);
+
+        if (!beds || beds.length === 0) {
+            return res.status(404).json({ error: 'No beds found for the given property ID' });
+        }
+
+        res.status(200).json(beds);
+    }
+    catch (err) {
+        res.status(400).json({ error: err.message });
     }
 }

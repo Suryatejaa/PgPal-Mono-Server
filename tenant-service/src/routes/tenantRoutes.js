@@ -16,6 +16,11 @@ router.get('/tenant-currentStay', TenantGetController.getTenantStayStatus);
 router.get('/tenant-history', TenantGetController.getTenantHistory);
 router.get('/tenants/:pppId/:pprId', TenantGetController.getTenantsByRoom);
 router.get('/profile', TenantGetController.getTenantProfile);
+router.get('/myStay', TenantGetController.getMyStay);
+
+router.get('/tenantDocs/:pppid', TenantGetController.getTenantDocs);
+router.get('/checkins/:pppid', TenantGetController.getCheckins);
+router.get('/vacates/:pppid', TenantGetController.getVacates);
 
 router.post('/vacate', VacateController.raiseVacate);
 router.post('/withdraw-vacate', VacateController.withdrawVacate);   
