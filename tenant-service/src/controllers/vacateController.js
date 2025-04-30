@@ -1,7 +1,8 @@
 const { clearBed, assignBed } = require('./internalApis'); // Assuming you have a function to generate PPT IDs
 const Vacates = require('../models/vacatesModel');
 const Tenant = require('../models/tenantModel');
-
+const redisClient = require('../utils/redis');
+const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 
 exports.raiseVacate = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']);
@@ -127,6 +128,9 @@ exports.raiseVacate = async (req, res) => {
         const vacateRequest = await Vacates.create(vacate);
         if (!vacateRequest) return res.status(404).json({ error: 'Vacate request not created' });
 
+        const propertyPpid = stayHistory.propertyId;
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
+
         res.status(201).json({
             Comments: {
                 message: 'Vacate request created successfully',
@@ -158,16 +162,16 @@ exports.withdrawVacate = async (req, res) => {
         const vacate = await Vacates.findOne({ tenantId: profile.pgpalId });
         if (!vacate) return res.status(404).json({ error: 'Vacate request not found' });
         if (vacate.removedByOwner) return res.status(400).json({ error: 'This tenant was removed by the owner, please check with owner' });
-        
+
         if (!profile.isInNoticePeriod) return res.status(400).json({ error: 'Tenant is not in notice period' });
-        
+
         const withdrawWindow = vacate.isImmediateVacate ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
         const currentTime = new Date().getTime();
         const vacateRaisedAtTime = new Date(vacate.vacateRaisedAt).getTime();
-       
+
         const isWithdrawWindowOpen = currentTime - vacateRaisedAtTime <= withdrawWindow;
-        if (!isWithdrawWindowOpen) return res.status(400).json({ error: 'Withdraw window is closed' });        
-       
+        if (!isWithdrawWindowOpen) return res.status(400).json({ error: 'Withdraw window is closed' });
+
         if (vacate.status === 'withdrawn') return res.status(400).json({ error: 'Vacate request is already withdrawn' });
         if (vacate.status === 'completed' && !vacate.isImmediateVacate) return res.status(400).json({ error: 'Vacate request is already completed' });
 
@@ -220,6 +224,9 @@ exports.withdrawVacate = async (req, res) => {
 
         const updatedVacate = await Vacates.findByIdAndDelete(vacate._id, { new: true });
         if (!updatedVacate) return res.status(404).json({ error: 'Vacate request not found' });
+
+        const propertyPpid = backupStay.propertyPpid;
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(200).json({
             message: 'Vacate request withdrawn successfully',

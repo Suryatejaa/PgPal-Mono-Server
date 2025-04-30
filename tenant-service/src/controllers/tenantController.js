@@ -1,7 +1,8 @@
 const Tenant = require('../models/tenantModel');
 const { generatePPT } = require('../utils/idGenerator'); // Assuming you have a function to generate PPT IDs
 const { assignBed, getOwnProperty, getUserByPhone, getRoomByNumber, getUserByPpid } = require('./internalApis'); // Assuming you have a function to generate PPT IDs
-
+const redisClient = require('../utils/redis');
+const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 // Helper to fetch property & verify ownership
 
 exports.addTenant = async (req, res) => {
@@ -18,7 +19,9 @@ exports.addTenant = async (req, res) => {
         const { name, email, phone, gender, address, aadhar, propertyId, roomNumber, bedId, rentPaid, rentPaidDate, rentDueDate, rentPaidMethod, deposit, noticePeriodInMonths } = req.body;
 
         if (!name || !phone || !propertyId || !roomNumber || !bedId || !aadhar || !rentPaid || !rentPaidMethod || deposit === undefined || noticePeriodInMonths === undefined) {
-            return res.status(400).json({ error: 'Missing required fields' });
+            if (rentPaid !== 0 && !rentPaidMethod)
+                return res.status(400).json({ error: 'Missing required fields' });
+
         }
         const property = await getOwnProperty(propertyId, currentUser, ppid = false);
         if (!property || property.ownerId !== ownerId) {
@@ -68,6 +71,10 @@ exports.addTenant = async (req, res) => {
         if (assigned?.status !== 200) {
             return res.status(400).json({ error: 'Failed to assign bed' });
         }
+        const newDue = Math.max(rent - rentPaid, 0);
+        const advance = newDue < 0 ? Math.abs(newDue) : 0;
+        const rentDue = newDue > 0 ? newDue : 0;
+        const status = rentDue > 0 ? 'unpaid' : 'paid';
 
         const tenantData = {
             name,
@@ -81,15 +88,16 @@ exports.addTenant = async (req, res) => {
                 propertyPpid: propertyPPP,
                 roomPpid: roomPPR,
                 rent: room.rentPerBed,
-                rentPaid: rentPaid, 
-                rentDue: room.rentPerBed - rentPaid,
-                rentPaidDate: rentPaidDate ? rentPaidDate : new Date(),
-                rentDueDate: rentDueDate ? rentDueDate : null,
-                rentPaidStatus: (room.rentPerBed - rentPaid) > 0 ? 'unpaid' : 'paid',
+                rentPaid: rentPaid,
+                rentDue: rentDue,
+                rentPaidDate: rentPaidDate ? rentPaidDate : rentPaid > 0 ? new Date() : null,
+                rentDueDate: rentDueDate ? rentDueDate : room.rentPerBed - rentPaid > 0 ? new Date(new Date().setDate(new Date().getDate() + 7)) : new Date(new Date().setMonth(new Date().getMonth() + 1)),
+                rentPaidStatus: status,
                 rentPaidMethod: rentPaidMethod,
                 rentPaidTransactionId: null,
                 nextRentDueDate: new Date(new Date().setMonth(new Date().getMonth() + 1)), // Assuming rent is due monthly                
                 deposit: deposit,
+                advanceBalance: advance,
                 noticePeriodInMonths: noticePeriodInMonths,
                 isInNoticePeriod: false,
                 bedId
@@ -102,6 +110,9 @@ exports.addTenant = async (req, res) => {
         }
 
         const tenant = existing ? await Tenant.findByIdAndUpdate(existing._id, tenantData, { new: true }) : await Tenant.create(tenantData);
+
+        const propertyPpid = property.pgpalId;
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(201).json({
             message: 'Tenant added and assigned successfully',
@@ -117,20 +128,32 @@ exports.addTenant = async (req, res) => {
 
 // ✅ Update tenant
 exports.updateTenant = async (req, res) => {
+    const currentUser = JSON.parse(req.headers['x-user']);
+    const role = currentUser.data.user.role;
+    const id = currentUser.data.user._id;
+    const ownerPpid = currentUser.data.user.pgpalId;
+
     const phone = req.query.phnum;
     const pgpalId = req.query.ppid;
     const _id = req.query.id;
     try {
         const updates = req.body;
 
+
+        const Tenant = await Tenant.findOne({ $or: [{ phone }, { pgpalId }, { _id }] });
+        if (!Tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+        const property = await getOwnProperty(Tenant.currentStay.propertyPpid, currentUser, ppid = true);
+        if (!property) return res.status(404).json({ error: 'Property not found' });
+        if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this tenant' });
+
         const updatedTenant = await Tenant.findByIdAndUpdate({ $or: [{ phone }, { pgpalId }, { _id }] }, updates, {
             new: true,
             runValidators: true
         });
 
-        if (!updatedTenant) {
-            return res.status(404).json({ error: 'Tenant not found' });
-        }
+        const propertyPpid = property.pgpalId;
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(200).json({ message: 'Tenant updated successfully', updatedTenant });
     } catch (err) {
@@ -142,9 +165,20 @@ exports.updateTenant = async (req, res) => {
 exports.deleteTenant = async (req, res) => {
     const phone = req.query.phnum;
     const pgpalId = req.query.ppid;
+
     try {
-        const deleted = await Tenant.findOneAndDelete({ $or: [{ phone }, { pgpalId }] });
-        if (!deleted) return res.status(404).json({ error: 'Tenant not found' });
+
+        const Tenant = await Tenant.findOne({ $or: [{ phone }, { pgpalId }] });
+        if (!Tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+        const property = await getOwnProperty(Tenant.currentStay.propertyPpid, currentUser, ppid = true);
+        if (!property) return res.status(404).json({ error: 'Property not found' });
+        if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this tenant' });
+
+        await Tenant.findOneAndDelete({ $or: [{ phone }, { pgpalId }] });
+
+        const propertyPpid = property.pgpalId;
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(200).json({ message: 'Tenant deleted successfully' });
     } catch (err) {

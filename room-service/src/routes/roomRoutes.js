@@ -3,6 +3,8 @@ const router = express.Router();
 const roomController = require('../controllers/roomController');
 const roomGetController = require('../controllers/roomGetController');
 const bedController = require('../controllers/bedsController');
+const cacheMiddleware = require('../utils/cacheMiddleware')
+
 
 // Room CRUD operations
 router.post('/rooms', roomController.addRoom);
@@ -13,20 +15,20 @@ router.patch('/rooms/:roomId/assign-bed', bedController.assignBed);
 router.patch('/rooms/:roomId/clear-bed', bedController.clearBed);
 
 // Room retrieval by property
-router.get('/:id/rooms', roomGetController.getRoomsByPropertyId);
-router.get('/:id/rooms/search', roomGetController.searchRooms);
-router.get('/:id/rooms/:type', roomGetController.getRoomAvailabilityByType);
+router.get('/:id/rooms', cacheMiddleware, roomGetController.getRoomsByPropertyId);
+router.get('/:id/rooms/search', cacheMiddleware, roomGetController.searchRooms);
+router.get('/:id/rooms/:type', cacheMiddleware, roomGetController.getRoomAvailabilityByType);
 
-router.get('/roomDocs/:pppid', roomGetController.getRoomDocs);
-router.get('/bedDocs/:pppid', roomGetController.getBedDocs);
+router.get('/roomDocs/:pppid', cacheMiddleware, roomGetController.getRoomDocs);
+router.get('/bedDocs/:pppid', cacheMiddleware, roomGetController.getBedDocs);
 
 
 // Room summary and availability of property
-router.get('/:id/summary', roomGetController.getPropertySummary);
-router.get('/:id/summary-type', roomGetController.getPropertySummaryByType);
+router.get('/:id/summary', cacheMiddleware, roomGetController.getPropertySummary);
+router.get('/:id/summary-type', cacheMiddleware, roomGetController.getPropertySummaryByType);
 
 // Room and bed details
-router.get('/rooms/:roomId', roomGetController.getRoomById);
-router.get('/:roomId/beds-availability', roomGetController.getRoomAvailability);
+router.get('/rooms/:roomId', cacheMiddleware, roomGetController.getRoomById);
+router.get('/:roomId/beds-availability', cacheMiddleware, roomGetController.getRoomAvailability);
 
 module.exports = router;

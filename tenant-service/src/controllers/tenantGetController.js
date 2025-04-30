@@ -1,7 +1,8 @@
-
 const Tenant = require('../models/tenantModel');
 const Vacates = require('../models/vacatesModel');
 const { getOwnProperty } = require('./internalApis'); // Assuming you have a function to generate PPT IDs
+const redisClient = require('../utils/redis');
+const refreshRentForBilling = require('../utils/refreshRent');
 
 // ✅ Get all tenants (owned or added by this PG owner)
 exports.getTenants = async (req, res) => {
@@ -16,6 +17,9 @@ exports.getTenants = async (req, res) => {
         } else {
             tenants = await Tenant.find(); // For admin role or future use
         }
+
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(tenants), { EX: 300 });
 
         res.status(200).json(tenants);
 
@@ -32,8 +36,8 @@ exports.getTenantByQuery = async (req, res) => {
     const status = req.query.status;
     const propertyId = req.query.propertyId;
 
-    console.log('called with ', phone || pgpalId || _id || status || propertyId)
-    
+    console.log('called with ', phone || pgpalId || _id || status || propertyId);
+
     const query = {
         $or: [
             phone ? { phone } : null,
@@ -48,8 +52,26 @@ exports.getTenantByQuery = async (req, res) => {
         const tenant = await Tenant.findOne(query);
 
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
-        console.log(tenant.pgpalId)
-        res.status(200).json(tenant);
+        console.log(tenant.pgpalId);
+
+        const refreshedCurrentStay = refreshRentForBilling(tenant.currentStay);
+
+        const response = {
+            name: tenant.name,
+            pgpalId: tenant.pgpalId,
+            phone: tenant.phone,
+            aadhar: tenant.aadhar,
+            status: tenant.status,
+            In_Notice_Period: tenant.isInNoticePeriod,
+            currentStay: refreshedCurrentStay,
+            addedBy: tenant.createdBy,
+            stayHistory: tenant.stayHistory ? tenant.stayHistory : null
+        };
+
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.status(200).json(response);
     } catch (err) {
         res.status(400).json({ error: err.message });
     }
@@ -65,6 +87,10 @@ exports.getTenantByPhNum = async (req, res) => {
         const tenant = await Tenant.find({ phone });
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
         const ppId = tenant.map((t) => t.pgpalId);
+
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(ppId[0]), { EX: 300 });
+
         res.status(200).json(ppId[0]);
     } catch (err) {
         res.status(400).json({ error: err.message });
@@ -79,7 +105,12 @@ exports.getTenantStayStatus = async (req, res) => {
     try {
         const tenant = await Tenant.find({ $or: [{ phone }, { pgpalId }, { _id }] });
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
-        res.status(200).json({ currentStay: tenant[0].currentStay });
+
+        const response = { currentStay: tenant[0].currentStay };
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.status(200).json(response);
     }
     catch (err) {
         res.status(400).json({ error: err.message });
@@ -96,7 +127,13 @@ exports.getMyStay = async (req, res) => {
     try {
         const tenant = await Tenant.find({ $or: [{ phone: currentUser.data.user.phone }, { pgpalId }, { _id }] });
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
-        res.status(200).json({ currentStay: tenant[0].currentStay });
+
+        const response = { currentStay: tenant[0].currentStay };
+
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.status(200).json(response);
     }
     catch (err) {
         res.status(400).json({ error: err.message });
@@ -111,7 +148,12 @@ exports.getTenantHistory = async (req, res) => {
     try {
         const tenant = await Tenant.find({ $or: [{ phone }, { pgpalId }, { _id }] });
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
-        res.status(200).json(tenant[0].stayHistory);
+
+        const response = tenant[0].stayHistory;
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.status(200).json(response);
     }
     catch (err) {
         res.status(400).json({ error: err.message });
@@ -128,6 +170,10 @@ exports.getTenantsByRoom = async (req, res) => {
         const tenant = await Tenant.find({ $and: [{ "currentStay.propertyPpid": propertyPpid }, { "currentStay.roomPpid": roomPpid }] });
         if (!tenant || tenant.length === 0) return res.status(404).json({ error: 'Tenant not found' });
         const ppId = tenant.map((t) => t.pgpalId);
+
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(tenant), { EX: 300 });
+
         res.status(200).json(tenant);
     }
     catch (err) {
@@ -140,40 +186,49 @@ exports.getTenantProfile = async (req, res) => {
     const role = currentUser.data.user.role;
 
     if (role !== 'tenant') return res.status(403).json({ error: 'Forbidden, Access denied' });
-    
-    const pgpalId = currentUser.data.user.pgpalId;  
+
+    const pgpalId = currentUser.data.user.pgpalId;
     try {
         const Profile = await Tenant.findOne({ pgpalId: pgpalId });
         if (!Profile) return res.status(404).json({ error: 'Tenant not found' });
-        res.status(200).json({
+
+        const response = {
             name: Profile.name,
             phone: Profile.phone,
             currentStay: Profile.currentStay,
             status: Profile.status,
-        });
+        };
+
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.status(200).json(response);
     }
     catch (err) {
         res.status(400).json({ error: err.message });
     }
-}
+};
 
 exports.getTenantDocs = async (req, res) => {
     const internalService = req.headers['x-internal-service'];
     if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
 
     const pppid = req.params.pppid;
-    try{
+    try {
         const tenantsCount = await Tenant.countDocuments({ 'currentStay.propertyPpid': pppid, status: 'active' });
         if (tenantsCount === 0) return res.status(404).json({ error: 'Tenant not found' });
 
-       
-        res.status(200).json({ activeTenants: tenantsCount });
+        const response = { activeTenants: tenantsCount };
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.status(200).json(response);
     }
     catch (err) {
         res.status(400).json({ error: err.message });
     }
 
-}
+};
 
 exports.getCheckins = async (req, res) => {
     const internalService = req.headers['x-internal-service'];
@@ -192,16 +247,17 @@ exports.getCheckins = async (req, res) => {
             'currentStay.assignedAt': { $gte: fromDate }
         }).countDocuments();
 
-        res.json({
-            period,
-            checkins
-        });
+        const response = { period, checkins };
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.json(response);
     }
     catch (err) {
         res.status(400).json({ error: err.message });
     }
 
-}
+};
 
 
 exports.getVacates = async (req, res) => {
@@ -220,10 +276,11 @@ exports.getVacates = async (req, res) => {
             vacateDate: { $gte: fromDate }
         }).countDocuments();
 
-        res.json({
-            period,
-            vacates
-        });
+        const response = { period, vacates };
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.json(response);
     }
     catch (err) {
         res.status(400).json({ error: err.message });

@@ -18,7 +18,7 @@ app.use(cookieParser());
 app.use('/api/property-service', propertyRoutes);
 
 // MongoDB connection
-mongoose.connect(process.env.MONGO_URI, {   
+mongoose.connect(process.env.MONGO_URI, {
     serverSelectionTimeoutMS: 10000 // Increase timeout to 30s
 }
 )

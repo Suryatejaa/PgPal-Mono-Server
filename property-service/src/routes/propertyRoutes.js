@@ -6,37 +6,40 @@ const amenitiesController = require('../controllers/amenitiesController');
 const imagesController = require('../controllers/imagesController');
 const rulesController = require('../controllers/rulesController');
 
+const cacheMiddleware = require('../utils/cacheMiddleware')
+
+
 router.post('/', PropertyController.addProperty);
-router.get('/', PropertyController.getAllProperties);
-router.get('/own', PropertyController.getProperties);
-router.get('/search', PropertyController.searchProperties);
-router.get('/:id', PropertyController.getPropertyById);
-router.get('/property/:id', PropertyController.getPropertyForRoom);
-router.get('/property-ppid/:ppid', PropertyController.getPropertyByPpid);
+router.get('/', cacheMiddleware, PropertyController.getAllProperties);
+router.get('/own', cacheMiddleware, PropertyController.getProperties);
+router.get('/search', cacheMiddleware, PropertyController.searchProperties);
+router.get('/:id', cacheMiddleware, PropertyController.getPropertyById);
+router.get('/property/:id', cacheMiddleware, PropertyController.getPropertyForRoom);
+router.get('/property-ppid/:ppid', cacheMiddleware, PropertyController.getPropertyByPpid);
 router.put('/:id', PropertyController.updateProperty);
 router.delete('/:id', PropertyController.deleteProperty);
 
-router.get('/:id/reviews', reviewController.getPropertyReviews);
+router.get('/:id/reviews', cacheMiddleware, reviewController.getPropertyReviews);
 router.post('/:id/reviews', reviewController.addReview);
 router.put('/:id/reviews/:reviewId', reviewController.editReview);
 router.delete('/:id/reviews/:reviewId', reviewController.deleteReview);
 
-router.get('/:id/amenities', amenitiesController.getAmenities);
+router.get('/:id/amenities', cacheMiddleware, amenitiesController.getAmenities);
 router.post('/:id/amenities', amenitiesController.addAmenity);
 router.delete('/:id/amenities/:amenityName', amenitiesController.deleteAmenity);
 
 router.post('/:id/rules', rulesController.addRule);
-router.get('/:id/rules', rulesController.getRules);
+router.get('/:id/rules', cacheMiddleware, rulesController.getRules);
 router.delete('/:id/rules/:ruleId', rulesController.deleteRule);
-router.get('/:id/owner', PropertyController.getOwnerInfo);
+router.get('/:id/owner', cacheMiddleware, PropertyController.getOwnerInfo);
 
 //yet to implement
 router.post('/:id/images', imagesController.uploadImages);
 router.delete('/:id/images/:imageId', imagesController.deleteImage);
-router.get('/:id/images', imagesController.getImages); 
+router.get('/:id/images', cacheMiddleware, imagesController.getImages); 
 router.put('/:id/images/:imageId', imagesController.updateImage); 
 
-router.get('/:id/availability', PropertyController.getAvailability);
+router.get('/:id/availability', cacheMiddleware, PropertyController.getAvailability);
 router.put('/:id/availability', PropertyController.updateAvailability);
 
 module.exports = router;

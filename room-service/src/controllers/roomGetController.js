@@ -1,6 +1,7 @@
 const { default: mongoose } = require('mongoose');
 const Room = require('../models/roomModel');
 const axios = require('axios');
+const redisClient = require('../utils/redis');
 
 const getOwnProperty = async (propertyId, currentUser) => {
 
@@ -28,10 +29,15 @@ exports.getRoomsByPropertyId = async (req, res) => {
         if (!rooms || rooms.length === 0) {
             return res.status(404).json({ error: 'No rooms found' });
         }
-        res.status(200).json({
+
+        const response = {
             totalRooms: rooms.length,
             rooms: rooms,
-        });
+        };
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.status(200).json(response);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -47,6 +53,11 @@ exports.getRoomById = async (req, res) => {
     try {
         const room = await Room.findById(req.params.roomId).populate('propertyId', 'name location totalRooms ownerId');
         if (!room) return res.status(404).json({ error: 'Room not found' });
+
+
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(room), { EX: 300 });
+
         res.status(200).json(room);
     } catch (error) {
         res.status(400).json({ error: error.message });
@@ -55,7 +66,7 @@ exports.getRoomById = async (req, res) => {
 
 
 exports.getPropertySummary = async (req, res) => {
-   
+
     try {
         const propertyId = req.params.id;
 
@@ -74,13 +85,18 @@ exports.getPropertySummary = async (req, res) => {
             vacantBeds += room.beds.filter(bed => bed.status === 'vacant').length;
         });
 
-        res.status(200).json({
+        const response = {
             propertyId,
             totalRooms: rooms.length,
             totalBeds,
             occupiedBeds,
             vacantBeds,
-        });
+        };
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+
+        res.status(200).json(response);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -110,14 +126,19 @@ exports.getRoomAvailability = async (req, res) => {
         if (!availability || availability.length === 0) {
             return res.status(404).json({ error: 'No availability found for this room' });
         }
-        res.status(200).json({
+
+        const response = {
             propertyId: room.propertyId,
             roomId: room._id,
             PGname: property.name,
             roomNumber: room.roomNumber,
             Vacant_beds: availability.length,
             availability
-        });
+        };
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.status(200).json(response);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -145,14 +166,19 @@ exports.getRoomAvailabilityByType = async (req, res) => {
             occupiedBeds += room.beds.filter(bed => bed.status === 'occupied').length;
             vacantBeds += room.beds.filter(bed => bed.status === 'vacant').length;
         });
-        res.status(200).json({
+
+        const response = {
             propertyId,
             roomType,
             totalRooms: rooms.length,
             totalBeds,
             occupiedBeds,
             vacantBeds,
-        });
+        }
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.status(200).json(response);
     }
     catch (error) {
         res.status(500).json({ error: error.message });
@@ -195,11 +221,16 @@ exports.getPropertySummaryByType = async (req, res) => {
             });
         });
         totalTypes = Object.keys(typesSummary).length;
-        res.status(200).json({
+
+        const response = {
             propertyId,
             totalTypes,
             typesSummary,
-        });
+        }
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.status(200).json(response);
 
     }
     catch (error) {
@@ -236,6 +267,10 @@ exports.searchRooms = async (req, res) => {
         if (!rooms || rooms.length === 0) {
             return res.status(404).json({ error: 'No rooms found' });
         }
+
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(rooms), { EX: 300 });
+
         res.status(200).json(rooms);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -245,7 +280,7 @@ exports.searchRooms = async (req, res) => {
 
 exports.getRoomByTenantId = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']) || {};
-    const id = currentUser.data.user.pgpalId
+    const id = currentUser.data.user.pgpalId;
     try {
         const tenantId = req.params.tenantId;
         if (!tenantId) {
@@ -253,6 +288,10 @@ exports.getRoomByTenantId = async (req, res) => {
         }
         const room = await Room.findOne({ tenantId }).populate('propertyId', 'name location totalRooms ownerId');
         if (!room) return res.status(404).json({ error: 'Room not found' });
+       
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(room), { EX: 300 });
+
         res.status(200).json(room);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -266,16 +305,24 @@ exports.getRoomDocs = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']);
 
     const pppid = req.params.pppid;
-    
+
     try {
         const roomDocs = await Room.countDocuments({ propertyId: pppid });
         if (roomDocs === 0) return res.status(404).json({ error: 'Room not found' });
-        res.status(200).json({ count: roomDocs });
+
+        const response = {
+            count: roomDocs
+        }
+
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.status(200).json(response);
     }
     catch (err) {
         res.status(400).json({ error: err.message });
     }
-}
+};
 
 exports.getBedDocs = async (req, res) => {
     const internalService = req.headers['x-internal-service'];
@@ -296,7 +343,7 @@ exports.getBedDocs = async (req, res) => {
             { $unwind: '$beds' },
             {
                 $group: {
-                    _id: '$propertyId', 
+                    _id: '$propertyId',
                     totalBeds: { $sum: 1 },
                     occupiedBeds: {
                         $sum: {
@@ -324,9 +371,12 @@ exports.getBedDocs = async (req, res) => {
             return res.status(404).json({ error: 'No beds found for the given property ID' });
         }
 
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(beds), { EX: 300 });
+
         res.status(200).json(beds);
     }
     catch (err) {
         res.status(400).json({ error: err.message });
     }
-}
+};

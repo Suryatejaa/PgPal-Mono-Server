@@ -1,0 +1,166 @@
+const Tenant = require('../models/tenantModel');
+const { getOwnProperty } = require("./internalApis");
+
+// 1. Update rent details for a tenant
+exports.updateRent = async (req, res) => {
+    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    const { propertyPpid } = req.params;
+    const role = currentUser.data.user.role;
+    const id = currentUser.data.user._id;
+
+
+    const { tenantId, rentPaid, rentPaidDate, rentPaidMethod, transactionId } = req.body;
+    if (!tenantId || rentPaid == null || !rentPaidMethod) {
+        return res.status(400).json({ error: 'Missing required rent fields' });
+    }
+
+    if (!['upi', 'cash', 'bank'].includes(rentPaidMethod)) {
+        return res.status(400).json({ error: 'Invalid Payment Method' });
+    }
+
+    try {
+        const tenant = await Tenant.findOne({ pgpalId: tenantId });
+        if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+        const property = await getOwnProperty(tenant.currentStay.propertyPpid, currentUser, ppid = true);
+        if (!property) return res.status(404).json({ error: 'Property not found' });
+        if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
+
+
+        const rent = tenant.currentStay.rent;
+        const lastPaid = tenant.currentStay.rentPaid ? tenant.currentStay.rentPaid : 0;
+        const totalPaid = rentPaid + lastPaid;
+        const newDue = rent - totalPaid;
+        const advance = newDue < 0 ? Math.abs(newDue) : 0;
+        const rentDue = newDue > 0 ? newDue : 0;
+        const status = rentDue > 0 ? 'unpaid' : 'paid';
+
+        const assignedDate = new Date(tenant.currentStay.assignedAt); // Get assigned date
+        const currentDate = new Date(); // Current date
+        const nextMonth = new Date(currentDate.setMonth(currentDate.getMonth() + 1)); // Add one month to current date
+        const nextRentDueDate = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), assignedDate.getDate()); // Use day from assignedDate
+
+        const updatedTenant = await Tenant.findOneAndUpdate(
+            { pgpalId: tenantId },
+            {
+                $set: {
+                    'currentStay.rentPaid': totalPaid,
+                    'currentStay.rentDue': rentDue,
+                    'currentStay.rentPaidDate': rentPaidDate ? new Date(rentPaidDate) : new Date(),
+                    'currentStay.rentDueDate': newDue > 0 ? new Date(new Date().setDate(new Date().getDate() + 7)) : nextRentDueDate,
+                    'currentStay.advanceBalance': advance,
+                    'currentStay.rentPaidStatus': status,
+                    'currentStay.rentPaidMethod': rentPaidMethod,
+                    'currentStay.rentPaidTransactionId': transactionId || null,
+                    'currentStay.nextRentDueDate': nextRentDueDate,
+                    updatedAt: new Date()
+                }
+            },
+            { new: true } // Return the updated document
+        );
+
+        if (!updatedTenant) return res.status(404).json({ error: 'Failed to update tenant rent details' });
+
+        res.status(200).json({ message: 'Rent updated successfully', tenant: updatedTenant });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// 2. Get rent status for a tenant
+exports.getRentStatus = async (req, res) => {
+    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    const role = currentUser.data.user.role;
+    const id = currentUser.data.user._id;
+
+    const { tenantId } = req.params;
+    try {
+        const tenant = await Tenant.findOne({ pgpalId: tenantId });
+        if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+        const property = await getOwnProperty(propertyPpid, currentUser, ppid = true);
+        console.log('property ', property);
+        if (property.status !== 200) return res.status(404).json({ error: property.error });
+        if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
+
+        const { rent, rentPaid, rentDue, rentPaidDate, rentPaidStatus, nextRentDueDate } = tenant.currentStay;
+
+        res.status(200).json({
+            rent,
+            rentPaid,
+            rentDue,
+            rentPaidDate,
+            status: rentPaidStatus,
+            nextRentDueDate
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// 3. Get rent summary for property
+exports.getRentSummary = async (req, res) => {
+    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    const role = currentUser.data.user.role;
+    const id = currentUser.data.user._id;
+
+    const { propertyPpid } = req.params;
+    try {
+
+        const property = await getOwnProperty(propertyPpid, currentUser, ppid = true);
+        console.log(property);
+        if (property.status && property.status !== 200) return res.status(404).json({ error: property.error });
+        if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
+
+        const tenants = await Tenant.find({ 'currentStay.propertyPpid': propertyPpid, status: 'active' });
+
+        const summary = tenants.map(t => ({
+            tenantId: t.pgpalId,
+            name: t.name,
+            phone: t.phone,
+            rent: t.currentStay.rent,
+            rentPaid: t.currentStay.rentPaid,
+            rentDue: t.currentStay.rentDue,
+            status: t.currentStay.rentPaidStatus,
+            nextRentDueDate: t.currentStay.nextRentDueDate
+        }));
+
+        res.status(200).json({ propertyPpid, tenants: summary });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// 4. Get rent defaulters for property
+exports.getRentDefaulters = async (req, res) => {
+    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    const role = currentUser.data.user.role;
+    const id = currentUser.data.user._id;
+
+    const { propertyPpid } = req.params;
+    try {
+        const property = await getOwnProperty(propertyPpid, currentUser, ppid = true);
+        console.log(property.status);
+        if (property.status && property.status !== 200) return res.status(404).json({ error: property.error });
+        if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
+
+        const defaulters = await Tenant.find({
+            'currentStay.propertyPpid': propertyPpid,
+            'currentStay.rentPaidStatus': 'unpaid',
+            status: 'active'
+        });
+
+        const formatted = defaulters.map(t => ({
+            tenantId: t.pgpalId,
+            name: t.name,
+            phone: t.phone,
+            rentDue: t.currentStay.rentDue,
+            rentPaidDate: t.currentStay.rentPaidDate
+        }));
+
+        res.status(200).json({ totalDefaulters: formatted.length, defaulters: formatted });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};

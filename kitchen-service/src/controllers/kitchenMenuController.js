@@ -2,7 +2,8 @@ const WeeklyMenu = require('../models/kitchenMenuModel');
 const { getPropertyOwner } = require('./internalApis');
 const { getTenantConfirmation } = require('./internalApis');
 const { getFormattedDayName } = require('../utils/getFormatedDay');
-const redisClient = require('../utils/redis')
+const redisClient = require('../utils/redis');
+const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern')
 
 exports.selectMenu = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']);
@@ -12,18 +13,18 @@ exports.selectMenu = async (req, res) => {
         return res.status(403).json({ error: 'Only owners can select menu' });
     }
     const propertyPpid = req.query.pppid;
-    const menuNo = req.query.menuNo
+    const menuNo = req.query.menuNo;
 
     if (!propertyPpid || !menuNo) {
         return res.status(400).json({ error: 'Property ID and Menu Number are required' });
     }
-    
+
     const ownerConfirmation = await getPropertyOwner(propertyPpid, currentUser);
     if (!ownerConfirmation) {
-        return res.status(404).json({ error: 'Property not found' });  
+        return res.status(404).json({ error: 'Property not found' });
     }
     if (ownerConfirmation.ownerId !== currentUser.data.user._id) {
-        return res.status(403).json({ error: 'You are not the owner of this property' });   
+        return res.status(403).json({ error: 'You are not the owner of this property' });
     }
 
 
@@ -41,6 +42,8 @@ exports.selectMenu = async (req, res) => {
         if (!updatedMenu) {
             return res.status(404).json({ error: 'Menu not found' });
         }
+        
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(200).json({ message: 'Menu selection updated successfully', menu: updatedMenu });
     } catch (error) {
@@ -81,13 +84,15 @@ exports.addWeeklyMenu = async (req, res) => {
             propertyPpid,
             weekStartDate: new Date(date), // Assuming `date` is the start of the week
             menu: meals, // Ensure `meals` matches the `menu` structure in the schema
-            menuNo,            
+            menuNo,
             createdBy: currentUser.data.user.pgpalId,
             updatedAt: new Date()
         });
 
-        await redisClient.del(`/api/kitchen-service/${propertyPpid}`);
-        await redisClient.del(`/api/kitchen-service/${propertyPpid}/menu-today`);
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
+
+        // await redisClient.del(`/api/kitchen-service/${propertyPpid}`);
+        // await redisClient.del(`/api/kitchen-service/${propertyPpid}/menu-today`);
 
         res.status(201).json(weeklyMenu);
     } catch (error) {
@@ -125,7 +130,7 @@ exports.getTodayMenu = async (req, res) => {
 
     if (role === 'tenant') {
         const tenantConfirmation = await getTenantConfirmation(ppid, currentUser);
-        console.log(tenantConfirmation)
+        console.log(tenantConfirmation);
         if (!tenantConfirmation) {
             return res.status(404).json({ error: 'Tenant not found' });
         }
@@ -140,7 +145,7 @@ exports.getTodayMenu = async (req, res) => {
     const dayName = getFormattedDayName();
 
     try {
-        const menu = await WeeklyMenu.find({ propertyPpid: propertyId, selected:true })
+        const menu = await WeeklyMenu.find({ propertyPpid: propertyId, selected: true })
             .populate('menu.meals.items', 'name');
         if (!menu || menu.length === 0) return res.status(404).json({ error: 'Menu not found' });
 
@@ -203,7 +208,7 @@ exports.getMenuList = async (req, res) => {
     if (role !== 'owner') {
         return res.status(403).json({ error: 'Only owners can view the menu list' });
     }
-        
+
     const ownerConfirmation = await getPropertyOwner(req.params.id, currentUser);
     if (!ownerConfirmation) {
         return res.status(404).json({ error: 'Property not found' });
@@ -218,7 +223,7 @@ exports.getMenuList = async (req, res) => {
     }
 
     try {
-        const menus = await WeeklyMenu.find({ propertyPpid : propertyId }).populate('menu.meals.items', 'name');
+        const menus = await WeeklyMenu.find({ propertyPpid: propertyId }).populate('menu.meals.items', 'name');
         if (!menus || menus.length === 0) return res.status(404).json({ error: 'No menus found' });
 
         const response = {
@@ -235,7 +240,7 @@ exports.getMenuList = async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
-}
+};
 
 exports.updateWeeklyMenu = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']);
@@ -279,9 +284,11 @@ exports.updateWeeklyMenu = async (req, res) => {
         existingMenu.updatedAt = new Date();
 
         const savedMenu = await existingMenu.save();
+        
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
 
-        await redisClient.del(`/api/kitchen-service/${propertyPpid}`);
-        await redisClient.del(`/api/kitchen-service/${propertyPpid}/menu-today`);
+        // await redisClient.del(`/api/kitchen-service/${propertyPpid}`);
+        // await redisClient.del(`/api/kitchen-service/${propertyPpid}/menu-today`);
 
         res.status(200).json(savedMenu);
     } catch (error) {
@@ -325,8 +332,10 @@ exports.deleteWeeklyMenu = async (req, res) => {
             })
         );
 
-        await redisClient.del(`/api/kitchen-service/${propertyPpid}`);
-        await redisClient.del(`/api/kitchen-service/${propertyPpid}/menu-today`);
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
+
+        // await redisClient.del(`/api/kitchen-service/${propertyPpid}`);
+        // await redisClient.del(`/api/kitchen-service/${propertyPpid}/menu-today`);
 
         // Send the updated menus as response
         res.status(200).json(remainingMenus);

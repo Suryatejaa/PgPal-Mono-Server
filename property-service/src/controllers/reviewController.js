@@ -1,5 +1,7 @@
 const Property = require('../models/propertyModel');
 const Review = require('../models/reviewModel');
+const redisClient = require('../utils/redis');
+const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 
 module.exports = {
     async addReview(req, res) {
@@ -23,6 +25,9 @@ module.exports = {
                 updatedByName: currentUser.data.user.username,
                 updatedByRole: currentUser.data.user.role,
             });
+
+            const propertyPpid = property.pgpalId;
+            await invalidateCacheByPattern(`*${propertyPpid}*`);
 
             res.status(200).json(newReview);
         } catch (error) {
@@ -64,6 +69,9 @@ module.exports = {
 
             await review.save();
 
+            const propertyPpid = property.pgpalId;
+            await invalidateCacheByPattern(`*${propertyPpid}*`);
+
             res.status(200).json({ message: 'Review updated successfully' });
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -77,8 +85,8 @@ module.exports = {
             return res.status(401).json({ error: 'Unauthorized: Missing userId' });
         }
         try {
-            console.log(req.params.id)
-            console.log(req.params.reviewId)
+            console.log(req.params.id);
+            console.log(req.params.reviewId);
             const review = await Review.findOne(
                 { propertyId: req.params.id, _id: req.params.reviewId }
             );
@@ -96,6 +104,9 @@ module.exports = {
                 return res.status(403).json({ error: 'Forbidden: You can only delete your own reviews' });
             }
 
+            const propertyPpid = property.pgpalId;
+            await invalidateCacheByPattern(`*${propertyPpid}*`);
+
             await Review.findByIdAndDelete(req.params.reviewId);
 
             res.status(200).json({ message: 'Review deleted successfully' });
@@ -105,7 +116,7 @@ module.exports = {
     },
 
     async getPropertyReviews(req, res) {
-       
+
         try {
             const reviews = await Review.find({ propertyId: req.params.id });
             if (!reviews || reviews.length === 0) {
@@ -114,7 +125,16 @@ module.exports = {
 
             // Calculate the average rating
             const averageRating = reviews.reduce((acc, review) => acc + review.rating, 0) / reviews.length;
-            res.status(200).json({ reviews, averageRating });
+
+            const response = {
+                reviews,
+                averageRating
+            }
+            const cacheKey = req.originalUrl;
+            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+
+            res.status(200).json(response);
 
         } catch (error) {
             res.status(500).json({ error: error.message });

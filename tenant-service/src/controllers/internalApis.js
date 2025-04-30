@@ -16,8 +16,10 @@ const getOwnProperty = async (propertyId, currentUser, ppid) => {
         });
         return response.data;
     } catch (error) {
-        console.log(error);
-        return error.message;
+        return {
+            status: error.status,
+            error: error.response.data.error
+        };
     }
 };
 

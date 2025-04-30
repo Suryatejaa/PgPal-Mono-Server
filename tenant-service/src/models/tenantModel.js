@@ -44,6 +44,10 @@ const tenantSchema = new Schema({
         rentPaidTransactionId: { type: String },
         nextRentDueDate: { type: Date },
         deposit: { type: Number },
+        advanceBalance: {
+            type: Number,
+            default: 0
+        },
         bedId: { type: String },
         assignedAt: { type: Date, default: Date.now },
         noticePeriodInMonths: { type: Number, default: 1 },

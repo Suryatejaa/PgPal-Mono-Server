@@ -1,7 +1,8 @@
 const { clearBed, assignBed, getOwnProperty } = require('./internalApis'); // Assuming you have a function to generate PPT IDs
 const Vacates = require('../models/vacatesModel');
 const Tenant = require('../models/tenantModel');
-
+const redisClient = require('../utils/redis');
+const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 
 exports.removeTenant = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']);
@@ -72,6 +73,7 @@ exports.removeTenant = async (req, res) => {
             rentPaidTransactionId: currentStay.rentPaidTransactionId,
             nextRentDueDate: currentStay.nextRentDueDate,
             deposit: currentStay.deposit,
+            advanceBalance: currentStay.advance,
             assignedAt: currentStay.assignedAt,
             noticePeriodInMonths: currentStay.noticePeriodInMonths,
             isInNoticePeriod: currentStay.isInNoticePeriod
@@ -121,6 +123,9 @@ exports.removeTenant = async (req, res) => {
 
         const vacateRequest = await Vacates.create(vacate);
         if (!vacateRequest) return res.status(404).json({ error: 'Vacate request not created' });
+
+        const propertyPpid = property.pgpalId;
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(201).json({
             message: 'Tenant removed successfully',
@@ -208,6 +213,9 @@ exports.retainTenant = async (req, res) => {
         const updatedVacate = await Vacates.findByIdAndDelete(vacate._id, { new: true });
         if (!updatedVacate) return res.status(404).json({ error: 'Vacate request not found' });
 
+        const propertyPpid = property.pgpalId;
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
+
         res.status(200).json({
             message: 'Tenant retained successfully',
             vacateRequest: updatedVacate
@@ -237,10 +245,10 @@ exports.getVacateHistory = async (req, res) => {
         const vacateHistory = await Vacates.find({ propertyId: pgpalId });
         if (!vacateHistory || vacateHistory.length === 0) return res.status(404).json({ error: 'Vacate history not found' });
 
-        res.status(200).json({
-            message: 'Vacate history fetched successfully',
-            vacateHistory: vacateHistory
-        });
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(vacateHistory), { EX: 300 });
+
+        res.status(200).json(vacateHistory);
     }
     catch (err) {
         res.status(400).json({ error: err.message });
@@ -261,10 +269,10 @@ exports.getVacateHistotyByProperty = async (req, res) => {
         const vacateHistory = await Vacates.find({ propertyId: propertyId });
         if (!vacateHistory || vacateHistory.length === 0) return res.status(404).json({ error: 'Vacate history not found' });
 
-        res.status(200).json({
-            message: 'Vacate history fetched successfully',
-            vacateHistory: vacateHistory
-        });
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(vacateHistory), { EX: 300 });
+
+        res.status(200).json(vacateHistory);
     }
     catch (err) {
         res.status(400).json({ error: err.message });

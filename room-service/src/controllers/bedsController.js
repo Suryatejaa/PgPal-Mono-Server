@@ -1,5 +1,7 @@
 const Room = require('../models/roomModel');
 const axios = require('axios');
+const redisClient = require('../utils/redis');
+const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 
 const getOwnProperty = async (propertyId, currentUser, ppid) => {
     let url;
@@ -76,6 +78,7 @@ exports.assignBed = async (req, res) => {
         room.status = room.beds.every(b => b.status === 'occupied') ? 'occupied' : 'partially occupied';
         await room.save();
         console.log("Bed assigned successfully", room);
+
         res.status(200).json({ status: 200, message: 'Bed assigned successfully', room });
     }
     catch (error) {
@@ -120,6 +123,7 @@ exports.clearBed = async (req, res) => {
         room.status = room.beds.every(b => b.status === 'vacant') ? 'vacant' : 'partially occupied';
         await room.save();
         console.log('Bed cleared successfully', room);
+
         res.status(200).json({ status: 200, message: 'Bed cleared successfully', room });
     }
     catch (error) {

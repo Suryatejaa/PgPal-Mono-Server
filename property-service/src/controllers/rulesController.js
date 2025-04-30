@@ -1,5 +1,7 @@
 const Property = require('../models/propertyModel');
 const Rule = require('../models/ruleModel');
+const redisClient = require('../utils/redis');
+const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 
 module.exports = {
     async addRule(req, res) {
@@ -36,6 +38,9 @@ module.exports = {
                 updatedAt: new Date()
             });
 
+            const propertyPpid = property.pgpalId;
+            await invalidateCacheByPattern(`*${propertyPpid}*`);
+
             res.status(201).json(newRule);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -48,6 +53,10 @@ module.exports = {
             if (!rules || rules.length === 0) {
                 return res.status(404).json({ error: 'Rules not found' });
             }
+
+            const cacheKey = req.originalUrl;
+            await redisClient.set(cacheKey, JSON.stringify(rules), { EX: 300 });
+
             res.status(200).json(rules);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -76,6 +85,10 @@ module.exports = {
                 return res.status(403).json({ error: 'Forbidden: You can only delete rules from your own properties' });
             }
             await Rule.findByIdAndDelete(req.params.ruleId); // Delete the rule by ruleId
+            
+            const propertyPpid = property.pgpalId;
+            await invalidateCacheByPattern(`*${propertyPpid}*`);
+
             res.status(200).json({ message: 'Rule deleted successfully' });
         } catch (error) {
             res.status(500).json({ error: error.message });

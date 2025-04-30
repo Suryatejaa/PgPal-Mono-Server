@@ -1,6 +1,9 @@
 const { json } = require('express');
 const Property = require('../models/propertyModel');
 const axios = require('axios');
+const redisClient = require('../utils/redis');
+const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern')
+
 
 const increaseViewCount = async (id) => {
     const property = await Property.findById(id);
@@ -24,7 +27,13 @@ module.exports = {
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
-            res.status(200).json(property.amenities || []);
+
+            const cacheKey = req.originalUrl;
+
+            const response = property.amenities || []
+            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+            res.status(200).json(response);
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
@@ -77,6 +86,9 @@ module.exports = {
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
+
+            const propertyPpid = property.pgpalId
+
             if (property.ownerId.toString() !== id) {
                 return res.status(403).json({ error: 'Forbidden: You can only add amenities to your own properties' });
             }
@@ -91,6 +103,9 @@ module.exports = {
                 { $push: { amenities: amenit } },
                 { new: true }
             );
+
+            await invalidateCacheByPattern(`*${propertyPpid}*`);
+
             res.status(200).json(property);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -110,6 +125,9 @@ module.exports = {
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
+
+            const propertyPpid = property.pgpalId
+
             if (property.ownerId.toString() !== id) {
                 return res.status(403).json({ error: 'Forbidden: You can only add amenities to your own properties' });
             }
@@ -124,6 +142,8 @@ module.exports = {
                 { $pull: { amenities: amenityName } },
                 { new: true }
             );
+
+            await invalidateCacheByPattern(`*${propertyPpid}*`);
 
             res.status(200).json({ message: 'Amenity deleted successfully' });
         } catch (error) {

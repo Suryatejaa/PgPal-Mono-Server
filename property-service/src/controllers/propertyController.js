@@ -2,6 +2,9 @@ const { json } = require('express');
 const Property = require('../models/propertyModel');
 const axios = require('axios');
 const mongoose = require('mongoose');
+const redisClient = require('../utils/redis');
+const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
+
 
 const increaseViewCount = async (id) => {
     const property = await Property.findById(id);
@@ -42,6 +45,7 @@ module.exports = {
                 return res.status(400).json({ error: 'Occupied beds cannot exceed total beds' });
             }
             const property = await Property.create({ name, address, ownerId: id, totalBeds, totalRooms, occupiedBeds, availableBeds, createdBy: id, contact: { phone: phone, email: email } });
+
             res.status(201).json(property);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -65,7 +69,13 @@ module.exports = {
             for (const property of properties) {
                 await increaseViewCount(property._id);
             }
-            res.status(200).json(properties.map(property => ({ ...property._doc, views: property.views })));
+
+            const response = properties.map(property => ({ ...property._doc, views: property.views }))
+
+            const cacheKey = req.originalUrl;
+            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+            res.status(200).json(response);
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
@@ -77,10 +87,15 @@ module.exports = {
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
-            // Increase view count for the property
+
             await increaseViewCount(req.params.id);
-            // Return the property with updated view count
-            res.status(200).json({ ...property._doc, views: property.views });
+
+            const response = { ...property._doc, views: property.views }
+
+            const cacheKey = req.originalUrl;
+            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+            res.status(200).json(response);
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
@@ -90,28 +105,36 @@ module.exports = {
         const id = req.params.id;
         const ppid = req.query.ppid;
         try {
-        
+
             const property = await Property.findById(id);
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
 
-            res.status(200).json({ ...property._doc, views: property.views });
+            const response = { ...property._doc, views: property.views }
+            const cacheKey = req.originalUrl;
+            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+            res.status(200).json(response );
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
     },
 
     async getPropertyByPpid(req, res) {
-        const ppid = req.params.ppid
+        const ppid = req.params.ppid;
 
         try {
             const property = await Property.findOne({ pgpalId: ppid });
-    
+
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
-            res.status(200).json({ ...property._doc, views: property.views });
+            const response = { ...property._doc, views: property.views };
+            const cacheKey = req.originalUrl;
+            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+            res.status(200).json(response);
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
@@ -126,7 +149,12 @@ module.exports = {
             for (const property of properties) {
                 await increaseViewCount(property._id);
             }
-            res.status(200).json(properties.map(property => ({ ...property._doc, views: property.views })));
+
+            const response = properties.map(property => ({ ...property._doc, views: property.views }))
+            const cacheKey = req.originalUrl;
+            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+            res.status(200).json(response);
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
@@ -142,11 +170,15 @@ module.exports = {
                 { $group: { _id: null, totalBeds: { $sum: "$totalBeds" } } }
             ]);
 
-            res.status(200).json({
+            const response = {
                 totalProperties,
                 totalRooms: totalRooms[0]?.totalRooms || 0,
                 totalBeds: totalBeds[0]?.totalBeds || 0,
-            });
+            }
+            const cacheKey = req.originalUrl;
+            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+            res.status(200).json(response);
         }
         catch (error) {
             res.status(500).json({ error: error.message });
@@ -176,6 +208,10 @@ module.exports = {
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
+
+            const propertyPpid = property.pgpalId;
+            await invalidateCacheByPattern(`*${propertyPpid}*`);
+
             res.status(200).json(property);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -203,6 +239,10 @@ module.exports = {
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
+
+            const propertyPpid = property.pgpalId;
+            await invalidateCacheByPattern(`*${propertyPpid}*`);
+
             res.status(200).json({ message: 'Property deleted successfully' });
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -231,7 +271,11 @@ module.exports = {
                 $or: searchCriteria.length ? searchCriteria : [{}],
             });
 
-            res.status(200).json(properties);
+            const response = properties;
+            const cacheKey = req.originalUrl;
+            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+            res.status(200).json(response);
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
@@ -245,7 +289,12 @@ module.exports = {
                 return res.status(404).json({ error: 'Property not found' });
             }
             const propertyObj = property.toObject();
-            res.status(200).json(propertyObj.availableBeds || {});
+
+            const response = propertyObj.availableBeds || {}
+            const cacheKey = req.originalUrl;
+            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+            
+            res.status(200).json(response);
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
@@ -262,6 +311,10 @@ module.exports = {
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
+
+            const propertyPpid = property.pgpalId;
+            await invalidateCacheByPattern(`*${propertyPpid}*`);
+
             res.status(200).json(property);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -290,7 +343,7 @@ module.exports = {
                 return res.status(404).json({ error: 'Property not found' });
             }
         }
-       
+
         try {
             const owner = await axios.get(`http://localhost:4000/api/auth-service/user?id=${property.ownerId}`,
                 {
@@ -299,12 +352,17 @@ module.exports = {
                     },
                 }
             );
-            res.status(200).json({
+
+            const response = {
                 ownerId: property.ownerId,
                 ownerName: owner.data.username,
                 ownerEmail: owner.data.email,
                 ownerPhone: owner.data.phoneNumber
-            });
+            };
+            const cacheKey = req.originalUrl;
+            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+            res.status(200).json(response);
         } catch (error) {
             res.status(500).json({ message: error.message });
         }

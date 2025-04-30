@@ -1,5 +1,7 @@
 const Room = require('../models/roomModel');
 const axios = require('axios');
+const redisClient = require('../utils/redis');
+const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 
 const getOwnProperty = async (propertyId, currentUser, ppid) => {
     let url;
@@ -137,6 +139,9 @@ exports.addRoom = async (req, res) => {
             return res.status(400).json({ error: 'Failed to create room' });
         }
 
+        const propertyPpid = property.pgpalId;
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
+
         res.status(201).json(room);
     } catch (error) {
         res.status(400).json({ error: error.message });
@@ -257,6 +262,9 @@ exports.updateRoom = async (req, res) => {
 
         const updateRoom = await Room.findByIdAndUpdate(req.params.roomId, updateData, { new: true });
 
+        const propertyPpid = property.pgpalId;
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
+
         res.status(200).json({ message: 'Room updated successfully', updateRoom });
 
     } catch (error) {
@@ -280,9 +288,24 @@ exports.deleteRoom = async (req, res) => {
         return res.status(400).json({ error: 'Room ID is required' });
     }
 
+
     try {
         const room = await Room.findByIdAndDelete(req.params.roomId);
+
+        const property = await getOwnProperty(room.propertyId, currentUser, ppid = false);
+
+        if (!property) {
+            return res.status(404).json({ error: 'Property not found' });
+        }
+        if (property.ownerId.toString() !== id) {
+            return res.status(403).json({ error: `Forbidden: You didn't own this property` });
+        }
+
         if (!room) return res.status(404).json({ error: 'Room not found' });
+
+        const propertyPpid = property.pgpalId;
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
+
         res.status(200).json({ message: 'Room deleted successfully' });
     } catch (error) {
         res.status(400).json({ error: error.message });
