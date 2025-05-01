@@ -29,12 +29,12 @@ app.use(cookieParser());
 
 
 const authenticate = async (req, res, next) => {
-    
+
     if (req.headers['x-internal-service']) {
-        return next(); 
+        return next();
     }
 
-    const token = req.cookies.token
+    const token = req.cookies.token;
     if (!token) {
         return res.status(401).json({ message: 'Missing token' });
     }
@@ -42,9 +42,9 @@ const authenticate = async (req, res, next) => {
     try {
         const response = await axios.post('http://localhost:4001/api/auth-service/protected', {}, {
             headers: {
-                Authorization: `Bearer ${token}`, 
+                Authorization: `Bearer ${token}`,
             },
-            withCredentials: true, 
+            withCredentials: true,
         });
         if (response.status === 200) {
             req.user = { data: response.data, token };
@@ -70,7 +70,7 @@ function attachUserHeader(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized: Missing user context' });
 }
 
-app.use('/api/auth-service', 
+app.use('/api/auth-service',
     createProxyMiddleware({
         target: 'http://localhost:4001',
         changeOrigin: true,
@@ -95,7 +95,7 @@ app.use('/api/tenant-service', authenticate, attachUserHeader,
         changeOrigin: true,
     }));
 
-app.use('/api/payment-service', authenticate, attachUserHeader,   
+app.use('/api/payment-service', authenticate, attachUserHeader,
     createProxyMiddleware({
         target: 'http://localhost:4005',
         changeOrigin: true,
@@ -116,6 +116,11 @@ app.use('/api/kitchen-service', authenticate, attachUserHeader,
 app.use('/api/dashboard-service', authenticate, attachUserHeader,
     createProxyMiddleware({
         target: 'http://localhost:4008', // Updated target
+        changeOrigin: true,
+    }));
+app.use('/api/notification-service', authenticate, attachUserHeader,
+    createProxyMiddleware({
+        target: 'http://localhost:4009', // Updated target
         changeOrigin: true,
     }));
 // Start the API Gateway

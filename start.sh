@@ -50,4 +50,10 @@ npm install
 npm start &
 cd ..
 
+echo "Starting API Gateway..."
+cd ./notification-service
+npm install
+npm start &
+cd ..
+
 echo "All services and the gateway have been started."
