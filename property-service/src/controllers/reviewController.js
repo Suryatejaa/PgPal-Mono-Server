@@ -2,11 +2,15 @@ const Property = require('../models/propertyModel');
 const Review = require('../models/reviewModel');
 const redisClient = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
+const notificationQueue = require('../utils/notificationQueue.js');
+
 
 module.exports = {
     async addReview(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
         const id = currentUser.data.user._id;
+        const ppid = currentUser.data.user.pgpalId
+
         if (!id) {
             return res.status(401).json({ error: 'Unauthorized: Missing userId' });
         }
@@ -27,6 +31,37 @@ module.exports = {
             });
 
             const propertyPpid = property.pgpalId;
+
+            const title = 'New Review Added';
+            const message = 'A new review has been submitted for your property.';
+            const type = 'info';
+            const method = ['in-app'];
+
+            try {
+                console.log('Adding notification job to the queue...');
+
+                await notificationQueue.add('notifications', {
+                    tenantIds: [ppid],
+                    propertyPpid: propertyPpid,
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+
+                console.log('Notification job added successfully');
+
+            } catch (err) {
+                console.error('Failed to queue notification:', err.message);
+            }
+
             await invalidateCacheByPattern(`*${propertyPpid}*`);
 
             res.status(200).json(newReview);
@@ -38,6 +73,8 @@ module.exports = {
     async editReview(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
         const id = currentUser.data.user._id;
+        const ppid = currentUser.data.user.pgpalId
+        
         if (!id) {
             return res.status(401).json({ error: 'Unauthorized: Missing userId' });
         }
@@ -70,6 +107,37 @@ module.exports = {
             await review.save();
 
             const propertyPpid = property.pgpalId;
+
+            const title = 'Review Updated';
+            const message = 'A review has been modified for one of your properties.';
+            const type = 'info';
+            const method = ['in-app'];
+
+            try {
+                console.log('Adding notification job to the queue...');
+
+                await notificationQueue.add('notifications', {
+                    tenantIds: [ppid],
+                    propertyPpid: propertyPpid,
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+
+                console.log('Notification job added successfully');
+
+            } catch (err) {
+                console.error('Failed to queue notification:', err.message);
+            }
+
             await invalidateCacheByPattern(`*${propertyPpid}*`);
 
             res.status(200).json({ message: 'Review updated successfully' });
@@ -81,6 +149,8 @@ module.exports = {
     async deleteReview(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
         const id = currentUser.data.user._id;
+        const ppid = currentUser.data.user.pgpalId
+        
         if (!id) {
             return res.status(401).json({ error: 'Unauthorized: Missing userId' });
         }
@@ -105,6 +175,38 @@ module.exports = {
             }
 
             const propertyPpid = property.pgpalId;
+
+            const title = 'Review Deleted';
+            const message = 'A review has been removed from your property listing.';
+            const type = 'alert';
+            const method = ['in-app'];
+
+            try {
+                console.log('Adding notification job to the queue...');
+
+                await notificationQueue.add('notifications', {
+                    tenantIds: [ppid],
+                    propertyPpid: propertyPpid,
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+
+                console.log('Notification job added successfully');
+
+            } catch (err) {
+                console.error('Failed to queue notification:', err.message);
+            }
+
+
             await invalidateCacheByPattern(`*${propertyPpid}*`);
 
             await Review.findByIdAndDelete(req.params.reviewId);

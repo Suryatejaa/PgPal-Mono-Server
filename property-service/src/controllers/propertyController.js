@@ -4,6 +4,8 @@ const axios = require('axios');
 const mongoose = require('mongoose');
 const redisClient = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
+const notificationQueue = require('../utils/notificationQueue.js');
+
 
 
 const increaseViewCount = async (id) => {
@@ -30,6 +32,7 @@ module.exports = {
         const role = currentUser.data.user.role;
         const phone = currentUser.data.user.phoneNumber;
         const email = currentUser.data.user.email;
+        const ppid = currentUser.data.user.pgpalId;
 
         if (role !== 'owner') {
             return res.status(403).json({ error: 'Forbidden: Only owners can add properties' });
@@ -45,6 +48,38 @@ module.exports = {
                 return res.status(400).json({ error: 'Occupied beds cannot exceed total beds' });
             }
             const property = await Property.create({ name, address, ownerId: id, totalBeds, totalRooms, occupiedBeds, availableBeds, createdBy: id, contact: { phone: phone, email: email } });
+
+            const propertyPpid = property.pgpalId;
+
+            const title = 'New Property Added';
+            const message = 'A new property has been successfully registered.';
+            const type = 'info';
+            const method = ['in-app'];
+
+            try {
+                console.log('Adding notification job to the queue...');
+
+                await notificationQueue.add('notifications', {
+                    tenantIds: [ppid],
+                    propertyPpid: propertyPpid,
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+
+                console.log('Notification job added successfully');
+
+            } catch (err) {
+                console.error('Failed to queue notification:', err.message);
+            }
 
             res.status(201).json(property);
         } catch (error) {
@@ -70,7 +105,7 @@ module.exports = {
                 await increaseViewCount(property._id);
             }
 
-            const response = properties.map(property => ({ ...property._doc, views: property.views }))
+            const response = properties.map(property => ({ ...property._doc, views: property.views }));
 
             const cacheKey = req.originalUrl;
             await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
@@ -90,7 +125,7 @@ module.exports = {
 
             await increaseViewCount(req.params.id);
 
-            const response = { ...property._doc, views: property.views }
+            const response = { ...property._doc, views: property.views };
 
             const cacheKey = req.originalUrl;
             await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
@@ -111,11 +146,11 @@ module.exports = {
                 return res.status(404).json({ error: 'Property not found' });
             }
 
-            const response = { ...property._doc, views: property.views }
+            const response = { ...property._doc, views: property.views };
             const cacheKey = req.originalUrl;
             await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
-            res.status(200).json(response );
+            res.status(200).json(response);
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
@@ -150,7 +185,7 @@ module.exports = {
                 await increaseViewCount(property._id);
             }
 
-            const response = properties.map(property => ({ ...property._doc, views: property.views }))
+            const response = properties.map(property => ({ ...property._doc, views: property.views }));
             const cacheKey = req.originalUrl;
             await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
@@ -174,7 +209,7 @@ module.exports = {
                 totalProperties,
                 totalRooms: totalRooms[0]?.totalRooms || 0,
                 totalBeds: totalBeds[0]?.totalBeds || 0,
-            }
+            };
             const cacheKey = req.originalUrl;
             await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
@@ -190,6 +225,7 @@ module.exports = {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
         const id = currentUser.data.user._id;
         const role = currentUser.data.user.role;
+        const ppid = currentUser.data.user.pgpalId;
 
         if (role !== 'owner') {
             return res.status(403).json({ error: 'Forbidden: Only owners can update properties' });
@@ -197,7 +233,6 @@ module.exports = {
         if (!id) {
             return res.status(401).json({ error: 'Unauthorized: Missing userId' });
         }
-
 
         try {
             const property = await Property.findOneAndUpdate(
@@ -212,6 +247,36 @@ module.exports = {
             const propertyPpid = property.pgpalId;
             await invalidateCacheByPattern(`*${propertyPpid}*`);
 
+            const title = 'Property Details Updated';
+            const message = 'Property details have been updated. Please review the latest information.';
+            const type = 'alert';
+            const method = ['in-app', 'email'];
+
+            try {
+                console.log('Adding notification job to the queue...');
+
+                await notificationQueue.add('notifications', {
+                    tenantIds: [ppid],
+                    propertyPpid: propertyPpid,
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+
+                console.log('Notification job added successfully');
+
+            } catch (err) {
+                console.error('Failed to queue notification:', err.message);
+            }
+
             res.status(200).json(property);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -222,6 +287,7 @@ module.exports = {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
         const id = currentUser.data.user._id;
         const role = currentUser.data.user.role;
+        const ppid = currentUser.data.user.pgpalId;
 
         if (role !== 'owner') {
             return res.status(403).json({ error: 'Forbidden: Only owners can delete properties' });
@@ -241,6 +307,37 @@ module.exports = {
             }
 
             const propertyPpid = property.pgpalId;
+
+            const title = 'Property Removed';
+            const message = 'A property has been deleted from the system.';
+            const type = 'alert';
+            const method = ['in-app', 'email'];
+            
+            try {
+                console.log('Adding notification job to the queue...');
+
+                await notificationQueue.add('notifications', {
+                    tenantIds: [ppid],
+                    propertyPpid: propertyPpid,
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+
+                console.log('Notification job added successfully');
+
+            } catch (err) {
+                console.error('Failed to queue notification:', err.message);
+            }
+
             await invalidateCacheByPattern(`*${propertyPpid}*`);
 
             res.status(200).json({ message: 'Property deleted successfully' });
@@ -290,10 +387,10 @@ module.exports = {
             }
             const propertyObj = property.toObject();
 
-            const response = propertyObj.availableBeds || {}
+            const response = propertyObj.availableBeds || {};
             const cacheKey = req.originalUrl;
             await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
-            
+
             res.status(200).json(response);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -301,6 +398,11 @@ module.exports = {
     },
 
     async updateAvailability(req, res) {
+        const currentUser = JSON.parse(req.headers['x-user']) || {};
+        const id = currentUser.data.user._id;
+        const role = currentUser.data.user.role;
+        const ppid = currentUser.data.user.pgpalId;
+    
         try {
             const { availability } = req.body;
             const property = await Property.findByIdAndUpdate(
@@ -313,6 +415,32 @@ module.exports = {
             }
 
             const propertyPpid = property.pgpalId;
+
+            try {
+                console.log('Adding notification job to the queue...');
+
+                await notificationQueue.add('notifications', {
+                    tenantIds: [ppid],
+                    propertyPpid: propertyPpid,
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+
+                console.log('Notification job added successfully');
+
+            } catch (err) {
+                console.error('Failed to queue notification:', err.message);
+            }
+
             await invalidateCacheByPattern(`*${propertyPpid}*`);
 
             res.status(200).json(property);

@@ -5,6 +5,7 @@ const { getPropertyOwner } = require('./internalApis');
 const redisClient = require('../utils/redis.js'); // Adjust the path as needed
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const { response } = require('express');
+const notificationQueue = require('../utils/notificationQueue.js');
 
 const complaintsMap = {
     Electrical: {
@@ -99,7 +100,38 @@ module.exports = {
                 description,
             });
 
+            const title = 'New Complaint';
+            const message = description;
+            const type = 'complaint_update';
+            const method = ["in-app", "email"];
+
+            try {
+                console.log('Adding notification job to the queue...');
+
+                await notificationQueue.add('notifications', {
+                    tenantIds: [tenantId],
+                    propertyPpid: propertyId,
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+
+                console.log('Notification job added successfully');
+
+            } catch (err) {
+                console.error('Failed to queue notification:', err.message);
+            }
+
             await invalidateCacheByPattern(`*${propertyId}*`);
+            await invalidateCacheByPattern(`*${tenantId}*`);
 
             res.status(201).json(complaint);
         } catch (error) {
@@ -194,6 +226,36 @@ module.exports = {
 
             if (!updatedComplaint) return res.status(404).json({ error: 'Complaint not found' });
 
+            const title = 'Complaint Status Updated';
+            const message = `Your complaint has been updated. Check the latest status for more details.`;
+            const type = 'complaint_update';
+            const method = ['in-app', 'email'];
+
+            try {
+                console.log('Adding notification job to the queue...');
+
+                await notificationQueue.add('notifications', {
+                    tenantIds: [ppid],
+                    propertyPpid: complaint.propertyId,
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+
+                console.log('Notification job added successfully');
+
+            } catch (err) {
+                console.error('Failed to queue notification:', err.message);
+            }
+
             await invalidateCacheByPattern(`*${complaint.propertyId}*`);
 
             res.status(200).json(updatedComplaint);
@@ -209,19 +271,49 @@ module.exports = {
             const complaint = await Complaint.findOne({ complaintId: req.params.id });
             if (!complaint) return res.status(404).json({ error: 'Complaint not found' });
 
-            const propertyId = complaint.propertyId
+            const propertyId = complaint.propertyId;
 
             if (complaint.tenantId !== ppid) {
                 return res.status(403).json({ error: 'Forbidden: You do not have permission to delete this complaint' });
             }
             const deletedComplaint = await Complaint.findOneAndDelete({ complaintId: req.params.id });
             if (!deletedComplaint) return res.status(404).json({ error: 'Complaint not found' });
-          
+
+            const title = 'Complaint Removed';
+            const message = `Your complaint has been removed from the system. If this was unexpected, please contact support.`;
+            const type = 'alert';
+            const method = ['in-app', 'email'];
+
+            try {
+                console.log('Adding notification job to the queue...');
+
+                await notificationQueue.add('notifications', {
+                    tenantIds: [ppid],
+                    propertyPpid: propertyId,
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+
+                console.log('Notification job added successfully');
+
+            } catch (err) {
+                console.error('Failed to queue notification:', err.message);
+            }
+
             await invalidateCacheByPattern(`*${propertyId}*`);
 
             res.status(200).json({ message: 'Complaint deleted successfully' });
         } catch (error) {
-            res.status(500).json({ error: 'Failed to delete complaint',err:error.message });
+            res.status(500).json({ error: 'Failed to delete complaint', err: error.message });
         }
     },
 

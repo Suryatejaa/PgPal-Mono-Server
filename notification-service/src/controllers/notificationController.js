@@ -4,6 +4,7 @@ const { getTenantConfirmation } = require('./internalApis');
 
 exports.sendNotification = async (req, res) => {
     try {
+
         const currentUser = JSON.parse(req.headers['x-user']);
         const { tenantId, title, message, type, method } = req.body;
 
@@ -139,3 +140,4 @@ exports.sendBulkNotifications = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+

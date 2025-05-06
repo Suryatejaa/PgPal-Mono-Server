@@ -13,8 +13,6 @@ const invalidateCacheByPattern = async (pattern) => {
             keys.push(...foundKeys); 
         } while (cursor !== 0); 
 
-        console.log(`Keys found for pattern "${pattern}":`, keys);
-
         if (keys.length > 0) {
             // Delete all matching keys
             await redisClient.del(keys);

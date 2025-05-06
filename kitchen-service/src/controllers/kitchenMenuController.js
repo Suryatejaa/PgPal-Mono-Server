@@ -3,7 +3,9 @@ const { getPropertyOwner } = require('./internalApis');
 const { getTenantConfirmation } = require('./internalApis');
 const { getFormattedDayName } = require('../utils/getFormatedDay');
 const redisClient = require('../utils/redis');
-const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern')
+const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
+const notificationQueue = require('../utils/notificationQueue.js');
+
 
 exports.selectMenu = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']);
@@ -42,7 +44,37 @@ exports.selectMenu = async (req, res) => {
         if (!updatedMenu) {
             return res.status(404).json({ error: 'Menu not found' });
         }
-        
+
+        const title = 'Menu Selected for the Week';
+        const message = `The weekly menu has been finalized. Get ready to serve what's cooking!`;
+        const type = 'reminder';
+        const method = ['in-app'];
+
+        try {
+            console.log('Adding notification job to the queue...');
+
+            await notificationQueue.add('notifications', {
+                tenantIds: [ppid],
+                propertyPpid: propertyPpid,
+                title,
+                message,
+                type,
+                method,
+                createdBy: currentUser?.data?.user?.pgpalId || 'system'
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 3000
+                }
+            });
+
+            console.log('Notification job added successfully');
+
+        } catch (err) {
+            console.error('Failed to queue notification:', err.message);
+        }
+
         await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(200).json({ message: 'Menu selection updated successfully', menu: updatedMenu });
@@ -54,6 +86,7 @@ exports.selectMenu = async (req, res) => {
 
 exports.addWeeklyMenu = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']);
+    const ppid = currentUser.data.user.pgpalId;
     if (currentUser.data.user.role !== 'owner') {
         return res.status(403).json({ error: 'Only owners can add menu' });
     }
@@ -89,10 +122,37 @@ exports.addWeeklyMenu = async (req, res) => {
             updatedAt: new Date()
         });
 
-        await invalidateCacheByPattern(`*${propertyPpid}*`);
+        const title = 'New Weekly Menu Added';
+        const message = `A new weekly menu has been added to the kitchen schedule. Check it out and stay prepared!`;
+        const type = 'info';
+        const method = ['in-app'];
 
-        // await redisClient.del(`/api/kitchen-service/${propertyPpid}`);
-        // await redisClient.del(`/api/kitchen-service/${propertyPpid}/menu-today`);
+        try {
+            console.log('Adding notification job to the queue...');
+
+            await notificationQueue.add('notifications', {
+                tenantIds: [ppid],
+                propertyPpid: propertyPpid,
+                title,
+                message,
+                type,
+                method,
+                createdBy: currentUser?.data?.user?.pgpalId || 'system'
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 3000
+                }
+            });
+
+            console.log('Notification job added successfully');
+
+        } catch (err) {
+            console.error('Failed to queue notification:', err.message);
+        }
+
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(201).json(weeklyMenu);
     } catch (error) {
@@ -244,6 +304,8 @@ exports.getMenuList = async (req, res) => {
 
 exports.updateWeeklyMenu = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']);
+    const ppid = currentUser.data.user.pgpalId;
+
     if (currentUser.data.user.role !== 'owner') {
         return res.status(403).json({ error: 'Only owners can update menu' });
     }
@@ -284,11 +346,38 @@ exports.updateWeeklyMenu = async (req, res) => {
         existingMenu.updatedAt = new Date();
 
         const savedMenu = await existingMenu.save();
-        
-        await invalidateCacheByPattern(`*${propertyPpid}*`);
 
-        // await redisClient.del(`/api/kitchen-service/${propertyPpid}`);
-        // await redisClient.del(`/api/kitchen-service/${propertyPpid}/menu-today`);
+        const title = 'Weekly Menu Updated';
+        const message = `The kitchen's weekly menu has been updated. Review the changes to stay in sync.`;
+        const type = 'alert';
+        const method = ['in-app'];
+
+        try {
+            console.log('Adding notification job to the queue...');
+
+            await notificationQueue.add('notifications', {
+                tenantIds: [ppid],
+                propertyPpid: propertyPpid,
+                title,
+                message,
+                type,
+                method,
+                createdBy: currentUser?.data?.user?.pgpalId || 'system'
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 3000
+                }
+            });
+
+            console.log('Notification job added successfully');
+
+        } catch (err) {
+            console.error('Failed to queue notification:', err.message);
+        }        
+
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(200).json(savedMenu);
     } catch (error) {
@@ -298,6 +387,8 @@ exports.updateWeeklyMenu = async (req, res) => {
 
 exports.deleteWeeklyMenu = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']);
+    const ppid = currentUser.data.user.pgpalId;
+
     if (currentUser.data.user.role !== 'owner') {
         return res.status(403).json({ error: 'Only owners can delete menu' });
     }
@@ -331,6 +422,36 @@ exports.deleteWeeklyMenu = async (req, res) => {
                 await menu.save(); // Save the updated menu
             })
         );
+
+        const title = 'Weekly Menu Removed';
+        const message = `A weekly menu has been deleted. Make sure a new one is added to avoid disruption.`;
+        const type = 'alert';
+        const method = ['in-app', 'email'];
+
+        try {
+            console.log('Adding notification job to the queue...');
+
+            await notificationQueue.add('notifications', {
+                tenantIds: [ppid],
+                propertyPpid: propertyPpid,
+                title,
+                message,
+                type,
+                method,
+                createdBy: currentUser?.data?.user?.pgpalId || 'system'
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 3000
+                }
+            });
+
+            console.log('Notification job added successfully');
+
+        } catch (err) {
+            console.error('Failed to queue notification:', err.message);
+        }
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
 

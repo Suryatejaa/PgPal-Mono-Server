@@ -22,7 +22,7 @@ mongoose.connect(process.env.MONGO_URI, {
     serverSelectionTimeoutMS: 30000 // Increase timeout to 30s
 }
 )
-    .then(() => console.log('MongoDB Connected'))
+    .then(() => console.log('MongoDB Connected',process.env.MONGO_URI))
     .catch((err) => console.log('MongoDb connection error', err));
 
 // Routes

@@ -1,24 +1,7 @@
-const { json } = require('express');
 const Property = require('../models/propertyModel');
-const axios = require('axios');
 const redisClient = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern')
-
-
-const increaseViewCount = async (id) => {
-    const property = await Property.findById(id);
-    if (!property) {
-        throw new Error('Property not found');
-    }
-    await Property.findByIdAndUpdate(id, {
-        $inc: { views: 1 },
-    }, {
-        new: true
-
-    });
-    return property;
-};
-
+const notificationQueue = require('../utils/notificationQueue.js');
 
 module.exports = {
     async getAmenities(req, res) {
@@ -42,6 +25,7 @@ module.exports = {
     async addAmenity(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
         const id = currentUser.data.user._id;
+        const ppid = currentUser.data.user.pgpalId
 
         const validAmenities = [
             'Wifi',
@@ -104,6 +88,36 @@ module.exports = {
                 { new: true }
             );
 
+            const title = 'Amenity Added';
+            const message = 'A new amenity has been added to your property.';
+            const type = 'info';
+            const method = ['in-app'];
+
+            try {
+                console.log('Adding notification job to the queue...');
+
+                await notificationQueue.add('notifications', {
+                    tenantIds: [ppid],
+                    propertyPpid: propertyPpid,
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+
+                console.log('Notification job added successfully');
+
+            } catch (err) {
+                console.error('Failed to queue notification:', err.message);
+            }
+
             await invalidateCacheByPattern(`*${propertyPpid}*`);
 
             res.status(200).json(property);
@@ -115,6 +129,7 @@ module.exports = {
     async deleteAmenity(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
         const id = currentUser.data.user._id;
+        const ppid = currentUser.data.user.pgpalId
         const amenityName = req.params.amenityName.charAt(0).toUpperCase() + req.params.amenityName.slice(1).toLowerCase();
 
         if (!id) {
@@ -142,6 +157,36 @@ module.exports = {
                 { $pull: { amenities: amenityName } },
                 { new: true }
             );
+
+            const title = 'Amenity Removed';
+            const message = `An amenity has been removed from your property.`;
+            const type = 'alert';
+            const method = ['in-app'];
+
+            try {
+                console.log('Adding notification job to the queue...');
+
+                await notificationQueue.add('notifications', {
+                    tenantIds: [ppid],
+                    propertyPpid,
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+
+                console.log('Notification job added successfully');
+
+            } catch (err) {
+                console.error('Failed to queue notification:', err.message);
+            }
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
 

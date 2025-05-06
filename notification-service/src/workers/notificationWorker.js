@@ -1,12 +1,19 @@
-require('dotenv').config();
 const mongoose = require('mongoose');
 const { Worker } = require('bullmq');
 const Notification = require('../models/notificationModel');
 const Redis = require('ioredis');
+const dotenv = require('dotenv');
+
+const path = require('path');
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
+console.log('Current working directory:', process.cwd());
+console.log('MONGO_URI from .env:', process.env.MONGO_URI);
 
 mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 30000 // Increase timeout to 30s
 })
     .then(() => console.log('✅ MongoDB connected in worker'))
     .catch((err) => console.error('❌ MongoDB connection error in worker:', err));

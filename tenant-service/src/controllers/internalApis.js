@@ -119,11 +119,35 @@ const clearBed = async (roomId, bedId, currentUser) => {
     }
 };
 
+const sendNotification = async (currentUser, tenantId, title, message, type, method) => {
+
+    try {
+        const response = await axios.post('http://localhost:4000/api/notification-service',
+            {
+                tenantId,
+                title,
+                message,
+                type,
+                method,
+                createdBy: 'system'
+            },
+            {
+                headers: {
+                    'x-user': JSON.stringify(currentUser),
+                    'x-internal-service': true
+                }
+            });
+    } catch (err) {
+        console.error('Error sending notification:', err.message);
+    }
+};
+
 module.exports = {
     getOwnProperty,
     getUserByPhone,
     getRoomByNumber,
     getUserByPpid,
     assignBed,
-    clearBed
+    clearBed,
+    sendNotification
 };

@@ -2,6 +2,8 @@ const Room = require('../models/roomModel');
 const axios = require('axios');
 const redisClient = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
+const notificationQueue = require('../utils/notificationQueue.js');
+
 
 const getOwnProperty = async (propertyId, currentUser, ppid) => {
     let url;
@@ -30,6 +32,7 @@ exports.addRoom = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']) || {};
     const id = currentUser.data.user._id;
     const role = currentUser.data.user.role;
+    const ppid = currentUser.data.user.pgpalId
 
     const currentRoomCount = await Room.countDocuments({ propertyId: req.body.propertyId });
     console.log(currentRoomCount);
@@ -140,6 +143,37 @@ exports.addRoom = async (req, res) => {
         }
 
         const propertyPpid = property.pgpalId;
+
+        const title = 'New Room Added';
+        const message = 'A new room has been successfully added to the property.';
+        const typee = 'info';
+        const method = ['in-app'];
+
+        try {
+            console.log('Adding notification job to the queue...');
+
+            await notificationQueue.add('notifications', {
+                tenantIds: [ppid],
+                propertyPpid: propertyPpid,
+                title,
+                message,
+                type:typee,
+                method,
+                createdBy: currentUser?.data?.user?.pgpalId || 'system'
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 3000
+                }
+            });
+
+            console.log('Notification job added successfully');
+
+        } catch (err) {
+            console.error('Failed to queue notification:', err.message);
+        }
+
         await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(201).json(room);
@@ -151,9 +185,9 @@ exports.addRoom = async (req, res) => {
 
 exports.updateRoom = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']) || {};
-
     const id = currentUser.data.user._id;
     const role = currentUser.data.user.role;
+    const ppid = currentUser.data.user.pgpalId
 
     if (!id) {
         return res.status(401).json({ error: 'Unauthorized: Missing userId' });
@@ -263,6 +297,37 @@ exports.updateRoom = async (req, res) => {
         const updateRoom = await Room.findByIdAndUpdate(req.params.roomId, updateData, { new: true });
 
         const propertyPpid = property.pgpalId;
+
+        const title = 'Room Details Updated';
+        const message = 'Room information has been updated. Please verify the latest changes.';
+        const typee = 'alert';
+        const method = ['in-app', 'email'];
+
+        try {
+            console.log('Adding notification job to the queue...');
+
+            await notificationQueue.add('notifications', {
+                tenantIds: [ppid],
+                propertyPpid: propertyPpid,
+                title,
+                message,
+                type:typee,
+                method,
+                createdBy: currentUser?.data?.user?.pgpalId || 'system'
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 3000
+                }
+            });
+
+            console.log('Notification job added successfully');
+
+        } catch (err) {
+            console.error('Failed to queue notification:', err.message);
+        }
+
         await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(200).json({ message: 'Room updated successfully', updateRoom });
@@ -274,9 +339,9 @@ exports.updateRoom = async (req, res) => {
 
 exports.deleteRoom = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']) || {};
-
     const id = currentUser.data.user._id;
     const role = currentUser.data.user.role;
+    const ppid = currentUser.data.user.pgpalId
 
     if (!id) {
         return res.status(401).json({ error: 'Unauthorized: Missing userId' });
@@ -304,6 +369,37 @@ exports.deleteRoom = async (req, res) => {
         if (!room) return res.status(404).json({ error: 'Room not found' });
 
         const propertyPpid = property.pgpalId;
+
+        const title = 'Room Deleted';
+        const message = 'A room has been removed from the property listing.';
+        const type = 'alert';
+        const method = ['in-app', 'email'];
+
+        try {
+            console.log('Adding notification job to the queue...');
+
+            await notificationQueue.add('notifications', {
+                tenantIds: [ppid],
+                propertyPpid: propertyPpid,
+                title,
+                message,
+                type,
+                method,
+                createdBy: currentUser?.data?.user?.pgpalId || 'system'
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 3000
+                }
+            });
+
+            console.log('Notification job added successfully');
+
+        } catch (err) {
+            console.error('Failed to queue notification:', err.message);
+        }
+
         await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(200).json({ message: 'Room deleted successfully' });
