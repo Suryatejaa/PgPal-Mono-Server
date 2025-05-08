@@ -1,0 +1,167 @@
+services:
+  auth-service:
+    build: ./auth-service
+    ports:
+      - "4001:4001"
+    environment:
+    - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_auth_service
+    - JWT_SECRET=your_jwt_secret
+    - REFRESH_TOKEN_SECRET=your_refresh_token_secret
+    - PORT=4001
+    - EMAIL=echoliftagency@gmail.com
+    - EMAIL_PASSWORD=dinh blaq osyc cpds
+    - BASE_URL=http://localhost:8080
+    - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+    - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+    - GOOGLE_CALLBACK_URL=http://localhost:4000/api/auth-service/google/callback
+    - PRIVATE_KEY_ID=${PRIVATE_KEY_ID}
+    - PRIVATE_KEY=${PRIVATE_KEY}
+    
+    depends_on:
+      - mongo
+
+  property-service:
+    build: ./property-service
+    ports:
+      - "4002:4002"
+    environment:
+      - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_property_service
+      - JWT_SECRET=your_jwt_secret
+      - PORT=4002
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - mongo
+      - redis
+
+
+  room-service:
+    build: ./room-service
+    ports:
+      - "4003:4003"
+    environment:
+      - MONGO_URI=mongodb://host.docker.internal:27017/room-service
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your_jwt_secret
+      - PORT=4003
+    depends_on:
+      - mongo
+      - redis
+
+
+  tenant-service:
+    build: ./tenant-service
+    ports:
+      - "4004:4004"
+    environment:
+      - MONGO_URI=mongodb://host.docker.internal:27017/tenant-service
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your_jwt_secret
+      - PORT=4004
+    depends_on:
+      - mongo
+      - redis
+
+  payment-service:
+    build: ./payment-service
+    ports:
+      - "4005:4005"
+    environment:
+      - MONGO_URI=mongodb://host.docker.internal:27017/payment-service
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - mongo
+      - redis
+
+
+  complaint-service:
+    build: ./complaint-service
+    ports:
+      - "4006:4006"
+    environment:
+      - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_complaints_service
+      - JWT_SECRET=your_jwt_secret
+      - PORT=4006
+      - EMAIL=echoliftagency@gmail.com
+      - EMAIL_PASSWORD=dinh blaq osyc cpds
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - mongo
+      - redis
+
+
+  kitchen-service:
+    build: ./kitchen-service
+    ports:
+      - "4007:4007"
+    environment:
+      - MONGO_URI=mongodb://host.docker.internal:27017/kitchen-service
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your_jwt_secret
+      - PORT=4007
+    depends_on:
+      - mongo
+      - redis
+
+  dashboard-service:
+    build: ./dashboard-service
+    ports:
+      - "4008:4008"
+    environment:
+      - MONGO_URI=mongodb://host.docker.internal:27017/dashboard-service
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your_jwt_secret
+      - PORT=4008
+    depends_on:
+      - mongo
+      - redis
+
+
+  notification-service:
+    build: ./notification-service
+    ports:
+      - "4009:4009"
+    environment:
+      - MONGO_URI=mongodb://host.docker.internal:27017/notification-service
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your_jwt_secret
+      - PORT=4009
+    depends_on:
+      - mongo 
+      - redis
+
+
+  notification-worker:
+    build: ./notification-service
+    command: node src/workers/notificationWorker.js
+    depends_on:
+      - mongo
+      - redis
+    environment:
+      - MONGO_URI=mongodb://host.docker.internal:27017/notification-service
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your_jwt_secret
+      - PORT=4009
+
+  gateway:
+    build: ./gateway
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+
+  mongo:
+    image: mongo
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+    - ./mongo-data:/data/db
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+      
+volumes:
+  mongo-data:
