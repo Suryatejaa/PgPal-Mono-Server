@@ -3,6 +3,8 @@ const { generatePPT } = require('../utils/idGenerator'); // Assuming you have a 
 const { assignBed, getOwnProperty, getUserByPhone, getRoomByNumber, getUserByPpid } = require('./internalApis'); // Assuming you have a function to generate PPT IDs
 const redisClient = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
+const notificationQueue = require('../utils/notificationQueue.js');
+
 // Helper to fetch property & verify ownership
 
 exports.addTenant = async (req, res) => {
@@ -112,6 +114,38 @@ exports.addTenant = async (req, res) => {
         const tenant = existing ? await Tenant.findByIdAndUpdate(existing._id, tenantData, { new: true }) : await Tenant.create(tenantData);
 
         const propertyPpid = property.pgpalId;
+
+        const title = "New Tenant Added";
+        const message = "A new tenant has been added to the system.";
+        const type = "info";
+        const method = ["in-app", "email"];
+
+        try {
+            console.log('Adding notification job to the queue...');
+
+            await notificationQueue.add('notifications', {
+                tenantIds: [tenantPpt],
+                propertyPpid: propertyPpid,
+                title,
+                message,
+                type: type,
+                method,
+                createdBy: currentUser?.data?.user?.pgpalId || 'system'
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 3000
+                }
+            });
+
+            console.log('Notification job added successfully');
+
+        } catch (err) {
+            console.error('Failed to queue notification:', err.message);
+        }
+
+
         await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(201).json({
@@ -153,6 +187,37 @@ exports.updateTenant = async (req, res) => {
         });
 
         const propertyPpid = property.pgpalId;
+
+        const title = "Tenant Details Updated";
+        const message = "Tenant profile or stay information has been updated.";
+        const type = "info";
+        const method = ["in-app"];
+
+        try {
+            console.log('Adding notification job to the queue...');
+
+            await notificationQueue.add('notifications', {
+                tenantIds: [Tenant.pgpalId],
+                propertyPpid: propertyPpid,
+                title,
+                message,
+                type: type,
+                method,
+                createdBy: currentUser?.data?.user?.pgpalId || 'system'
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 3000
+                }
+            });
+
+            console.log('Notification job added successfully');
+
+        } catch (err) {
+            console.error('Failed to queue notification:', err.message);
+        }
+
         await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(200).json({ message: 'Tenant updated successfully', updatedTenant });
@@ -178,6 +243,38 @@ exports.deleteTenant = async (req, res) => {
         await Tenant.findOneAndDelete({ $or: [{ phone }, { pgpalId }] });
 
         const propertyPpid = property.pgpalId;
+
+        const title = "Tenant Removed";
+        const message = "A tenant has been removed from the system.";
+        const type = "alert";
+        const method = ["in-app", "email"];
+
+        try {
+            console.log('Adding notification job to the queue...');
+
+            await notificationQueue.add('notifications', {
+                tenantIds: [Tenant.pgpalId],
+                propertyPpid: propertyPpid,
+                title,
+                message,
+                type: type,
+                method,
+                createdBy: currentUser?.data?.user?.pgpalId || 'system'
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 3000
+                }
+            });
+
+            console.log('Notification job added successfully');
+
+        } catch (err) {
+            console.error('Failed to queue notification:', err.message);
+        }
+
+
         await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(200).json({ message: 'Tenant deleted successfully' });

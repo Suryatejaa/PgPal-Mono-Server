@@ -19,9 +19,13 @@ mongoose.connect(process.env.MONGO_URI, {
     .catch((err) => console.error('❌ MongoDB connection error in worker:', err));
 
 
-const connection = new Redis({
-    maxRetriesPerRequest: null
-});
+const connection = new Redis(
+    process.env.REDIS_URL || 'redis://redis:6379',
+    {
+        maxRetriesPerRequest: null
+    }
+);
+
 
 connection.on('connect', () => console.log('Redis connected successfully'));
 connection.on('error', (err) => console.error('Redis connection error:', err));

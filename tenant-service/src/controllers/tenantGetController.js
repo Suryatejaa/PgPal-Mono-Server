@@ -93,7 +93,7 @@ exports.getTenantByPhNum = async (req, res) => {
 
         res.status(200).json(ppId[0]);
     } catch (err) {
-        res.status(400).json({ error: err.message });
+        res.status(400).json({ message: err.message });
     }
 };
 

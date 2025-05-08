@@ -1,5 +1,7 @@
 const express = require('express');
 const rentController = require('../controllers/paymentController');
+const cacheMiddleware = require('../utils/cacheMiddleware');
+
 
 const router = express.Router();
 

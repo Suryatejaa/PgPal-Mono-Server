@@ -72,55 +72,55 @@ function attachUserHeader(req, res, next) {
 
 app.use('/api/auth-service',
     createProxyMiddleware({
-        target: 'http://localhost:4001',
+        target: 'http://auth-service:4001',
         changeOrigin: true,
     })
 );
 
 app.use('/api/property-service', authenticate, attachUserHeader,
     createProxyMiddleware({
-        target: 'http://localhost:4002',
+        target: 'http://property-service:4002',
         changeOrigin: true,
     }));
 
 app.use('/api/room-service', authenticate, attachUserHeader,
     createProxyMiddleware({
-        target: 'http://localhost:4003',
+        target: 'http://room-service:4003',
         changeOrigin: true,
     }));
 
 app.use('/api/tenant-service', authenticate, attachUserHeader,
     createProxyMiddleware({
-        target: 'http://localhost:4004', // Updated target
+        target: 'http://tenant-service:4004', // Updated target
         changeOrigin: true,
     }));
 
 app.use('/api/payment-service', authenticate, attachUserHeader,
     createProxyMiddleware({
-        target: 'http://localhost:4005',
+        target: 'http://payment-service:4005',
         changeOrigin: true,
     }));
 
 app.use('/api/complaint-service', authenticate, attachUserHeader,
     createProxyMiddleware({
-        target: 'http://localhost:4006', // Updated target
+        target: 'http://complaint-service:4006', // Updated target
         changeOrigin: true,
     }));
 
 app.use('/api/kitchen-service', authenticate, attachUserHeader,
     createProxyMiddleware({
-        target: 'http://localhost:4007', // Updated target
+        target: 'http://kitchen-service:4007', // Updated target
         changeOrigin: true,
     }));
 
 app.use('/api/dashboard-service', authenticate, attachUserHeader,
     createProxyMiddleware({
-        target: 'http://localhost:4008', // Updated target
+        target: 'http://dashboard-service:4008', // Updated target
         changeOrigin: true,
     }));
 app.use('/api/notification-service', authenticate, attachUserHeader,
     createProxyMiddleware({
-        target: 'http://localhost:4009', // Updated target
+        target: 'http://notification-service:4009', // Updated target
         changeOrigin: true,
     }));
 // Start the API Gateway

@@ -5,10 +5,10 @@ const { generatePPT, generatePPO } = require('../utils/idGenerator');
 const dotenv = require('dotenv');
 dotenv.config();
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/pgpaal_auth_service';
-console.log(MONGO_URI)
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://host.docker.internal:27017/pgpaal_auth_service';
+console.log(MONGO_URI);
 
-mongoose.connect(MONGO_URI)
+mongoose.connect(MONGO_URI);
 
 const backfillTenantIds = async () => {
     const users = await User.find({ pgpalId: { $exists: false } });

@@ -3,7 +3,7 @@ const otpStore = {};
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
 const redisClient = require('../utils/redis.js'); // Adjust the path as needed
-
+const { generatePPT } = require ('../utils/idGenerator.js')
 
 
 const setHeader = (res, token) => {
@@ -241,11 +241,12 @@ const verifyOtp = async (req, res) => {
                 return null;
             }
         };
+
         let pgpalId;
         if (userData.role === 'tenant') {
-            pgpalId = await getPgpalId();
+            pgpalId = await getPgpalId()
             if (!pgpalId) {
-                return res.status(400).send({ message: 'Error fetching pgpalId' });
+                pgpalId = generatePPT();
             }
         }
 

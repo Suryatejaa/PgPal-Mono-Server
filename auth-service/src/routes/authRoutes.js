@@ -19,6 +19,9 @@ const restrictToInternal = (req, res, next) => {
     return res.status(403).json({ error: 'Access denied: internal use only' });
 };
 
+router.get('/', (req, res) => {
+    res.status(200).json({ message: 'Auth Service is running' });
+});
 
 router.post('/register', validateRequest, UserController.registerUser);
 router.post('/login', validateLogin, UserController.loginUser);
@@ -34,6 +37,7 @@ router.post('/forgot-password-reset', passwordController.forgotPasswordResetUser
 router.patch('/password-reset', authenticate, passwordController.passwordResetUser);
 
 router.post('/logout', authenticate, UserController.logoutUser);
+
 
 router.get('/test-auth', authenticate, (req, res) => {
     res.send(`Hello, ${req.user.name}! Authentication successful.` +

@@ -3,6 +3,7 @@ const Vacates = require('../models/vacatesModel');
 const Tenant = require('../models/tenantModel');
 const redisClient = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
+const notificationQueue = require('../utils/notificationQueue.js');
 
 exports.removeTenant = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']);
@@ -125,6 +126,37 @@ exports.removeTenant = async (req, res) => {
         if (!vacateRequest) return res.status(404).json({ error: 'Vacate request not created' });
 
         const propertyPpid = property.pgpalId;
+        const title = "Tenant Removed by Owner";
+        const message = "A tenant has been forcefully removed by the owner.";
+        const type = "alert";
+        const method = ["in-app", "email", "sms"];
+
+        try {
+            console.log('Adding notification job to the queue...');
+
+            await notificationQueue.add('notifications', {
+                tenantIds: [pgpalId],
+                propertyPpid: propertyPpid,
+                title,
+                message,
+                type: type,
+                method,
+                createdBy: currentUser?.data?.user?.pgpalId || 'system'
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 3000
+                }
+            });
+
+            console.log('Notification job added successfully');
+
+        } catch (err) {
+            console.error('Failed to queue notification:', err.message);
+        }
+
+
         await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(201).json({
@@ -214,6 +246,38 @@ exports.retainTenant = async (req, res) => {
         if (!updatedVacate) return res.status(404).json({ error: 'Vacate request not found' });
 
         const propertyPpid = property.pgpalId;
+
+        const title = "Tenant Retained";
+        const message = "The vacate request has been cancelled by the owner. The tenant will continue to stay.";
+        const type = "info";
+        const method = ["in-app", "email"];
+
+        try {
+            console.log('Adding notification job to the queue...');
+
+            await notificationQueue.add('notifications', {
+                tenantIds: [pgpalId],
+                propertyPpid: propertyPpid,
+                title,
+                message,
+                type: type,
+                method,
+                createdBy: currentUser?.data?.user?.pgpalId || 'system'
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 3000
+                }
+            });
+
+            console.log('Notification job added successfully');
+
+        } catch (err) {
+            console.error('Failed to queue notification:', err.message);
+        }
+
+
         await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(200).json({

@@ -6,8 +6,8 @@ const GoogleUser = require('../models/googleModel'); // Use the GoogleUser schem
 passport.use(
     new GoogleStrategy(
         {
-            clientID: process.env.GOOGLE_ID,
-            clientSecret: process.env.GOOGLE_CODE,
+            clientID: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
             callbackURL: process.env.GOOGLE_CALLBACK_URL,
         },
         async (accessToken, refreshToken, profile, done) => {

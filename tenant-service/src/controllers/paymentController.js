@@ -1,5 +1,10 @@
 const Tenant = require('../models/tenantModel');
 const { getOwnProperty } = require("./internalApis");
+const notificationQueue = require('../utils/notificationQueue.js');
+const redisClient = require('../utils/redis');
+const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
+
+
 
 // 1. Update rent details for a tenant
 exports.updateRent = async (req, res) => {
@@ -61,6 +66,39 @@ exports.updateRent = async (req, res) => {
 
         if (!updatedTenant) return res.status(404).json({ error: 'Failed to update tenant rent details' });
 
+        const title= "Rent Information Updated";
+        const message= "The rent details for one or more tenants have been updated.";
+        const type= "info";
+        const method= ["in-app"]
+
+        try {
+            console.log('Adding notification job to the queue...');
+
+            await notificationQueue.add('notifications', {
+                tenantIds: [tenantId],
+                propertyPpid: propertyPpid,
+                title,
+                message,
+                type: type,
+                method,
+                createdBy: currentUser?.data?.user?.pgpalId || 'system'
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 3000
+                }
+            });
+
+            console.log('Notification job added successfully');
+
+        } catch (err) {
+            console.error('Failed to queue notification:', err.message);
+        }
+
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${tenantId}*`);
+
         res.status(200).json({ message: 'Rent updated successfully', tenant: updatedTenant });
 
     } catch (err) {
@@ -86,14 +124,19 @@ exports.getRentStatus = async (req, res) => {
 
         const { rent, rentPaid, rentDue, rentPaidDate, rentPaidStatus, nextRentDueDate } = tenant.currentStay;
 
-        res.status(200).json({
+        const response = {
             rent,
             rentPaid,
             rentDue,
             rentPaidDate,
             status: rentPaidStatus,
             nextRentDueDate
-        });
+        }
+
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.status(200).json(response);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -126,7 +169,12 @@ exports.getRentSummary = async (req, res) => {
             nextRentDueDate: t.currentStay.nextRentDueDate
         }));
 
-        res.status(200).json({ propertyPpid, tenants: summary });
+        const response = { propertyPpid, tenants: summary }
+
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.status(200).json(response);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -159,7 +207,12 @@ exports.getRentDefaulters = async (req, res) => {
             rentPaidDate: t.currentStay.rentPaidDate
         }));
 
-        res.status(200).json({ totalDefaulters: formatted.length, defaulters: formatted });
+        const response = { totalDefaulters: formatted.length, defaulters: formatted }
+
+        const cacheKey = req.originalUrl;
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.status(200).json(response);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

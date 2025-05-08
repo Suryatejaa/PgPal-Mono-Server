@@ -1,14 +1,14 @@
 // scripts/backfill-ids.js
 const mongoose = require('mongoose');
 const User = require('../models/propertyModel');
-const {  generatePPP } = require('../utils/idGenerator');
+const { generatePPP } = require('../utils/idGenerator');
 const dotenv = require('dotenv');
 dotenv.config();
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/pgpaal_property_service';
-console.log(MONGO_URI)
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://host.docker.internal:27017/pgpaal_property_service';
+console.log(MONGO_URI);
 
-mongoose.connect(MONGO_URI)
+mongoose.connect(MONGO_URI);
 
 const backfillPropertyIds = async () => {
     const properties = await User.find({ pgpalId: { $exists: false } });
