@@ -42,14 +42,30 @@ module.exports = {
         }
 
         try {
-            const { name, address, totalBeds, totalRooms, occupiedBeds } = req.body;
+            const { name, contact, address, totalBeds, totalRooms, occupiedBeds } = req.body;
+
+            if (!name || !address || !contact || !address) {
+                return res.status(400).json({ error: 'Missing required fields' });
+            }
+
             const availableBeds = totalBeds - occupiedBeds;
             if (availableBeds < 0) {
                 return res.status(400).json({ error: 'Occupied beds cannot exceed total beds' });
             }
-            const property = await Property.create({ name, address, ownerId: id, totalBeds, totalRooms, occupiedBeds, availableBeds, createdBy: id, contact: { phone: phone, email: email } });
+            const property = await Property.create({
+                ownerId: id,
+                createdBy: id,
+                name,
+                contact: { phone: phone, email: email },
+                address,
+                totalRooms,
+                totalBeds,
+                occupiedBeds,
+                availableBeds,
+            });
 
             const propertyPpid = property.pgpalId;
+            console.log('Property PPID ', propertyPpid);
 
             const title = 'New Property Added';
             const message = 'A new property has been successfully registered.';
@@ -61,7 +77,7 @@ module.exports = {
 
                 await notificationQueue.add('notifications', {
                     tenantIds: [ppid],
-                    propertyPpid: propertyPpid,
+                    propertyPpid,
                     title,
                     message,
                     type,
@@ -139,6 +155,7 @@ module.exports = {
     async getPropertyForRoom(req, res) {
         const id = req.params.id;
         const ppid = req.query.ppid;
+        console.log('Called getPropertyforRoom ', id);
         try {
 
             const property = await Property.findById(id);
@@ -235,16 +252,22 @@ module.exports = {
         }
 
         try {
-            const property = await Property.findOneAndUpdate(
+            const property = await Property.findById(req.params.id);
+            if (!property) {
+                return res.status(404).json({ error: 'Property not found' });
+            }
+            if (property.ownerId !== id) {
+                return res.status(403).json({ error: 'Forbidden: You can only update your own properties' });
+            }
+
+            // Proceed with the update
+            const updatedProperty = await Property.findOneAndUpdate(
                 { _id: req.params.id, ownerId: id },
                 req.body,
                 { new: true }
             );
-            if (!property) {
-                return res.status(404).json({ error: 'Property not found' });
-            }
 
-            const propertyPpid = property.pgpalId;
+            const propertyPpid = updatedProperty.pgpalId;
             await invalidateCacheByPattern(`*${propertyPpid}*`);
 
             const title = 'Property Details Updated';
@@ -277,7 +300,7 @@ module.exports = {
                 console.error('Failed to queue notification:', err.message);
             }
 
-            res.status(200).json(property);
+            res.status(200).json(updatedProperty);
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
@@ -298,13 +321,16 @@ module.exports = {
 
 
         try {
-            const property = await Property.findOneAndDelete({
-                _id: req.params.id,
-                ownerId: id,
-            });
+            const property = await Property.findById(req.params.id);
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
+            if (property.ownerId !== id) {
+                return res.status(403).json({ error: 'Forbidden: You can only delete your own properties' });
+            }
+
+            // Proceed with the deletion
+            await Property.findByIdAndDelete(req.params.id);
 
             const propertyPpid = property.pgpalId;
 
@@ -312,7 +338,7 @@ module.exports = {
             const message = 'A property has been deleted from the system.';
             const type = 'alert';
             const method = ['in-app', 'email'];
-            
+
             try {
                 console.log('Adding notification job to the queue...');
 
@@ -402,9 +428,18 @@ module.exports = {
         const id = currentUser.data.user._id;
         const role = currentUser.data.user.role;
         const ppid = currentUser.data.user.pgpalId;
-    
+
         try {
             const { availability } = req.body;
+
+            const getProperty = await Property.findById(req.params.id);
+            if (!getProperty) {
+                return res.status(404).json({ error: 'Property not found' });
+            }
+            if (getProperty.ownerId !== id) {
+                return res.status(403).json({ error: 'Forbidden: You can only update your own properties' });
+            }
+
             const property = await Property.findByIdAndUpdate(
                 req.params.id,
                 { availability },
@@ -473,7 +508,7 @@ module.exports = {
         }
 
         try {
-            const owner = await axios.get(`http://localhost:4000/api/auth-service/user?id=${property.ownerId}`,
+            const owner = await axios.get(`http://auth-service:4001/api/auth-service/user?id=${property.ownerId}`,
                 {
                     headers: {
                         'x-internal-service': 'true',
@@ -493,6 +528,46 @@ module.exports = {
             res.status(200).json(response);
         } catch (error) {
             res.status(500).json({ message: error.message });
+        }
+    },
+
+    async updateTotalBeds(req, res) {
+        console.log('method called');
+        const currentUser = JSON.parse(req.headers['x-user']) || {};
+        const id = currentUser.data.user._id;
+        const role = currentUser.data.user.role;
+
+        if (role !== 'owner') {
+            return res.status(403).json({ error: 'Forbidden: Only owners can update properties' });
+        }
+
+        try {
+            const { totalBeds, totalRooms, occupiedBeds, availableBeds } = req.body;
+
+            console.log(req.params.id);
+            console.log(totalBeds);
+
+            const property = await Property.findById(req.params.id);
+            if (!property) {
+                return res.status(404).json({ error: 'Property not found' });
+            }
+            if (property.ownerId !== id) {
+                return res.status(403).json({ error: 'Forbidden: You can only update your own properties' });
+            }
+
+            property.totalBeds = totalBeds;
+            await Property.updateOne({ _id: req.params.id }, { totalBeds, totalRooms, occupiedBeds, availableBeds });
+
+            await invalidateCacheByPattern(`*${property.pgpalId}*`);
+
+            res.status(200).json({
+                message: 'Total beds updated successfully', totalRooms,
+                totalBeds,
+                occupiedBeds,
+                availableBeds
+            });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
         }
     }
 

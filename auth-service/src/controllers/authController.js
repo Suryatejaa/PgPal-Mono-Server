@@ -153,14 +153,22 @@ const getUserById = async (req, res) => {
         const id = req.query.id;
         const phoneNumber = req.query.phnum;
         const pgpalId = req.query.ppid;
-        console.log(id, phoneNumber);
-        const user = await User.findOne({ $or: [{ _id: id }, { phoneNumber }, { pgpalId }] }
+        console.log('called ',id, phoneNumber,pgpalId);
+        const query = {};
+        if (id) query._id = id;
+        if (phoneNumber) query.phoneNumber = phoneNumber;
+        if (pgpalId) query.pgpalId = pgpalId;
+
+        const user = await User.findOne({ $or: Object.entries(query).map(([key, value]) => ({ [key]: value })) }
             , { password: 0, refreshToken: 0 });
         if (!user) {
+            console.log('User not found')
             return res.status(404).json({ message: 'User not found' });
         }
+        console.log('user: ',user)
         res.send(user);
     } catch (error) {
+        console.log('error ',error.message)
         res.status(400).send({
             error: error.message,
             message: 'Error getting user by ID'
@@ -226,7 +234,7 @@ const verifyOtp = async (req, res) => {
 
         const getPgpalId = async () => {
             try {
-                const response = await axios.get(`http://localhost:4000/api/tenant-service/tenants-int/${userData.phoneNumber}`,
+                const response = await axios.get(`http://tenant-service:4004/api/tenant-service/tenants-int/${userData.phoneNumber}`,
                     {
                         headers: {
                             'x-internal-service': true,
@@ -245,6 +253,7 @@ const verifyOtp = async (req, res) => {
         let pgpalId;
         if (userData.role === 'tenant') {
             pgpalId = await getPgpalId()
+            console.log(pgpalId)
             if (!pgpalId) {
                 pgpalId = generatePPT();
             }

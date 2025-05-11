@@ -3,9 +3,9 @@ const axios = require('axios');
 const getOwnProperty = async (propertyId, currentUser, ppid) => {
     let url;
     if (ppid) {
-        url = `http://localhost:4000/api/property-service/property-ppid/${propertyId}`;
+        url = `http://property-service:4002/api/property-service/property-ppid/${propertyId}`;
     } else {
-        url = `http://localhost:4000/api/property-service/property/${propertyId}`;
+        url = `http://property-service:4002/api/property-service/property/${propertyId}`;
     }
     try {
         const response = await axios.get(url, {

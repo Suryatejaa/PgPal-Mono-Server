@@ -29,6 +29,7 @@ app.use(cookieParser());
 
 
 const authenticate = async (req, res, next) => {
+    // console.log(`[authenticate] Processing request for: ${req.originalUrl}`);
 
     if (req.headers['x-internal-service']) {
         return next();
@@ -40,12 +41,15 @@ const authenticate = async (req, res, next) => {
     }
     console.log('Token from cookies:', token);
     try {
-        const response = await axios.post('http://localhost:4001/api/auth-service/protected', {}, {
+        const response = await axios.post('http://auth-service:4001/api/auth-service/protected', {}, {
             headers: {
                 Authorization: `Bearer ${token}`,
             },
             withCredentials: true,
         });
+
+        // console.log('[authenticate] Response from auth-service:', response.data);
+
         if (response.status === 200) {
             req.user = { data: response.data, token };
             return next();
@@ -62,6 +66,7 @@ const authenticate = async (req, res, next) => {
 
 
 function attachUserHeader(req, res, next) {
+  
     if (req.headers['x-internal-service']) return next();
     if (req.user) {
         req.headers['x-user'] = JSON.stringify(req.user);
@@ -87,7 +92,8 @@ app.use('/api/room-service', authenticate, attachUserHeader,
     createProxyMiddleware({
         target: 'http://room-service:4003',
         changeOrigin: true,
-    }));
+    })
+);
 
 app.use('/api/tenant-service', authenticate, attachUserHeader,
     createProxyMiddleware({

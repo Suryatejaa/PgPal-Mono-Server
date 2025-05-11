@@ -1,6 +1,6 @@
 const Property = require('../models/propertyModel');
 const redisClient = require('../utils/redis');
-const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern')
+const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
 
 module.exports = {
@@ -13,7 +13,7 @@ module.exports = {
 
             const cacheKey = req.originalUrl;
 
-            const response = property.amenities || []
+            const response = property.amenities || [];
             await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
             res.status(200).json(response);
@@ -25,7 +25,7 @@ module.exports = {
     async addAmenity(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
         const id = currentUser.data.user._id;
-        const ppid = currentUser.data.user.pgpalId
+        const ppid = currentUser.data.user.pgpalId;
 
         const validAmenities = [
             'Wifi',
@@ -36,7 +36,7 @@ module.exports = {
             'Hotwater',
             'Kitchen',
             'Laundry',
-            'TV',
+            'Tv',
             'Pet Friendly',
             'Breakfast',
             'Smoke Free',
@@ -58,12 +58,20 @@ module.exports = {
         ];
 
         try {
-            const { amenity } = req.body;
-            const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
-            const amenit = capitalize(amenity);
+            const { amenities } = req.body; // Expecting an array of amenities
+            if (!amenities || !Array.isArray(amenities) || amenities.length === 0) {
+                return res.status(400).json({ error: 'Amenities are required and must be an array' });
+            }
 
-            if (!validAmenities.includes(amenit)) {
-                return res.status(400).json({ error: `Invalid amenity. Allowed values are: ${validAmenities.join(', ')}` });
+            const capitalizedAmenities = amenities.map((amenity) =>
+                amenity.charAt(0).toUpperCase() + amenity.slice(1).toLowerCase()
+            );
+
+            const invalidAmenities = capitalizedAmenities.filter((amenity) => !validAmenities.includes(amenity));
+            if (invalidAmenities.length > 0) {
+                return res.status(400).json({
+                    error: `Invalid amenities: ${invalidAmenities.join(', ')}. Allowed values are: ${validAmenities.join(', ')}`
+                });
             }
 
             const property = await Property.findById(req.params.id);
@@ -71,25 +79,27 @@ module.exports = {
                 return res.status(404).json({ error: 'Property not found' });
             }
 
-            const propertyPpid = property.pgpalId
+            const propertyPpid = property.pgpalId;
 
             if (property.ownerId.toString() !== id) {
                 return res.status(403).json({ error: 'Forbidden: You can only add amenities to your own properties' });
             }
-            if (!amenit) {
-                return res.status(400).json({ error: 'Amenity is required' });
+
+            const existingAmenities = property.amenities || [];
+            const newAmenities = capitalizedAmenities.filter((amenity) => !existingAmenities.includes(amenity));
+
+            if (newAmenities.length === 0) {
+                return res.status(400).json({ error: 'All provided amenities already exist' });
             }
-            if (property.amenities.includes(amenit)) {
-                return res.status(400).json({ error: 'Amenity already exists' });
-            }
+
             await Property.findByIdAndUpdate(
                 req.params.id,
-                { $push: { amenities: amenit } },
+                { $push: { amenities: { $each: newAmenities } } },
                 { new: true }
             );
 
-            const title = 'Amenity Added';
-            const message = 'A new amenity has been added to your property.';
+            const title = 'Amenities Added';
+            const message = `New amenities have been added to your property: ${newAmenities.join(', ')}`;
             const type = 'info';
             const method = ['in-app'];
 
@@ -119,8 +129,10 @@ module.exports = {
             }
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
+            await invalidateCacheByPattern(`*${req.params.id}*`);
 
-            res.status(200).json(property);
+
+            res.status(200).json({ message: `Amenities added successfully: ${newAmenities.join(', ')}` });
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
@@ -129,7 +141,7 @@ module.exports = {
     async deleteAmenity(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
         const id = currentUser.data.user._id;
-        const ppid = currentUser.data.user.pgpalId
+        const ppid = currentUser.data.user.pgpalId;
         const amenityName = req.params.amenityName.charAt(0).toUpperCase() + req.params.amenityName.slice(1).toLowerCase();
 
         if (!id) {
@@ -141,7 +153,7 @@ module.exports = {
                 return res.status(404).json({ error: 'Property not found' });
             }
 
-            const propertyPpid = property.pgpalId
+            const propertyPpid = property.pgpalId;
 
             if (property.ownerId.toString() !== id) {
                 return res.status(403).json({ error: 'Forbidden: You can only add amenities to your own properties' });
@@ -189,6 +201,8 @@ module.exports = {
             }
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
+            await invalidateCacheByPattern(`*${req.params.id}*`);
+
 
             res.status(200).json({ message: 'Amenity deleted successfully' });
         } catch (error) {

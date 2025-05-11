@@ -3,9 +3,9 @@ const axios = require('axios');
 const getOwnProperty = async (propertyId, currentUser, ppid) => {
     let url;
     if (ppid) {
-        url = `http://localhost:4000/api/property-service/property-ppid/${propertyId}`;
+        url = `http://property-service:4002/api/property-service/property-ppid/${propertyId}`;
     } else {
-        url = `http://localhost:4000/api/property-service/property/${propertyId}`;
+        url = `http://property-service:4002/api/property-service/property/${propertyId}`;
     }
     try {
         const response = await axios.get(url, {
@@ -22,7 +22,7 @@ const getOwnProperty = async (propertyId, currentUser, ppid) => {
 
 const getTenantConfirmation = async (tenantId, currentUser) => {
     try {
-        const response = await axios.get(`http://localhost:4000/api/tenant-service/tenants?ppid=${tenantId}`, {
+        const response = await axios.get(`http://tenant-service:4004/api/tenant-service/tenants?ppid=${tenantId}`, {
             headers: {
                 'x-user': JSON.stringify(currentUser),
                 'x-internal-service': true
@@ -37,7 +37,7 @@ const getTenantConfirmation = async (tenantId, currentUser) => {
 
 const getPropertyOwner = async (propertyId, currentUser) => {
     try {
-        const response = await axios.get(`http://localhost:4000/api/property-service/property-ppid/${propertyId}`, {
+        const response = await axios.get(`http://property-service:4002/api/property-service/property-ppid/${propertyId}`, {
             headers: {
                 'x-user': JSON.stringify(currentUser),
                 'x-internal-service': true
@@ -52,7 +52,7 @@ const getPropertyOwner = async (propertyId, currentUser) => {
 
 const getTenantDocs = async (propertyId, currentUser) => {
     try {
-        const response = await axios.get(`http://localhost:4000/api/tenant-service/tenantDocs/${propertyId}`, {
+        const response = await axios.get(`http://tenant-service:4004/api/tenant-service/tenantDocs/${propertyId}`, {
             headers: {
                 'x-user': JSON.stringify(currentUser),
                 'x-internal-service': true
@@ -67,7 +67,7 @@ const getTenantDocs = async (propertyId, currentUser) => {
 
 const getRoomDocs = async (propertyId, currentUser) => {
     try {
-        const response = await axios.get(`http://localhost:4000/api/room-service/roomDocs/${propertyId}`, {
+        const response = await axios.get(`http://room-service:4003/api/room-service/roomDocs/${propertyId}`, {
             headers: {
                 'x-user': JSON.stringify(currentUser),
                 'x-internal-service': true
@@ -82,7 +82,7 @@ const getRoomDocs = async (propertyId, currentUser) => {
 
 const getBedDocs = async (propertyId, currentUser) => {
     try {
-        const response = await axios.get(`http://localhost:4000/api/room-service/bedDocs/${propertyId}`, {
+        const response = await axios.get(`http://room-service:4003/api/room-service/bedDocs/${propertyId}`, {
             headers: {
                 'x-user': JSON.stringify(currentUser),
                 'x-internal-service': true
@@ -97,7 +97,7 @@ const getBedDocs = async (propertyId, currentUser) => {
 
 const getCheckins = async (propertyId, period, currentUser) => {
     try {
-        const response = await axios.get(`http://localhost:4000/api/tenant-service/checkins/${propertyId}?period=${period}`, {
+        const response = await axios.get(`http://tenant-service:4004/api/tenant-service/checkins/${propertyId}?period=${period}`, {
             headers: {
                 'x-user': JSON.stringify(currentUser),
                 'x-internal-service': true
@@ -112,7 +112,7 @@ const getCheckins = async (propertyId, period, currentUser) => {
 
 const getVacates = async (propertyId, period, currentUser) => {
     try {
-        const response = await axios.get(`http://localhost:4000/api/tenant-service/vacates/${propertyId}?period=${period}`, {
+        const response = await axios.get(`http://tenant-service:4004/api/tenant-service/vacates/${propertyId}?period=${period}`, {
             headers: {
                 'x-user': JSON.stringify(currentUser),
                 'x-internal-service': true
@@ -127,7 +127,7 @@ const getVacates = async (propertyId, period, currentUser) => {
 
 const getComplaintStats = async (propertyId, currentUser) => {
     try {
-        const response = await axios.get(`http://localhost:4000/api/complaint-service/metrics/summary/${propertyId}`, {  // Updated to use propertyId
+        const response = await axios.get(`http://complaint-service:4006/api/complaint-service/metrics/summary/${propertyId}`, {  // Updated to use propertyId
             headers: {
                 'x-user': JSON.stringify(currentUser),
                 'x-internal-service': true

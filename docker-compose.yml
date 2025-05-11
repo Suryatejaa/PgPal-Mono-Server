@@ -39,7 +39,7 @@ services:
     ports:
       - "4003:4003"
     environment:
-      - MONGO_URI=mongodb://host.docker.internal:27017/room-service
+      - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_room_service
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=your_jwt_secret
       - PORT=4003
@@ -53,7 +53,7 @@ services:
     ports:
       - "4004:4004"
     environment:
-      - MONGO_URI=mongodb://host.docker.internal:27017/tenant-service
+      - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_tenant_service
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=your_jwt_secret
       - PORT=4004
@@ -66,7 +66,7 @@ services:
     ports:
       - "4005:4005"
     environment:
-      - MONGO_URI=mongodb://host.docker.internal:27017/payment-service
+      - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_payment_service
       - REDIS_URL=redis://redis:6379
     depends_on:
       - mongo
@@ -94,7 +94,7 @@ services:
     ports:
       - "4007:4007"
     environment:
-      - MONGO_URI=mongodb://host.docker.internal:27017/kitchen-service
+      - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_kitchen_service
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=your_jwt_secret
       - PORT=4007
@@ -107,7 +107,7 @@ services:
     ports:
       - "4008:4008"
     environment:
-      - MONGO_URI=mongodb://host.docker.internal:27017/dashboard-service
+      - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_dashboard_service
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=your_jwt_secret
       - PORT=4008
@@ -121,7 +121,7 @@ services:
     ports:
       - "4009:4009"
     environment:
-      - MONGO_URI=mongodb://host.docker.internal:27017/notification-service
+      - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_notification_service
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=your_jwt_secret
       - PORT=4009
@@ -137,7 +137,7 @@ services:
       - mongo
       - redis
     environment:
-      - MONGO_URI=mongodb://host.docker.internal:27017/notification-service
+      - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_notification_service
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=your_jwt_secret
       - PORT=4009

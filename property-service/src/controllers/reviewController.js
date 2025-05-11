@@ -9,7 +9,7 @@ module.exports = {
     async addReview(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
         const id = currentUser.data.user._id;
-        const ppid = currentUser.data.user.pgpalId
+        const ppid = currentUser.data.user.pgpalId;
 
         if (!id) {
             return res.status(401).json({ error: 'Unauthorized: Missing userId' });
@@ -63,6 +63,8 @@ module.exports = {
             }
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
+            await invalidateCacheByPattern(`*${req.params.id}*`);
+
 
             res.status(200).json(newReview);
         } catch (error) {
@@ -73,15 +75,15 @@ module.exports = {
     async editReview(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
         const id = currentUser.data.user._id;
-        const ppid = currentUser.data.user.pgpalId
-        
+        const ppid = currentUser.data.user.pgpalId;
+
         if (!id) {
             return res.status(401).json({ error: 'Unauthorized: Missing userId' });
         }
         try {
             const { rating, comment } = req.body;
 
-            const review = await Property.findOne(
+            const review = await Review.findOne(
                 { propertyId: req.params.id, _id: req.params.reviewId }
             );
 
@@ -139,8 +141,10 @@ module.exports = {
             }
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
+            await invalidateCacheByPattern(`*${req.params.id}*`);
 
-            res.status(200).json({ message: 'Review updated successfully' });
+
+            res.status(200).json({ message: 'Review updated successfully', updated: review });
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
@@ -149,14 +153,15 @@ module.exports = {
     async deleteReview(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
         const id = currentUser.data.user._id;
-        const ppid = currentUser.data.user.pgpalId
-        
+        const ppid = currentUser.data.user.pgpalId;
+
         if (!id) {
             return res.status(401).json({ error: 'Unauthorized: Missing userId' });
         }
         try {
             console.log(req.params.id);
             console.log(req.params.reviewId);
+
             const review = await Review.findOne(
                 { propertyId: req.params.id, _id: req.params.reviewId }
             );
@@ -208,6 +213,7 @@ module.exports = {
 
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
+            await invalidateCacheByPattern(`*${req.params.id}*`);
 
             await Review.findByIdAndDelete(req.params.reviewId);
 
@@ -231,7 +237,7 @@ module.exports = {
             const response = {
                 reviews,
                 averageRating
-            }
+            };
             const cacheKey = req.originalUrl;
             await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 

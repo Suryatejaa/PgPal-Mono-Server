@@ -78,11 +78,13 @@ exports.getTenantByQuery = async (req, res) => {
 };
 
 exports.getTenantByPhNum = async (req, res) => {
+    
     const internalService = req.headers['x-internal-service'];
     if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
 
     const phone = req.params.phnum;
 
+    console.log(phone)
     try {
         const tenant = await Tenant.find({ phone });
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -91,8 +93,11 @@ exports.getTenantByPhNum = async (req, res) => {
         const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(ppId[0]), { EX: 300 });
 
+        console.log('tenant: ',tenant)
+        console.log('ppid: ',ppId)
         res.status(200).json(ppId[0]);
     } catch (err) {
+        console.log(err.message)
         res.status(400).json({ message: err.message });
     }
 };

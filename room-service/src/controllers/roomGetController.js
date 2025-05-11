@@ -6,7 +6,7 @@ const redisClient = require('../utils/redis');
 const getOwnProperty = async (propertyId, currentUser) => {
 
     try {
-        const response = await axios.get(`http://localhost:4000/api/property-service/property?id=${propertyId}`,
+        const response = await axios.get(`http://property-service:4002/api/property-service/property?id=${propertyId}`,
             {
                 headers: {
                     'x-internal-service': true,
@@ -174,7 +174,7 @@ exports.getRoomAvailabilityByType = async (req, res) => {
             totalBeds,
             occupiedBeds,
             vacantBeds,
-        }
+        };
         const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
@@ -226,7 +226,7 @@ exports.getPropertySummaryByType = async (req, res) => {
             propertyId,
             totalTypes,
             typesSummary,
-        }
+        };
         const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
@@ -288,7 +288,7 @@ exports.getRoomByTenantId = async (req, res) => {
         }
         const room = await Room.findOne({ tenantId }).populate('propertyId', 'name location totalRooms ownerId');
         if (!room) return res.status(404).json({ error: 'Room not found' });
-       
+
         const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(room), { EX: 300 });
 
@@ -312,7 +312,7 @@ exports.getRoomDocs = async (req, res) => {
 
         const response = {
             count: roomDocs
-        }
+        };
 
         const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });

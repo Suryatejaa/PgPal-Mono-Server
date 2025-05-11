@@ -7,8 +7,9 @@ const cacheMiddleware = require('../utils/cacheMiddleware')
 
 
 // Room CRUD operations
-router.post('/rooms', roomController.addRoom);
+router.post('/rooms', roomController.addRooms);
 router.put('/rooms/:roomId', roomController.updateRoom);
+router.put('/rooms/:roomId/beds',roomController.updateBeds)
 router.delete('/rooms/:roomId', roomController.deleteRoom);
 
 router.patch('/rooms/:roomId/assign-bed', bedController.assignBed);

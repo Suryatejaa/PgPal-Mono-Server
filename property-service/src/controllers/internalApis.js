@@ -2,7 +2,7 @@ const axios = require('axios');
 
 const getTenantConfirmation = async (tenantId, currentUser) => {
     try {
-        const response = await axios.get(`http://localhost:4000/api/tenant-service/tenants?ppid=${tenantId}`, {
+        const response = await axios.get(`http://tenant-service:4004/api/tenant-service/tenants?ppid=${tenantId}`, {
             headers: {
                 'x-user': JSON.stringify(currentUser),
                 'x-internal-service': true
@@ -18,7 +18,7 @@ const getTenantConfirmation = async (tenantId, currentUser) => {
 const sendNotification = async (currentUser, tenantId, title, message, type, method) => {
 
     try {
-        const response = await axios.post('http://localhost:4000/api/notification-service',
+        const response = await axios.post('http://notification-service:4009/api/notification-service',
             {
                 tenantId,
                 title,

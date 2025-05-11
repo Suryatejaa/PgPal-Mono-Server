@@ -2,31 +2,8 @@ const Room = require('../models/roomModel');
 const axios = require('axios');
 const redisClient = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
+const { getOwnProperty } = require('./internalApis');
 
-const getOwnProperty = async (propertyId, currentUser, ppid) => {
-    let url;
-    if (ppid) {
-        url = `http://localhost:4000/api/property-service/property-ppid/${propertyId}`;
-    }
-    else {
-        url = `http://localhost:4000/api/property-service/property/${propertyId}`;
-    }
-    console.log(url);
-    try {
-        const response = await axios.get(url,
-            {
-                headers: {
-                    'x-internal-service': true,
-                    'x-user': JSON.stringify(currentUser),
-                }
-            }
-        );
-        return response.data;
-    } catch (error) {
-        console.error('[getOwnProperty] Error:', error.response?.data || error.message);
-        return null;
-    }
-};
 
 exports.assignBed = async (req, res) => {
     const internalService = req.headers['x-internal-service'];
@@ -52,9 +29,11 @@ exports.assignBed = async (req, res) => {
         return res.status(400).json({ error: 'Room ID, Bed ID, and Tenant No are required' });
     }
     try {
+        console.log('roomid: ',roomId)
         const room = await Room.findOne({ pgpalId: roomId });
+        console.log('room: ',room);
         const propertyId = room.propertyId;
-        const property = await getOwnProperty(propertyId, currentUser, ppid = false);
+        const property = await getOwnProperty(propertyId, currentUser, false);
         if (!property) {
             return res.status(404).json({ error: 'Property not found' });
         }

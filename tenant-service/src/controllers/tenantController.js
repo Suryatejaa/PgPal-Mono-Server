@@ -19,19 +19,22 @@ exports.addTenant = async (req, res) => {
         }
 
         const { name, email, phone, gender, address, aadhar, propertyId, roomNumber, bedId, rentPaid, rentPaidDate, rentDueDate, rentPaidMethod, deposit, noticePeriodInMonths } = req.body;
+        if (!name || !phone || !propertyId || !roomNumber || !bedId || !aadhar || deposit === undefined || noticePeriodInMonths === undefined || (rentPaid !== 0 && !rentPaidMethod)) {
 
-        if (!name || !phone || !propertyId || !roomNumber || !bedId || !aadhar || !rentPaid || !rentPaidMethod || deposit === undefined || noticePeriodInMonths === undefined) {
-            if (rentPaid !== 0 && !rentPaidMethod)
-                return res.status(400).json({ error: 'Missing required fields' });
+            console.log('Missing required fields');
+            return res.status(400).json({ error: 'Missing required fields, please check' });
 
         }
         const property = await getOwnProperty(propertyId, currentUser, ppid = false);
+        console.log('property ', property.pgpalId);
         if (!property || property.ownerId !== ownerId) {
+            console.log('You do not own this property');
             return res.status(403).json({ error: 'You do not own this property' });
         }
         const propertyPPP = property.pgpalId;
 
         const room = await getRoomByNumber(propertyId, roomNumber, currentUser);
+        console.log('room ', room.pgpalId);
         if (!room) return res.status(404).json({ error: 'Room not found' });
         const roomPPR = room.pgpalId;
 
@@ -40,15 +43,18 @@ exports.addTenant = async (req, res) => {
         console.log(existing?.aadhar, aadhar);
 
         if (existing?.status === 'active' && existing?.phone === phone.toString()) {
+            console.log('Tenant with this phone already exists');
             return res.status(400).json({ error: 'Tenant with this phone already exists' });
         }
         if (existing?.status === 'active' && existing?.aadhar === aadhar.toString()) {
+            console.log('Tenant with this aadhar already exists');
             return res.status(400).json({ error: 'Tenant with this aadhar already exists' });
         }
 
         const bed = room.beds.find(b => b.bedId === bedId);
 
         if (!bed || bed.status === 'occupied') {
+            console.log('Bed not available');
             return res.status(400).json({ error: 'Bed not available' });
         }
 
@@ -71,6 +77,7 @@ exports.addTenant = async (req, res) => {
 
         const assigned = await assignBed(roomPPR, bedId, phone, rent, tenantPpt, currentUser);
         if (assigned?.status !== 200) {
+            console.log('Failed to assign bed');
             return res.status(400).json({ error: 'Failed to assign bed' });
         }
         const newDue = Math.max(rent - rentPaid, 0);
@@ -147,7 +154,10 @@ exports.addTenant = async (req, res) => {
 
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${propertyId}*`);
 
+
+        console.log('Tenant added and assigned successfully')
         res.status(201).json({
             message: 'Tenant added and assigned successfully',
             tenant

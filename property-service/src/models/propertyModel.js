@@ -55,6 +55,9 @@ const propertySchema = new mongoose.Schema({
     },
 
     totalRooms: { type: Number, required: true },
+    totalBeds: { type: Number, required: true },
+    availableBeds: { type: Number, required: true },
+    occupiedBeds: { type: Number, required: true },
    
     amenities: [
         {
@@ -66,7 +69,6 @@ const propertySchema = new mongoose.Schema({
     roomsDenominator: { type: String, enum: ['Single', 'Double', 'Tripple', 'Quad'] },
     views: { type: Number, default: 0 },
 
-    
     images: [{
         url: { type: String, required: true },
         description: { type: String }

@@ -4,6 +4,10 @@ const redisClient = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
 
+const normalizeRule = (rule) => {
+    return rule.trim().toLowerCase().replace(/[^\w\s]/g, ''); // Trim, convert to lowercase, and remove punctuation
+};
+
 module.exports = {
     async addRule(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
@@ -26,7 +30,10 @@ module.exports = {
             if (!rule) {
                 return res.status(400).json({ error: 'Rule is required' });
             }
-            const existingRule = await Rule.findOne({ propertyId: req.params.id, rule });
+
+            const normalizedRule = normalizeRule(rule);
+
+            const existingRule = await Rule.findOne({ propertyId: req.params.id, normalizedRule });
             if (existingRule) {
                 return res.status(400).json({ error: 'Rule already exists' });
             }
@@ -35,6 +42,7 @@ module.exports = {
             const newRule = await Rule.create({
                 propertyId: req.params.id,
                 rule,
+                normalizedRule,
                 updatedBy: currentUser.data.user._id,
                 updatedByName: currentUser.data.user.username,
                 updatedByRole: currentUser.data.user.role,
@@ -74,6 +82,8 @@ module.exports = {
             }
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
+            await invalidateCacheByPattern(`*${req.params.id}*`);
+
 
             res.status(201).json(newRule);
         } catch (error) {
@@ -155,6 +165,8 @@ module.exports = {
             }
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
+            await invalidateCacheByPattern(`*${req.params.id}*`);
+
 
             res.status(200).json({ message: 'Rule deleted successfully' });
         } catch (error) {
