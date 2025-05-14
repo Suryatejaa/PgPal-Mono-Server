@@ -16,7 +16,7 @@ app.use(session({ secret: 'your-session-secret', resave: false, saveUninitialize
 app.use(passport.initialize());
 app.use(passport.session());
 app.use(cors({
-    origin: 'http://localhost:4000',
+    origin: 'http://localhost:5173',
     credentials: true,
 }));
 

@@ -7,25 +7,36 @@ const cors = require('cors');
 const app = express();
 // CORS Middleware
 
-app.use(cors({
+const allowedOrigins = ['http://localhost:5173', 'http://localhost:4000'];
 
-    origin: 'http://localhost:5173', // Replace with your frontend URL
+const corsOptions = {
+    origin: function (origin, callback) {
+        console.log('Origin ',origin)
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true,
+};
 
-    credentials: true, // Allow cookies to be sent
-
-}));
-
+app.use(cors(corsOptions));
 // Logging middleware
 
 app.use((req, res, next) => {
 
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
-
+    res.on('finish', () => {
+        console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} - ${res.statusCode}`);
+    });
     next();
 
 });
 
 app.use(cookieParser());
+// app.use(express.json());
 
 
 const authenticate = async (req, res, next) => {
@@ -66,7 +77,7 @@ const authenticate = async (req, res, next) => {
 
 
 function attachUserHeader(req, res, next) {
-  
+
     if (req.headers['x-internal-service']) return next();
     if (req.user) {
         req.headers['x-user'] = JSON.stringify(req.user);

@@ -42,7 +42,7 @@ const userSchema = new mongoose.Schema(
         pgpalId: {
             type: String,
             unique: true,
-            default: function() { return this.role === 'owner' ? generatePPO() : generatePPT(); } // 6 digit code
+            default: function () { return this.role === 'owner' ? generatePPO() : generatePPT(); } // 6 digit code
         },
 
         passwordResetToken: { type: String },
@@ -77,7 +77,7 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 
 userSchema.methods.generateAuthToken = function () {
     const user = this;
-    const payload = { _id: user._id.toString(), name: user.name };
+    const payload = { _id: user._id.toString(), name: user.username, pgpalId: user.pgpalId, role: user.role };
     console.log('Token Payload:', payload);
 
     const token = jwt.sign(payload, process.env.JWT_SECRET, {
@@ -88,7 +88,7 @@ userSchema.methods.generateAuthToken = function () {
 
 userSchema.methods.generateRefreshToken = function () {
     const user = this;
-    const payload = { _id: user._id.toString(), name: user.name };
+    const payload = { _id: user._id.toString(), name: user.username, pgpalId: user.pgpalId, role: user.role };
     console.log('Refresh Token Payload:', payload);
 
     const refreshToken = jwt.sign(payload, process.env.REFRESH_TOKEN_SECRET, {
@@ -126,7 +126,7 @@ userSchema.pre('save', async function (next) {
             uniqueId = await this.model('User').findOne({ pgpalId: this.pgpalId });
         }
     }
-})
+});
 
 const User = mongoose.model('User', userSchema);
 module.exports = User;

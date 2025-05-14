@@ -1,7 +1,25 @@
 const User = require('../models/userModel');
 const otpStore = {};
 const bcrypt = require('bcryptjs');
-const sendOtp = require('./authController').sendOtp;
+const otpGenerator = require('../utils/otpGenerator');
+const sendOtpEmail = require('../utils/sendOtpEmail');
+const sendOtp = async (req, res) => {
+    try {
+        const userDetails = req.body;
+        const email = userDetails.email;
+        const otp = otpGenerator();
+        const otpExpiry = Date.now() + 5 * 60 * 1000;
+
+        otpStore[email] = { otp, otpExpiry, ...userDetails };
+        console.log('OTP Store: ', otpStore);
+
+        await sendOtpEmail(email, otp);
+        res.status(200).send({ message: 'OTP sent to your email. Verify OTP to complete registration.' });
+    } catch (error) {
+        console.error('Error sending OTP: ', error.message);
+        throw new Error('Failed to send OTP. Please try again later.');
+    }
+};
 
 const forgotPasswordRequestUser = async (req, res) => {
     const { credential } = req.body;
@@ -12,6 +30,8 @@ const forgotPasswordRequestUser = async (req, res) => {
             { username: credential }
         ]
     }).select('email').lean())?.email;
+
+    console.log('cred ',credential, 'email ',email)
 
     if (!email) return res.status(404).send({ message: 'User not found' });
 

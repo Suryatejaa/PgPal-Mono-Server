@@ -3,7 +3,7 @@ const otpStore = {};
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
 const redisClient = require('../utils/redis.js'); // Adjust the path as needed
-const { generatePPT } = require ('../utils/idGenerator.js')
+const { generatePPT } = require('../utils/idGenerator.js');
 
 
 const setHeader = (res, token) => {
@@ -72,13 +72,13 @@ const loginUser = async (req, res) => {
         res.cookie('token', token, {
             httpOnly: true,
             sameSite: 'None',
-            secure: true,
+            secure: 'Lax',
             maxAge: 15 * 60 * 1000
         }); // 5 mins
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
             sameSite: 'None',
-            secure: true,
+            secure: 'Lax',
             maxAge: 7 * 24 * 60 * 60 * 1000
         }); // 7 days
         res.setHeader('Authorization', `Bearer ${token}`);
@@ -116,8 +116,8 @@ const logoutUser = async (req, res) => {
 
         await User.findByIdAndUpdate(user._id, { refreshToken: null });
 
-        res.clearCookie('token', { httpOnly: true, sameSite: 'None', secure: true });
-        res.clearCookie('refreshToken', { httpOnly: true, sameSite: 'None', secure: true });
+        res.clearCookie('token', { httpOnly: true, sameSite: 'None', secure: 'Lax' });
+        res.clearCookie('refreshToken', { httpOnly: true, sameSite: 'None', secure: 'Lax' });
 
 
         res.status(200).json({ message: 'Logged out successfully' });
@@ -153,7 +153,7 @@ const getUserById = async (req, res) => {
         const id = req.query.id;
         const phoneNumber = req.query.phnum;
         const pgpalId = req.query.ppid;
-        console.log('called ',id, phoneNumber,pgpalId);
+        console.log('called ', id, phoneNumber, pgpalId);
         const query = {};
         if (id) query._id = id;
         if (phoneNumber) query.phoneNumber = phoneNumber;
@@ -162,13 +162,13 @@ const getUserById = async (req, res) => {
         const user = await User.findOne({ $or: Object.entries(query).map(([key, value]) => ({ [key]: value })) }
             , { password: 0, refreshToken: 0 });
         if (!user) {
-            console.log('User not found')
+            console.log('User not found');
             return res.status(404).json({ message: 'User not found' });
         }
-        console.log('user: ',user)
+        console.log('user: ', user);
         res.send(user);
     } catch (error) {
-        console.log('error ',error.message)
+        console.log('error ', error.message);
         res.status(400).send({
             error: error.message,
             message: 'Error getting user by ID'
@@ -252,8 +252,8 @@ const verifyOtp = async (req, res) => {
 
         let pgpalId;
         if (userData.role === 'tenant') {
-            pgpalId = await getPgpalId()
-            console.log(pgpalId)
+            pgpalId = await getPgpalId();
+            console.log(pgpalId);
             if (!pgpalId) {
                 pgpalId = generatePPT();
             }
@@ -275,12 +275,35 @@ const verifyOtp = async (req, res) => {
         delete otpStore[email];
         const token = user.generateAuthToken();
         const refreshToken = user.generateRefreshToken();
+
+        console.log('Generated token:', token);
+        console.log('Generated refresh token:', refreshToken);
+
+        try {
+            await User.findByIdAndUpdate(user._id, { refreshToken: refreshToken });
+            console.log('Refresh token saved to database');
+        } catch (error) {
+            console.error('Error saving refresh token to database:', error.message);
+        }
+
         console.log('Token generated called');
         res.cookie('token', token, { httpOnly: true, sameSite: 'None', maxAge: 15 * 60 * 1000 }); // 5 mins
         res.cookie('refreshToken', refreshToken, { httpOnly: true, sameSite: 'None', maxAge: 7 * 24 * 60 * 60 * 1000 }); // 7 days
         res.setHeader('Authorization', `Bearer ${token}`);
         res.setHeader('Refresh-Token', refreshToken);
         setHeader(res, token);
+
+        console.log({
+            message: 'Registration successful',
+            user: {
+                _id: user._id,
+                name: user.name,
+                email: user.email
+            },
+            authToken: token,
+            refreshToken: refreshToken
+        });
+        
         res.status(200).send({
             message: 'Registration successful',
             user: {
@@ -326,19 +349,19 @@ const refreshToken = async (req, res) => {
         const newRefreshToken = user.generateRefreshToken();
 
         await User.findByIdAndUpdate(user._id, { refreshToken: newRefreshToken });
-        res.clearCookie('token', { httpOnly: true, sameSite: 'None', secure: true });
-        res.clearCookie('refreshToken', { httpOnly: true, sameSite: 'None', secure: true });
+        res.clearCookie('token', { httpOnly: true, sameSite: 'None', secure: false });
+        res.clearCookie('refreshToken', { httpOnly: true, sameSite: 'None', secure: false });
 
         res.cookie('token', newToken, {
             httpOnly: true,
             sameSite: 'None',
-            secure: true,
+            secure: false,
             maxAge: 15 * 60 * 1000
         }); // 15 mins
         res.cookie('refreshToken', newRefreshToken, {
             httpOnly: true,
             sameSite: 'None',
-            secure: true,
+            secure: false,
             maxAge: 7 * 24 * 60 * 60 * 1000
         }); // 7 days
         res.setHeader('Authorization', `Bearer ${newToken}`);
