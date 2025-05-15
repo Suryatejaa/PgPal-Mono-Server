@@ -224,8 +224,18 @@ module.exports = {
     },
 
     async getPropertyReviews(req, res) {
-
+        
+        const cacheKey = req.originalUrl;
         try {
+
+            if (redisClient.isReady) {
+                const cached = await redisClient.get(cacheKey);
+                if (cached) {
+                    console.log('Returning cached username availability');
+                    return res.status(200).send(JSON.parse(cached));
+                }
+            }
+
             const reviews = await Review.find({ propertyId: req.params.id });
             if (!reviews || reviews.length === 0) {
                 return res.status(404).json({ error: 'No reviews found for this property' });
@@ -238,7 +248,6 @@ module.exports = {
                 reviews,
                 averageRating
             };
-            const cacheKey = req.originalUrl;
             await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
 

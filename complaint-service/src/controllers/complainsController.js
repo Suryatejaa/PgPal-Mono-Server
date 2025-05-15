@@ -145,6 +145,14 @@ module.exports = {
 
             const cacheKey = req.originalUrl;
 
+            if (redisClient.isReady) {
+                const cached = await redisClient.get(cacheKey);
+                if (cached) {
+                    console.log('Returning cached username availability');
+                    return res.status(200).send(JSON.parse(cached));
+                }
+            }
+
             const { propertyId, tenantId, status } = req.query;
             const filter = {};
             if (propertyId) filter.propertyId = propertyId;
@@ -169,6 +177,15 @@ module.exports = {
     async getComplaintById(req, res) {
         const cacheKey = req.originalUrl;
         try {
+
+            if (redisClient.isReady) {
+                const cached = await redisClient.get(cacheKey);
+                if (cached) {
+                    console.log('Returning cached username availability');
+                    return res.status(200).send(JSON.parse(cached));
+                }
+            }
+
             const complaint = await Complaint.findOne({ complaintId: req.params.id });
             if (!complaint) return res.status(404).json({ error: 'Complaint not found' });
 
@@ -322,6 +339,7 @@ module.exports = {
         const cacheKey = req.originalUrl;
 
         try {
+
             const totalComplaints = await Complaint.countDocuments();
             const pendingComplaints = await Complaint.countDocuments({ status: 'Pending' });
             const resolvedComplaints = await Complaint.countDocuments({ status: 'Resolved' });
@@ -346,6 +364,14 @@ module.exports = {
         try {
             const { propertyId } = req.params;
             const cacheKey = req.originalUrl;
+
+            if (redisClient.isReady) {
+                const cached = await redisClient.get(cacheKey);
+                if (cached) {
+                    console.log('Returning cached username availability');
+                    return res.status(200).send(JSON.parse(cached));
+                }
+            }
 
             const totalComplaints = await Complaint.countDocuments({ propertyId });
             const pendingComplaints = await Complaint.countDocuments({ propertyId, status: 'Pending' });

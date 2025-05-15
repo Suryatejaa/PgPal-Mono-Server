@@ -18,6 +18,15 @@ exports.getOverview = async (req, res) => {
     }
     const propertyId = ownerConfirmation._id.toString();
     try {
+
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
+
         const tenants = await getTenantDocs(propertyPpid, currentUser);
         const rooms = await getRoomDocs(propertyId, currentUser);
 
@@ -65,6 +74,15 @@ exports.getCheckins = async (req, res) => {
     const period = req.query.period || 'week'; // 'week' or 'month'
 
     try {
+
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
+
         const checkins = await getCheckins(pppid, period, JSON.parse(req.headers['x-user']));
 
         if (redisClient.isReady) {
@@ -98,6 +116,15 @@ exports.getVacates = async (req, res) => {
     const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     try {
+
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
+
         const vacates = await getVacates(pppid, period, JSON.parse(req.headers['x-user']));
 
         if (redisClient.isReady) {
@@ -137,6 +164,15 @@ exports.getComplaintStats = async (req, res) => {
     const pppid = req.params.propertyPpid;
 
     try {
+
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
+        
         const stats = await getComplaintStats(pppid, JSON.parse(req.headers['x-user']));
 
         if (!redisClient.isReady) {

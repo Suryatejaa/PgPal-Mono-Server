@@ -2,12 +2,6 @@ const User = require('../models/userModel');
 const { check, validationResult } = require('express-validator');
 const validateRequest = [
     check('username', 'Username is required').notEmpty(),
-    // check('username', 'Username already exists').custom(async (value) => {
-    //     const existingUser = await User.findOne({ username: value });
-    //     if (existingUser) {
-    //         throw new Error('Username already exists');
-    //     }
-    // }),
     check('email', 'Email is required').notEmpty(),
     check('email', 'Invalid email').isEmail(),
     check('email', 'Email already exists').custom(async (value) => {
@@ -38,4 +32,17 @@ const validateRequest = [
         next();
     }
 ];
-module.exports = validateRequest;
+
+const updateUserValidation = [
+    check('email').optional().isEmail().withMessage('Invalid email'),
+    check('phoneNumber').optional().isMobilePhone().withMessage('Invalid phone number'),
+    check('gender').optional().notEmpty().withMessage('Gender is required'),
+    check('role').optional().notEmpty().withMessage('Role is required'),
+    check('password').optional().isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+    // ...add other fields as needed
+];
+
+module.exports = {
+    validateRequest,
+    updateUserValidation
+};

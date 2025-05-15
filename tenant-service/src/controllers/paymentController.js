@@ -111,16 +111,27 @@ exports.getRentStatus = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']) || {};
     const role = currentUser.data.user.role;
     const id = currentUser.data.user._id;
-
     const { tenantId } = req.params;
+    const cacheKey = req.originalUrl;
+
     try {
         const tenant = await Tenant.findOne({ pgpalId: tenantId });
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+        const propertyPpid = tenant.currentStay.propertyPpid
 
         const property = await getOwnProperty(propertyPpid, currentUser, ppid = true);
         console.log('property ', property);
         if (property.status !== 200) return res.status(404).json({ error: property.error });
         if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
+
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
 
         const { rent, rentPaid, rentDue, rentPaidDate, rentPaidStatus, nextRentDueDate } = tenant.currentStay;
 
@@ -133,7 +144,6 @@ exports.getRentStatus = async (req, res) => {
             nextRentDueDate
         }
 
-        const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
         res.status(200).json(response);
@@ -149,12 +159,23 @@ exports.getRentSummary = async (req, res) => {
     const id = currentUser.data.user._id;
 
     const { propertyPpid } = req.params;
+    const cacheKey = req.originalUrl;
+
     try {
 
         const property = await getOwnProperty(propertyPpid, currentUser, ppid = true);
         console.log(property);
         if (property.status && property.status !== 200) return res.status(404).json({ error: property.error });
         if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
+
+
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
 
         const tenants = await Tenant.find({ 'currentStay.propertyPpid': propertyPpid, status: 'active' });
 
@@ -171,7 +192,6 @@ exports.getRentSummary = async (req, res) => {
 
         const response = { propertyPpid, tenants: summary }
 
-        const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
         res.status(200).json(response);
@@ -185,6 +205,7 @@ exports.getRentDefaulters = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']) || {};
     const role = currentUser.data.user.role;
     const id = currentUser.data.user._id;
+    const cacheKey = req.originalUrl;
 
     const { propertyPpid } = req.params;
     try {
@@ -192,6 +213,14 @@ exports.getRentDefaulters = async (req, res) => {
         console.log(property.status);
         if (property.status && property.status !== 200) return res.status(404).json({ error: property.error });
         if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
+
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
 
         const defaulters = await Tenant.find({
             'currentStay.propertyPpid': propertyPpid,
@@ -209,7 +238,6 @@ exports.getRentDefaulters = async (req, res) => {
 
         const response = { totalDefaulters: formatted.length, defaulters: formatted }
 
-        const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
         res.status(200).json(response);

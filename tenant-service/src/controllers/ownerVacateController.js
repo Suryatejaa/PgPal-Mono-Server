@@ -301,15 +301,23 @@ exports.getVacateHistory = async (req, res) => {
     if (!pgpalId) return res.status(400).json({ error: 'Tenant PPID is required' });
 
     try {
+        const cacheKey = req.originalUrl;
 
         const property = await getOwnProperty(pgpalId, currentUser, ppid = true);
         if (!property) return res.status(404).json({ error: 'Property not found' });
         if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
 
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
+
         const vacateHistory = await Vacates.find({ propertyId: pgpalId });
         if (!vacateHistory || vacateHistory.length === 0) return res.status(404).json({ error: 'Vacate history not found' });
 
-        const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(vacateHistory), { EX: 300 });
 
         res.status(200).json(vacateHistory);
@@ -324,16 +332,25 @@ exports.getVacateHistotyByProperty = async (req, res) => {
     const role = currentUser.data.user.role;
     const id = currentUser.data.user._id;
     const propertyId = req.params.pppid;
+    const cacheKey = req.originalUrl;
 
     if (role !== 'owner') return res.status(403).json({ error: 'Only owners can get vacate history' });
     if (!id) return res.status(401).json({ error: 'Unauthorized: Missing userId' });
     if (!propertyId) return res.status(400).json({ error: 'Property ID is required' });
 
     try {
+
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
+
         const vacateHistory = await Vacates.find({ propertyId: propertyId });
         if (!vacateHistory || vacateHistory.length === 0) return res.status(404).json({ error: 'Vacate history not found' });
 
-        const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(vacateHistory), { EX: 300 });
 
         res.status(200).json(vacateHistory);

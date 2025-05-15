@@ -111,7 +111,9 @@ module.exports = {
         if (role !== 'owner') {
             return res.status(403).json({ error: 'Forbidden: Since you are a tenant, you dont own any properties' });
         }
+        // const cacheKey = req.originalUrl;
         try {
+
             const properties = await Property.find({ ownerId: id });
             if (!properties || properties.length === 0) {
                 return res.status(404).json({ error: 'No properties found' });
@@ -123,8 +125,7 @@ module.exports = {
 
             const response = properties.map(property => ({ ...property._doc, views: property.views }));
 
-            const cacheKey = req.originalUrl;
-            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+            // await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
             res.status(200).json(response);
         } catch (error) {
@@ -133,7 +134,16 @@ module.exports = {
     },
 
     async getPropertyById(req, res) {
+
+        const cacheKey = req.originalUrl;
         try {
+            if (redisClient.isReady) {
+                const cached = await redisClient.get(cacheKey);
+                if (cached) {
+                    console.log('Returning cached username availability');
+                    return res.status(200).send(JSON.parse(cached));
+                }
+            }
             const property = await Property.findById(req.params.id);
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
@@ -143,7 +153,6 @@ module.exports = {
 
             const response = { ...property._doc, views: property.views };
 
-            const cacheKey = req.originalUrl;
             await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
             res.status(200).json(response);
@@ -156,15 +165,22 @@ module.exports = {
         const id = req.params.id;
         const ppid = req.query.ppid;
         console.log('Called getPropertyforRoom ', id);
-        try {
+        const cacheKey = req.originalUrl;
 
+        try {
+            if (redisClient.isReady) {
+                const cached = await redisClient.get(cacheKey);
+                if (cached) {
+                    console.log('Returning cached username availability');
+                    return res.status(200).send(JSON.parse(cached));
+                }
+            }
             const property = await Property.findById(id);
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
 
             const response = { ...property._doc, views: property.views };
-            const cacheKey = req.originalUrl;
             await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
             res.status(200).json(response);
@@ -175,15 +191,24 @@ module.exports = {
 
     async getPropertyByPpid(req, res) {
         const ppid = req.params.ppid;
+        const cacheKey = req.originalUrl;
 
         try {
+
+            if (redisClient.isReady) {
+                const cached = await redisClient.get(cacheKey);
+                if (cached) {
+                    console.log('Returning cached username availability');
+                    return res.status(200).send(JSON.parse(cached));
+                }
+            }
+
             const property = await Property.findOne({ pgpalId: ppid });
 
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
             const response = { ...property._doc, views: property.views };
-            const cacheKey = req.originalUrl;
             await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
             res.status(200).json(response);
@@ -193,7 +218,15 @@ module.exports = {
     },
 
     async getAllProperties(req, res) {
+        const cacheKey = req.originalUrl;
         try {
+            if (redisClient.isReady) {
+                const cached = await redisClient.get(cacheKey);
+                if (cached) {
+                    console.log('Returning cached username availability');
+                    return res.status(200).send(JSON.parse(cached));
+                }
+            }
             const properties = await Property.find();
             if (!properties || properties.length === 0) {
                 return res.status(404).json({ error: 'No properties found' });
@@ -203,7 +236,6 @@ module.exports = {
             }
 
             const response = properties.map(property => ({ ...property._doc, views: property.views }));
-            const cacheKey = req.originalUrl;
             await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
             res.status(200).json(response);
@@ -213,7 +245,17 @@ module.exports = {
     },
 
     async analytics(req, res) {
+        const cacheKey = req.originalUrl;
         try {
+
+            if (redisClient.isReady) {
+                const cached = await redisClient.get(cacheKey);
+                if (cached) {
+                    console.log('Returning cached username availability');
+                    return res.status(200).send(JSON.parse(cached));
+                }
+            }
+
             const totalProperties = await Property.countDocuments();
             const totalRooms = await Property.aggregate([
                 { $group: { _id: null, totalRooms: { $sum: "$totalRooms" } } }
@@ -227,7 +269,6 @@ module.exports = {
                 totalRooms: totalRooms[0]?.totalRooms || 0,
                 totalBeds: totalBeds[0]?.totalBeds || 0,
             };
-            const cacheKey = req.originalUrl;
             await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
             res.status(200).json(response);
@@ -377,6 +418,7 @@ module.exports = {
         try {
             const { city, state, query } = req.query;
             const searchCriteria = [];
+            const cacheKey = req.originalUrl;
             if (query) {
                 searchCriteria.push(
                     { name: { $regex: query, $options: 'i' } },
@@ -390,12 +432,20 @@ module.exports = {
             if (state) {
                 searchCriteria.push({ 'address.state': { $regex: state, $options: 'i' } });
             }
+
+            if (redisClient.isReady) {
+                const cached = await redisClient.get(cacheKey);
+                if (cached) {
+                    console.log('Returning cached username availability');
+                    return res.status(200).send(JSON.parse(cached));
+                }
+            }
+
             const properties = await Property.find({
                 $or: searchCriteria.length ? searchCriteria : [{}],
             });
 
             const response = properties;
-            const cacheKey = req.originalUrl;
             await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
             res.status(200).json(response);
@@ -406,15 +456,24 @@ module.exports = {
 
 
     async getAvailability(req, res) {
+        const cacheKey = req.originalUrl;
         try {
             const property = await Property.findById(req.params.id);
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
+
+            if (redisClient.isReady) {
+                const cached = await redisClient.get(cacheKey);
+                if (cached) {
+                    console.log('Returning cached username availability');
+                    return res.status(200).send(JSON.parse(cached));
+                }
+            }
+
             const propertyObj = property.toObject();
 
             const response = propertyObj.availableBeds || {};
-            const cacheKey = req.originalUrl;
             await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
             res.status(200).json(response);
@@ -493,6 +552,7 @@ module.exports = {
         const isValidObjectId = mongoose.Types.ObjectId.isValid(propertyId);
 
         let property;
+        const cacheKey = req.originalUrl;
 
         if (!isValidObjectId) {
             property = await Property.findOne({ pgpalId: propertyId });
@@ -508,6 +568,15 @@ module.exports = {
         }
 
         try {
+
+            if (redisClient.isReady) {
+                const cached = await redisClient.get(cacheKey);
+                if (cached) {
+                    console.log('Returning cached username availability');
+                    return res.status(200).send(JSON.parse(cached));
+                }
+            }
+
             const owner = await axios.get(`http://auth-service:4001/api/auth-service/user?id=${property.ownerId}`,
                 {
                     headers: {
@@ -522,7 +591,6 @@ module.exports = {
                 ownerEmail: owner.data.email,
                 ownerPhone: owner.data.phoneNumber
             };
-            const cacheKey = req.originalUrl;
             await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
             res.status(200).json(response);

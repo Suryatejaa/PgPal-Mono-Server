@@ -13,6 +13,14 @@ module.exports = {
 
             const cacheKey = req.originalUrl;
 
+            if (redisClient.isReady) {
+                const cached = await redisClient.get(cacheKey);
+                if (cached) {
+                    console.log('Returning cached username availability');
+                    return res.status(200).send(JSON.parse(cached));
+                }
+            }
+
             const response = property.amenities || [];
             await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 

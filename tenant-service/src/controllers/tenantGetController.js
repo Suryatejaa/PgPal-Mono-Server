@@ -47,8 +47,16 @@ exports.getTenantByQuery = async (req, res) => {
             propertyId ? { "currentStay.propertyPpid": propertyId } : null
         ].filter(Boolean) // Remove null values
     };
-
+    
+    const cacheKey = req.originalUrl;
     try {
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
         const tenant = await Tenant.findOne(query);
 
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -68,7 +76,6 @@ exports.getTenantByQuery = async (req, res) => {
             stayHistory: tenant.stayHistory ? tenant.stayHistory : null
         };
 
-        const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
         res.status(200).json(response);
@@ -83,14 +90,21 @@ exports.getTenantByPhNum = async (req, res) => {
     if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
 
     const phone = req.params.phnum;
+    const cacheKey = req.originalUrl;
 
     console.log(phone)
     try {
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
         const tenant = await Tenant.find({ phone });
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
         const ppId = tenant.map((t) => t.pgpalId);
 
-        const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(ppId[0]), { EX: 300 });
 
         console.log('tenant: ',tenant)
@@ -106,13 +120,20 @@ exports.getTenantStayStatus = async (req, res) => {
     const phone = req.query.phnum;
     const pgpalId = req.query.ppid; //tenantID
     const _id = req.query.id;
+    const cacheKey = req.originalUrl;
 
     try {
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
         const tenant = await Tenant.find({ $or: [{ phone }, { pgpalId }, { _id }] });
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
         const response = { currentStay: tenant[0].currentStay };
-        const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
         res.status(200).json(response);
@@ -127,15 +148,16 @@ exports.getMyStay = async (req, res) => {
     const role = currentUser.data.user.role;
     const pgpalId = currentUser.data.user.pgpalId;
     const _id = currentUser.data.user._id;
+    const cacheKey = req.originalUrl;
     if (role !== 'tenant') return res.status(403).json({ error: 'Forbidden, Access denied' });
 
     try {
+       
         const tenant = await Tenant.find({ $or: [{ phone: currentUser.data.user.phone }, { pgpalId }, { _id }] });
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
         const response = { currentStay: tenant[0].currentStay };
 
-        const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
         res.status(200).json(response);
@@ -149,13 +171,20 @@ exports.getTenantHistory = async (req, res) => {
     const phone = req.query.phnum;
     const pgpalId = req.query.ppid;
     const _id = req.query.id;
+    const cacheKey = req.originalUrl;
 
     try {
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
         const tenant = await Tenant.find({ $or: [{ phone }, { pgpalId }, { _id }] });
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
         const response = tenant[0].stayHistory;
-        const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
         res.status(200).json(response);
@@ -170,13 +199,20 @@ exports.getTenantsByRoom = async (req, res) => {
 
     const roomPpid = req.params.pprId; // Room PPID
     const propertyPpid = req.params.pppId;
+    const cacheKey = req.originalUrl;
 
     try {
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
         const tenant = await Tenant.find({ $and: [{ "currentStay.propertyPpid": propertyPpid }, { "currentStay.roomPpid": roomPpid }] });
         if (!tenant || tenant.length === 0) return res.status(404).json({ error: 'Tenant not found' });
         const ppId = tenant.map((t) => t.pgpalId);
 
-        const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(tenant), { EX: 300 });
 
         res.status(200).json(tenant);
@@ -189,11 +225,13 @@ exports.getTenantsByRoom = async (req, res) => {
 exports.getTenantProfile = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']);
     const role = currentUser.data.user.role;
+    const cacheKey = req.originalUrl;
 
     if (role !== 'tenant') return res.status(403).json({ error: 'Forbidden, Access denied' });
 
     const pgpalId = currentUser.data.user.pgpalId;
     try {
+       
         const Profile = await Tenant.findOne({ pgpalId: pgpalId });
         if (!Profile) return res.status(404).json({ error: 'Tenant not found' });
 
@@ -204,7 +242,6 @@ exports.getTenantProfile = async (req, res) => {
             status: Profile.status,
         };
 
-        const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
         res.status(200).json(response);
@@ -217,14 +254,21 @@ exports.getTenantProfile = async (req, res) => {
 exports.getTenantDocs = async (req, res) => {
     const internalService = req.headers['x-internal-service'];
     if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
-
+    const cacheKey = req.originalUrl;
     const pppid = req.params.pppid;
+
     try {
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
         const tenantsCount = await Tenant.countDocuments({ 'currentStay.propertyPpid': pppid, status: 'active' });
         if (tenantsCount === 0) return res.status(404).json({ error: 'Tenant not found' });
 
         const response = { activeTenants: tenantsCount };
-        const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
         res.status(200).json(response);
@@ -237,15 +281,27 @@ exports.getTenantDocs = async (req, res) => {
 
 exports.getCheckins = async (req, res) => {
     const internalService = req.headers['x-internal-service'];
+    const cacheKey = req.originalUrl;
     if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
 
     const pppid = req.params.pppid;
-    const period = req.query.period || 'week'; // 'week' or 'month'
-    const days = period === 'month' ? 30 : 7;
+    const period = req.query.period || 'week'; // 'day', 'week', or 'month'
+    let days;
+    if (period === 'day') days = 1;
+    else if (period === 'month') days = 30;
+    else days = 7; // default to week
+
     const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
 
     try {
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
         const checkins = await Tenant.find({
             'currentStay.propertyPpid': pppid,
             status: 'active',
@@ -253,7 +309,6 @@ exports.getCheckins = async (req, res) => {
         }).countDocuments();
 
         const response = { period, checkins };
-        const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
         res.json(response);
@@ -270,8 +325,12 @@ exports.getVacates = async (req, res) => {
     if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
 
     const pppid = req.params.pppid;
-    const period = req.query.period || 'week'; // 'week' or 'month'
-    const days = period === 'month' ? 30 : 7;
+    const period = req.query.period || 'week'; // 'day', 'week', or 'month'
+    let days;
+    if (period === 'day') days = 1;
+    else if (period === 'month') days = 30;
+    else days = 7; // default to week
+
     const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
 

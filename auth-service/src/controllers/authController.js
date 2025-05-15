@@ -4,6 +4,8 @@ const axios = require('axios');
 const jwt = require('jsonwebtoken');
 const redisClient = require('../utils/redis.js'); // Adjust the path as needed
 const { generatePPT } = require('../utils/idGenerator.js');
+const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
+
 
 
 const setHeader = (res, token) => {
@@ -89,8 +91,12 @@ const loginUser = async (req, res) => {
             message: 'Logged in successfully',
             user: {
                 _id: user._id,
-                name: user.name,
-                email: user.email
+                name: user.username,
+                email: user.email,
+                role: user.role,
+                phone: user.phoneNumber,
+                pgpalId: user.pgpalId,
+                gender: user.gender
             },
             authToken: token,
             refreshToken: refreshToken
@@ -131,6 +137,14 @@ const getUser = async (req, res) => {
 
         const cacheKey = req.originalUrl;
 
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
+
         const token = req.cookies.token;
         if (!token) {
             return res.status(401).json({ message: "Not authenticated" });
@@ -147,6 +161,114 @@ const getUser = async (req, res) => {
         });
     }
 };
+
+const checkUsernameAvailability = async (req, res) => {
+    try {
+        const cacheKey = 'all_usernames'; // Use a fixed key for all usernames
+        let usernames;
+
+        // 1. Try to get usernames from cache
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                usernames = JSON.parse(cached);
+            }
+        }
+
+        // 2. If not cached, fetch from DB and cache it
+        if (!usernames) {
+            const users = await User.find({}, 'username');
+            usernames = users.map(u => u.username.toLowerCase());
+            if (redisClient.isReady) {
+                await redisClient.set(cacheKey, JSON.stringify(usernames), { EX: 600 }); // 10 min cache
+            }
+        }
+
+        // 3. Check availability
+        let { username } = req.query;
+        if (username) username = username.toLowerCase();
+        const isTaken = usernames.includes(username);
+        console.log('istaken ', isTaken);
+        res.status(200).send({
+            available: !isTaken,
+            message: isTaken ? 'Username is not available' : 'Username is available'
+        });
+    } catch (error) {
+        res.status(500).send({ message: 'Error checking username availability', error: error.message });
+    }
+};
+
+const checkEmailAvailability = async (req, res) => {
+    try {
+        const cacheKey = 'all_emails';
+        let emails;
+
+        // 1. Try to get emails from cache
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                emails = JSON.parse(cached);
+            }
+        }
+
+        // 2. If not cached, fetch from DB and cache it
+        if (!emails) {
+            const users = await User.find({}, 'email');
+            emails = users.map(u => u.email.toLowerCase());
+            if (redisClient.isReady) {
+                await redisClient.set(cacheKey, JSON.stringify(emails), { EX: 600 }); // 10 min cache
+            }
+        }
+
+        // 3. Check availability
+        let { email } = req.query;
+        if (email) email = email.toLowerCase();
+        const isTaken = emails.includes(email);
+
+        res.status(200).send({
+            available: !isTaken,
+            message: isTaken ? 'Email is not available' : 'Email is available'
+        });
+    } catch (error) {
+        res.status(500).send({ message: 'Error checking email availability', error: error.message });
+    }
+};
+
+const checkPhoneNumberAvailability = async (req, res) => {
+    try {
+        const cacheKey = 'all_phone_numbers';
+        let phoneNumbers;
+
+        // 1. Try to get phone numbers from cache
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                phoneNumbers = JSON.parse(cached);
+            }
+        }
+
+        // 2. If not cached, fetch from DB and cache it
+        if (!phoneNumbers) {
+            const users = await User.find({}, 'phoneNumber');
+            phoneNumbers = users.map(u => u.phoneNumber);
+            if (redisClient.isReady) {
+                await redisClient.set(cacheKey, JSON.stringify(phoneNumbers), { EX: 600 }); // 10 min cache
+            }
+        }
+
+        // 3. Check availability
+        let { phoneNumber } = req.query;
+        const isTaken = phoneNumbers.includes(phoneNumber);
+
+        res.status(200).send({
+            available: !isTaken,
+            message: isTaken ? 'Phone number is not available' : 'Phone number is available'
+        });
+    } catch (error) {
+        res.status(500).send({ message: 'Error checking phone number availability', error: error.message });
+    }
+};
+
 
 const getUserById = async (req, res) => {
     try {
@@ -176,16 +298,31 @@ const getUserById = async (req, res) => {
     }
 };
 
+
+
 const updateUser = async (req, res) => {
     try {
-        const token = req.cookies.token;
-        if (!token) {
-            return res.status(401).json({ message: "Not authenticated" });
-        }
+
         const userId = req.user._id;
         console.log('Body ', req.body);
-        const user = await User.findByIdAndUpdate(userId, req.body, { new: true });
+        const updateFields = {};
+        for (const key in req.body) {
+            if (Object.prototype.hasOwnProperty.call(req.body, key)) {
+                updateFields[key] = req.body[key];
+            }
+        }
+        console.log(userId, updateFields);
+
+        const user = await User.findByIdAndUpdate(userId, updateFields, { new: true });
         console.log('User ', user);
+
+        const allUsernames = 'all_usernames';
+        const allEmails = 'all_emails';
+        const allPhoneNumbers = 'all_phone_numbers';
+        await invalidateCacheByPattern(`*${allUsernames}*`);
+        await invalidateCacheByPattern(`*${allEmails}*`);
+        await invalidateCacheByPattern(`*${allPhoneNumbers}*`);
+
         res.send(user);
     } catch (error) {
         res.status(400).send({ message: 'Error updating user' });
@@ -259,9 +396,14 @@ const verifyOtp = async (req, res) => {
             }
         }
 
+        let usernameLower;
+        if (userData.username) {
+            usernameLower = userData.username.toLowerCase();
+        }
+
         const user = new User({
             name: userData.name,
-            username: userData.username,
+            username: usernameLower,
             email: userData.email,
             phoneNumber: userData.phoneNumber,
             gender: userData.gender,
@@ -271,6 +413,14 @@ const verifyOtp = async (req, res) => {
             pgpalId: pgpalId ? pgpalId : undefined,
         });
         await user.save();
+
+        const allUsernames = 'all_usernames';
+        const allEmails = 'all_emails';
+        const allPhoneNumbers = 'all_phone_numbers';
+        await invalidateCacheByPattern(`*${allUsernames}*`);
+        await invalidateCacheByPattern(`*${allEmails}*`);
+        await invalidateCacheByPattern(`*${allPhoneNumbers}*`);
+
 
         delete otpStore[email];
         const token = user.generateAuthToken();
@@ -298,12 +448,16 @@ const verifyOtp = async (req, res) => {
             user: {
                 _id: user._id,
                 name: user.name,
-                email: user.email
+                email: user.email,
+                role: user.role,
+                phone: user.phoneNumber,
+                pgpalId: user.pgpalId,
+                gender: user.gender
             },
             authToken: token,
             refreshToken: refreshToken
         });
-        
+
         res.status(200).send({
             message: 'Registration successful',
             user: {
@@ -321,18 +475,6 @@ const verifyOtp = async (req, res) => {
 };
 
 
-const checkUsernameAvailability = async (req, res) => {
-    try {
-        const { username } = req.body;
-        const user = await User.findOne({ username });
-        if (user) {
-            return res.status(200).send({ available: false, message: 'Username is not available' });
-        }
-        res.status(200).send({ available: true, message: 'Username is available' });
-    } catch (error) {
-        res.status(500).send({ message: 'Error checking username availability', error: error.message });
-    }
-};
 
 const refreshToken = async (req, res) => {
     const { refreshToken } = req.cookies;
@@ -388,6 +530,8 @@ module.exports = {
     sendOtp,
     verifyOtp,
     checkUsernameAvailability,
+    checkEmailAvailability,
+    checkPhoneNumberAvailability,
     refreshToken,
     getUserById
 };

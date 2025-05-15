@@ -3,7 +3,7 @@ const router = express.Router();
 const UserController = require('../controllers/authController');
 const passwordController = require('../controllers/passwordController');
 const authenticate = require('../utils/authenticate');
-const validateRequest = require('../utils/validateRequest');
+const { validateRequest, updateUserValidation } = require('../utils/validateRequest');
 const validateLogin = require('../utils/validatelogin');
 const passport = require('../controllers/googleLogin');
 const updateProfileGoogle = require('../controllers/updateProfileGoogle');
@@ -25,11 +25,12 @@ router.get('/', (req, res) => {
 
 router.post('/register', validateRequest, UserController.registerUser);
 router.post('/login', validateLogin, UserController.loginUser);
-router.get('/me', authenticate, cacheMiddleware, UserController.getUser);
-router.patch('/me', validateRequest, authenticate, UserController.updateUser);
 router.post('/otp/send', validateRequest, UserController.sendOtp);
+router.patch('/me', authenticate, updateUserValidation, UserController.updateUser);
+
+router.get('/me', authenticate, cacheMiddleware, UserController.getUser);
 router.post('/otp/verify', UserController.verifyOtp);
-router.get('/user',restrictToInternal, UserController.getUserById);
+router.get('/user', restrictToInternal, UserController.getUserById);
 
 router.post('/forgot-password-request', passwordController.forgotPasswordRequestUser);
 router.post('/forgot-password-verify-otp', passwordController.forgotPasswordVerifyOtp);
@@ -91,7 +92,9 @@ router.post('/google/logout', async (req, res) => {
 
 router.get('/update-profile', authenticate, updateProfileGoogle);
 
-router.post('/check-username', UserController.checkUsernameAvailability);
+router.get('/check-username', UserController.checkUsernameAvailability);
+router.get('/check-email', UserController.checkEmailAvailability);
+router.get('/check-phonenumber', UserController.checkPhoneNumberAvailability);
 
 router.post('/protected', authenticate, (req, res) => {
     res.status(200).json({

@@ -173,6 +173,7 @@ exports.getTodayMenu = async (req, res) => {
         return res.status(400).json({ error: 'Property ID is required' });
     }
 
+    const cacheKey = req.originalUrl;
 
     if (role === 'owner') {
         try {
@@ -205,6 +206,15 @@ exports.getTodayMenu = async (req, res) => {
     const dayName = getFormattedDayName();
 
     try {
+
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
+
         const menu = await WeeklyMenu.find({ propertyPpid: propertyId, selected: true })
             .populate('menu.meals.items', 'name');
         if (!menu || menu.length === 0) return res.status(404).json({ error: 'Menu not found' });
@@ -252,7 +262,6 @@ exports.getTodayMenu = async (req, res) => {
         };
 
         // Cache the response in Redis with a TTL of 10 minutes
-        const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
         res.status(200).json(response);
@@ -265,6 +274,8 @@ exports.getMenuList = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']);
     const ppid = currentUser.data.user.pgpalId;
     const role = currentUser.data.user.role;
+    const cacheKey = req.originalUrl;
+    
     if (role !== 'owner') {
         return res.status(403).json({ error: 'Only owners can view the menu list' });
     }
@@ -283,6 +294,15 @@ exports.getMenuList = async (req, res) => {
     }
 
     try {
+
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
+
         const menus = await WeeklyMenu.find({ propertyPpid: propertyId }).populate('menu.meals.items', 'name');
         if (!menus || menus.length === 0) return res.status(404).json({ error: 'No menus found' });
 
@@ -293,7 +313,6 @@ exports.getMenuList = async (req, res) => {
         };
 
         // Cache the response in Redis with a TTL of 10 minutes
-        const cacheKey = req.originalUrl;
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
         res.status(200).json(response);
