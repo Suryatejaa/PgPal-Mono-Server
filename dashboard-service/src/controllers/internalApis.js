@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { response } = require('express');
 
 const getOwnProperty = async (propertyId, currentUser, ppid) => {
     let url;
@@ -16,6 +17,8 @@ const getOwnProperty = async (propertyId, currentUser, ppid) => {
         });
         return response.data;
     } catch (error) {
+        response.status(500).json({ error: error.message });
+        console.error('[getOwnProperty] Error:', error.message);
         return null;
     }
 };

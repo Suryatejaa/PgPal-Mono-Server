@@ -72,16 +72,18 @@ const loginUser = async (req, res) => {
         console.log('Token generated called');
         const cookieExpires = 3600000; // 1 hour in milliseconds
         res.cookie('token', token, {
-            httpOnly: true,
+            httpOnly: false,
             sameSite: 'None',
-            secure: 'Lax',
-            maxAge: 15 * 60 * 1000
+            secure: 'lax',
+            maxAge: 15 * 60 * 1000,
+            path: '/',
         }); // 5 mins
         res.cookie('refreshToken', refreshToken, {
-            httpOnly: true,
+            httpOnly: false,
             sameSite: 'None',
-            secure: 'Lax',
-            maxAge: 7 * 24 * 60 * 60 * 1000
+            secure: 'lax',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            path: '/',
         }); // 7 days
         res.setHeader('Authorization', `Bearer ${token}`);
         res.setHeader('Refresh-Token', refreshToken);
@@ -135,7 +137,7 @@ const logoutUser = async (req, res) => {
 const getUser = async (req, res) => {
     try {
 
-        const cacheKey = req.originalUrl;
+        const cacheKey = '/api' + req.originalUrl; // Always add /api
 
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
@@ -437,8 +439,8 @@ const verifyOtp = async (req, res) => {
         }
 
         console.log('Token generated called');
-        res.cookie('token', token, { httpOnly: true, sameSite: 'None', maxAge: 15 * 60 * 1000 }); // 5 mins
-        res.cookie('refreshToken', refreshToken, { httpOnly: true, sameSite: 'None', maxAge: 7 * 24 * 60 * 60 * 1000 }); // 7 days
+        res.cookie('token', token, { httpOnly: true, sameSite: 'None', maxAge: 15 * 60 * 1000, path: '/', secure: 'lax' }); // 5 mins
+        res.cookie('refreshToken', refreshToken, { httpOnly: true, sameSite: 'None', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/', secure: 'lax' }); // 7 days
         res.setHeader('Authorization', `Bearer ${token}`);
         res.setHeader('Refresh-Token', refreshToken);
         setHeader(res, token);
@@ -491,24 +493,13 @@ const refreshToken = async (req, res) => {
         const newRefreshToken = user.generateRefreshToken();
 
         await User.findByIdAndUpdate(user._id, { refreshToken: newRefreshToken });
-        res.clearCookie('token', { httpOnly: true, sameSite: 'None', secure: false });
-        res.clearCookie('refreshToken', { httpOnly: true, sameSite: 'None', secure: false });
 
-        res.cookie('token', newToken, {
-            httpOnly: true,
-            sameSite: 'None',
-            secure: false,
-            maxAge: 15 * 60 * 1000
-        }); // 15 mins
-        res.cookie('refreshToken', newRefreshToken, {
-            httpOnly: true,
-            sameSite: 'None',
-            secure: false,
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        }); // 7 days
+        res.cookie('token', newToken, { httpOnly: true, sameSite: 'None', maxAge: 15 * 60 * 1000, path: '/', secure: 'lax' }); // 5 mins
+        res.cookie('refreshToken', newRefreshToken, { httpOnly: true, sameSite: 'None', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/', secure: 'lax' }); // 7 days
         res.setHeader('Authorization', `Bearer ${newToken}`);
         res.setHeader('Refresh-Token', newRefreshToken);
         setHeader(res, newToken);
+
         res.status(200).json({
             message: 'Token refreshed successfully',
             authToken: newToken,

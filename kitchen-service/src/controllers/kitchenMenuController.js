@@ -173,7 +173,7 @@ exports.getTodayMenu = async (req, res) => {
         return res.status(400).json({ error: 'Property ID is required' });
     }
 
-    const cacheKey = req.originalUrl;
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
 
     if (role === 'owner') {
         try {
@@ -274,8 +274,8 @@ exports.getMenuList = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']);
     const ppid = currentUser.data.user.pgpalId;
     const role = currentUser.data.user.role;
-    const cacheKey = req.originalUrl;
-    
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
+
     if (role !== 'owner') {
         return res.status(403).json({ error: 'Only owners can view the menu list' });
     }
@@ -394,7 +394,7 @@ exports.updateWeeklyMenu = async (req, res) => {
 
         } catch (err) {
             console.error('Failed to queue notification:', err.message);
-        }        
+        }
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
 

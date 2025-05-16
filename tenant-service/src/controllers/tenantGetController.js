@@ -18,7 +18,7 @@ exports.getTenants = async (req, res) => {
             tenants = await Tenant.find(); // For admin role or future use
         }
 
-        const cacheKey = req.originalUrl;
+        const cacheKey = '/api' + req.originalUrl; // Always add /api
         await redisClient.set(cacheKey, JSON.stringify(tenants), { EX: 300 });
 
         res.status(200).json(tenants);
@@ -47,8 +47,8 @@ exports.getTenantByQuery = async (req, res) => {
             propertyId ? { "currentStay.propertyPpid": propertyId } : null
         ].filter(Boolean) // Remove null values
     };
-    
-    const cacheKey = req.originalUrl;
+
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
     try {
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
@@ -85,14 +85,14 @@ exports.getTenantByQuery = async (req, res) => {
 };
 
 exports.getTenantByPhNum = async (req, res) => {
-    
+
     const internalService = req.headers['x-internal-service'];
     if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
 
     const phone = req.params.phnum;
-    const cacheKey = req.originalUrl;
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
 
-    console.log(phone)
+    console.log(phone);
     try {
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
@@ -107,11 +107,11 @@ exports.getTenantByPhNum = async (req, res) => {
 
         await redisClient.set(cacheKey, JSON.stringify(ppId[0]), { EX: 300 });
 
-        console.log('tenant: ',tenant)
-        console.log('ppid: ',ppId)
+        console.log('tenant: ', tenant);
+        console.log('ppid: ', ppId);
         res.status(200).json(ppId[0]);
     } catch (err) {
-        console.log(err.message)
+        console.log(err.message);
         res.status(400).json({ message: err.message });
     }
 };
@@ -120,7 +120,7 @@ exports.getTenantStayStatus = async (req, res) => {
     const phone = req.query.phnum;
     const pgpalId = req.query.ppid; //tenantID
     const _id = req.query.id;
-    const cacheKey = req.originalUrl;
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
 
     try {
         if (redisClient.isReady) {
@@ -148,11 +148,11 @@ exports.getMyStay = async (req, res) => {
     const role = currentUser.data.user.role;
     const pgpalId = currentUser.data.user.pgpalId;
     const _id = currentUser.data.user._id;
-    const cacheKey = req.originalUrl;
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
     if (role !== 'tenant') return res.status(403).json({ error: 'Forbidden, Access denied' });
 
     try {
-       
+
         const tenant = await Tenant.find({ $or: [{ phone: currentUser.data.user.phone }, { pgpalId }, { _id }] });
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
@@ -171,7 +171,7 @@ exports.getTenantHistory = async (req, res) => {
     const phone = req.query.phnum;
     const pgpalId = req.query.ppid;
     const _id = req.query.id;
-    const cacheKey = req.originalUrl;
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
 
     try {
         if (redisClient.isReady) {
@@ -199,7 +199,7 @@ exports.getTenantsByRoom = async (req, res) => {
 
     const roomPpid = req.params.pprId; // Room PPID
     const propertyPpid = req.params.pppId;
-    const cacheKey = req.originalUrl;
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
 
     try {
         if (redisClient.isReady) {
@@ -225,13 +225,13 @@ exports.getTenantsByRoom = async (req, res) => {
 exports.getTenantProfile = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']);
     const role = currentUser.data.user.role;
-    const cacheKey = req.originalUrl;
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
 
     if (role !== 'tenant') return res.status(403).json({ error: 'Forbidden, Access denied' });
 
     const pgpalId = currentUser.data.user.pgpalId;
     try {
-       
+
         const Profile = await Tenant.findOne({ pgpalId: pgpalId });
         if (!Profile) return res.status(404).json({ error: 'Tenant not found' });
 
@@ -251,37 +251,38 @@ exports.getTenantProfile = async (req, res) => {
     }
 };
 
-exports.getTenantDocs = async (req, res) => {
-    const internalService = req.headers['x-internal-service'];
-    if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
-    const cacheKey = req.originalUrl;
-    const pppid = req.params.pppid;
+exports.
 
-    try {
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
-            if (cached) {
-                console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
+    getTenantDocs = async (req, res) => {
+        const internalService = req.headers['x-internal-service'];
+        if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
+        const cacheKey = '/api' + req.originalUrl; // Always add /api
+        const pppid = req.params.pppid;
+
+        try {
+            if (redisClient.isReady) {
+                const cached = await redisClient.get(cacheKey);
+                if (cached) {
+                    console.log('Returning cached username availability');
+                    return res.status(200).send(JSON.parse(cached));
+                }
             }
+            const tenantsCount = await Tenant.countDocuments({ 'currentStay.propertyPpid': pppid, status: 'active' });
+
+            const response = { activeTenants: tenantsCount };
+            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+            res.status(200).json(response);
         }
-        const tenantsCount = await Tenant.countDocuments({ 'currentStay.propertyPpid': pppid, status: 'active' });
-        if (tenantsCount === 0) return res.status(404).json({ error: 'Tenant not found' });
+        catch (err) {
+            res.status(400).json({ error: err.message });
+        }
 
-        const response = { activeTenants: tenantsCount };
-        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
-
-        res.status(200).json(response);
-    }
-    catch (err) {
-        res.status(400).json({ error: err.message });
-    }
-
-};
+    };
 
 exports.getCheckins = async (req, res) => {
     const internalService = req.headers['x-internal-service'];
-    const cacheKey = req.originalUrl;
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
     if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
 
     const pppid = req.params.pppid;
@@ -341,7 +342,7 @@ exports.getVacates = async (req, res) => {
         }).countDocuments();
 
         const response = { period, vacates };
-        const cacheKey = req.originalUrl;
+        const cacheKey = '/api' + req.originalUrl; // Always add /api
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
         res.json(response);

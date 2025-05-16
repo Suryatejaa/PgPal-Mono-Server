@@ -69,6 +69,9 @@ const authenticate = async (req, res, next) => {
         }
     } catch (error) {
         console.error('Error during authentication:', error.response?.data || error.message);
+        if (error.response && error.response.status === 401) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
         return res.status(500).json({ error: error.response?.data || 'Internal Server Error' });
     }
 };

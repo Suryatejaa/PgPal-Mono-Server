@@ -143,7 +143,7 @@ module.exports = {
         console.log('called');
         try {
 
-            const cacheKey = req.originalUrl;
+            const cacheKey = '/api' + req.originalUrl; // Always add /api
 
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
@@ -175,7 +175,7 @@ module.exports = {
     },
 
     async getComplaintById(req, res) {
-        const cacheKey = req.originalUrl;
+        const cacheKey = '/api' + req.originalUrl; // Always add /api
         try {
 
             if (redisClient.isReady) {
@@ -336,7 +336,7 @@ module.exports = {
 
     async getComplaintMetrics(req, res) {
 
-        const cacheKey = req.originalUrl;
+        const cacheKey = '/api' + req.originalUrl; // Always add /api
 
         try {
 
@@ -363,7 +363,7 @@ module.exports = {
     async getComplaintMetricsByPropertyId(req, res) {
         try {
             const { propertyId } = req.params;
-            const cacheKey = req.originalUrl;
+            const cacheKey = '/api' + req.originalUrl; // Always add /api
 
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);

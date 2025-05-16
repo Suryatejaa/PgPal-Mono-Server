@@ -11,7 +11,7 @@ module.exports = {
                 return res.status(404).json({ error: 'Property not found' });
             }
 
-            const cacheKey = req.originalUrl;
+            const cacheKey = '/api' + req.originalUrl; // Always add /api
 
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);

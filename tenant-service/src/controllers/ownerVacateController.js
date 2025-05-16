@@ -301,7 +301,7 @@ exports.getVacateHistory = async (req, res) => {
     if (!pgpalId) return res.status(400).json({ error: 'Tenant PPID is required' });
 
     try {
-        const cacheKey = req.originalUrl;
+        const cacheKey = '/api' + req.originalUrl; // Always add /api
 
         const property = await getOwnProperty(pgpalId, currentUser, ppid = true);
         if (!property) return res.status(404).json({ error: 'Property not found' });
@@ -332,7 +332,7 @@ exports.getVacateHistotyByProperty = async (req, res) => {
     const role = currentUser.data.user.role;
     const id = currentUser.data.user._id;
     const propertyId = req.params.pppid;
-    const cacheKey = req.originalUrl;
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
 
     if (role !== 'owner') return res.status(403).json({ error: 'Only owners can get vacate history' });
     if (!id) return res.status(401).json({ error: 'Unauthorized: Missing userId' });

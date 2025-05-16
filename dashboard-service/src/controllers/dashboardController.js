@@ -10,7 +10,7 @@ exports.getOverview = async (req, res) => {
         return res.status(401).json({ error: 'Unauthorized: Missing userId' });
     }
 
-    const cacheKey = req.originalUrl;
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
 
     const ownerConfirmation = await getOwnProperty(propertyPpid, currentUser, true);
     if (ownerConfirmation.ownerId.toString() !== id && role !== 'admin') {
@@ -29,7 +29,6 @@ exports.getOverview = async (req, res) => {
 
         const tenants = await getTenantDocs(propertyPpid, currentUser);
         const rooms = await getRoomDocs(propertyId, currentUser);
-
         const beds = await getBedDocs(propertyId, currentUser);
 
         const stats = beds[0] || { totalBeds: 0, occupiedBeds: 0 };
@@ -64,7 +63,7 @@ exports.getCheckins = async (req, res) => {
         return res.status(401).json({ error: 'Unauthorized: Missing userId' });
     }
 
-    const cacheKey = req.originalUrl;
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
 
     const ownerConfirmation = await getOwnProperty(propertyPpid, currentUser, true);
     if (ownerConfirmation.ownerId.toString() !== id && role !== 'admin') {
@@ -104,7 +103,7 @@ exports.getVacates = async (req, res) => {
         return res.status(401).json({ error: 'Unauthorized: Missing userId' });
     }
 
-    const cacheKey = req.originalUrl;
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
 
     const ownerConfirmation = await getOwnProperty(propertyPpid, currentUser, true);
     if (ownerConfirmation.ownerId.toString() !== id && role !== 'admin') {
@@ -148,7 +147,7 @@ exports.getComplaintStats = async (req, res) => {
         return res.status(401).json({ error: 'Unauthorized: Missing userId' });
     }
 
-    const cacheKey = req.originalUrl;
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
     console.log(`Cache key in controller: ${cacheKey}`);
 
     // In getComplaintStats method
@@ -172,7 +171,7 @@ exports.getComplaintStats = async (req, res) => {
                 return res.status(200).send(JSON.parse(cached));
             }
         }
-        
+
         const stats = await getComplaintStats(pppid, JSON.parse(req.headers['x-user']));
 
         if (!redisClient.isReady) {

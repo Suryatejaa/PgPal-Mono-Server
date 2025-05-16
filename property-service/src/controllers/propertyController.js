@@ -32,7 +32,6 @@ module.exports = {
         const role = currentUser.data.user.role;
         const phone = currentUser.data.user.phoneNumber;
         const email = currentUser.data.user.email;
-        const ppid = currentUser.data.user.pgpalId;
 
         if (role !== 'owner') {
             return res.status(403).json({ error: 'Forbidden: Only owners can add properties' });
@@ -42,27 +41,29 @@ module.exports = {
         }
 
         try {
-            const { name, contact, address, totalBeds, totalRooms, occupiedBeds } = req.body;
-
-            if (!name || !address || !contact || !address) {
-                return res.status(400).json({ error: 'Missing required fields' });
-            }
-
+            const { name, address, totalBeds, contact, totalRooms, occupiedBeds } = req.body;
             const availableBeds = totalBeds - occupiedBeds;
             if (availableBeds < 0) {
                 return res.status(400).json({ error: 'Occupied beds cannot exceed total beds' });
             }
+            console.log('checkpoint 2');
+
             const property = await Property.create({
-                ownerId: id,
-                createdBy: id,
                 name,
-                contact: { phone: phone, email: email },
                 address,
-                totalRooms,
+                ownerId: id,
                 totalBeds,
+                totalRooms,
                 occupiedBeds,
                 availableBeds,
+                ownerContact: {
+                    phone,
+                    email
+                },
+                contact,
+                createdBy: id
             });
+            res.status(201).json(property);
 
             const propertyPpid = property.pgpalId;
             console.log('Property PPID ', propertyPpid);
@@ -98,7 +99,10 @@ module.exports = {
             }
 
             res.status(201).json(property);
+
+
         } catch (error) {
+            console.log(error.message);
             res.status(500).json({ error: error.message });
         }
     },
@@ -111,7 +115,7 @@ module.exports = {
         if (role !== 'owner') {
             return res.status(403).json({ error: 'Forbidden: Since you are a tenant, you dont own any properties' });
         }
-        // const cacheKey = req.originalUrl;
+        // const cacheKey = '/api' + req.originalUrl; // Always add /api
         try {
 
             const properties = await Property.find({ ownerId: id });
@@ -135,7 +139,7 @@ module.exports = {
 
     async getPropertyById(req, res) {
 
-        const cacheKey = req.originalUrl;
+        const cacheKey = '/api' + req.originalUrl; // Always add /api
         try {
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
@@ -165,7 +169,7 @@ module.exports = {
         const id = req.params.id;
         const ppid = req.query.ppid;
         console.log('Called getPropertyforRoom ', id);
-        const cacheKey = req.originalUrl;
+        const cacheKey = '/api' + req.originalUrl; // Always add /api
 
         try {
             if (redisClient.isReady) {
@@ -191,7 +195,7 @@ module.exports = {
 
     async getPropertyByPpid(req, res) {
         const ppid = req.params.ppid;
-        const cacheKey = req.originalUrl;
+        const cacheKey = '/api' + req.originalUrl; // Always add /api
 
         try {
 
@@ -218,7 +222,7 @@ module.exports = {
     },
 
     async getAllProperties(req, res) {
-        const cacheKey = req.originalUrl;
+        const cacheKey = '/api' + req.originalUrl; // Always add /api
         try {
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
@@ -245,7 +249,7 @@ module.exports = {
     },
 
     async analytics(req, res) {
-        const cacheKey = req.originalUrl;
+        const cacheKey = '/api' + req.originalUrl; // Always add /api
         try {
 
             if (redisClient.isReady) {
@@ -418,7 +422,7 @@ module.exports = {
         try {
             const { city, state, query } = req.query;
             const searchCriteria = [];
-            const cacheKey = req.originalUrl;
+            const cacheKey = '/api' + req.originalUrl; // Always add /api
             if (query) {
                 searchCriteria.push(
                     { name: { $regex: query, $options: 'i' } },
@@ -456,7 +460,7 @@ module.exports = {
 
 
     async getAvailability(req, res) {
-        const cacheKey = req.originalUrl;
+        const cacheKey = '/api' + req.originalUrl; // Always add /api
         try {
             const property = await Property.findById(req.params.id);
             if (!property) {
@@ -552,7 +556,7 @@ module.exports = {
         const isValidObjectId = mongoose.Types.ObjectId.isValid(propertyId);
 
         let property;
-        const cacheKey = req.originalUrl;
+        const cacheKey = '/api' + req.originalUrl; // Always add /api
 
         if (!isValidObjectId) {
             property = await Property.findOne({ pgpalId: propertyId });

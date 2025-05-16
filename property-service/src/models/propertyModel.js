@@ -20,7 +20,7 @@ const propertySchema = new mongoose.Schema({
         required: true
     },
 
-    secondaryContact: {
+    ownerContact: {
         trype: {
             phone: { type: String },
             email: { type: String },

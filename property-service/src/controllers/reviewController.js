@@ -224,8 +224,8 @@ module.exports = {
     },
 
     async getPropertyReviews(req, res) {
-        
-        const cacheKey = req.originalUrl;
+
+        const cacheKey = '/api' + req.originalUrl; // Always add /api
         try {
 
             if (redisClient.isReady) {

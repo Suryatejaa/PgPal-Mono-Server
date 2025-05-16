@@ -66,10 +66,10 @@ exports.updateRent = async (req, res) => {
 
         if (!updatedTenant) return res.status(404).json({ error: 'Failed to update tenant rent details' });
 
-        const title= "Rent Information Updated";
-        const message= "The rent details for one or more tenants have been updated.";
-        const type= "info";
-        const method= ["in-app"]
+        const title = "Rent Information Updated";
+        const message = "The rent details for one or more tenants have been updated.";
+        const type = "info";
+        const method = ["in-app"];
 
         try {
             console.log('Adding notification job to the queue...');
@@ -112,13 +112,13 @@ exports.getRentStatus = async (req, res) => {
     const role = currentUser.data.user.role;
     const id = currentUser.data.user._id;
     const { tenantId } = req.params;
-    const cacheKey = req.originalUrl;
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
 
     try {
         const tenant = await Tenant.findOne({ pgpalId: tenantId });
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
-        const propertyPpid = tenant.currentStay.propertyPpid
+        const propertyPpid = tenant.currentStay.propertyPpid;
 
         const property = await getOwnProperty(propertyPpid, currentUser, ppid = true);
         console.log('property ', property);
@@ -142,7 +142,7 @@ exports.getRentStatus = async (req, res) => {
             rentPaidDate,
             status: rentPaidStatus,
             nextRentDueDate
-        }
+        };
 
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
@@ -159,7 +159,7 @@ exports.getRentSummary = async (req, res) => {
     const id = currentUser.data.user._id;
 
     const { propertyPpid } = req.params;
-    const cacheKey = req.originalUrl;
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
 
     try {
 
@@ -190,7 +190,7 @@ exports.getRentSummary = async (req, res) => {
             nextRentDueDate: t.currentStay.nextRentDueDate
         }));
 
-        const response = { propertyPpid, tenants: summary }
+        const response = { propertyPpid, tenants: summary };
 
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
@@ -205,7 +205,7 @@ exports.getRentDefaulters = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']) || {};
     const role = currentUser.data.user.role;
     const id = currentUser.data.user._id;
-    const cacheKey = req.originalUrl;
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
 
     const { propertyPpid } = req.params;
     try {
@@ -236,7 +236,7 @@ exports.getRentDefaulters = async (req, res) => {
             rentPaidDate: t.currentStay.rentPaidDate
         }));
 
-        const response = { totalDefaulters: formatted.length, defaulters: formatted }
+        const response = { totalDefaulters: formatted.length, defaulters: formatted };
 
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
