@@ -27,7 +27,7 @@ router.delete('/:id/reviews/:reviewId', reviewController.deleteReview);
 
 router.get('/:id/amenities', cacheMiddleware, amenitiesController.getAmenities);
 router.post('/:id/amenities', amenitiesController.addAmenity);
-router.delete('/:id/amenities/:amenityName', amenitiesController.deleteAmenity);
+router.delete('/:id/amenities', amenitiesController.deleteAmenity);
 
 router.post('/:id/rules', rulesController.addRule);
 router.get('/:id/rules', cacheMiddleware, rulesController.getRules);

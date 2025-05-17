@@ -254,6 +254,9 @@ exports.updateRoom = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']) || {};
     const id = currentUser.data.user._id;
     const role = currentUser.data.user.role;
+    const ppid = currentUser.data.user.pgpalId;
+
+    console.log(req.originalUrl)
 
     if (!id) {
         return res.status(401).json({ error: 'Unauthorized: Missing userId' });
@@ -268,7 +271,7 @@ exports.updateRoom = async (req, res) => {
     }
 
     try {
-        const { roomNumber, floor, type, rentPerBed } = req.body;
+        const { roomNumber, floor, rentPerBed } = req.body;
 
         const room = await Room.findById(req.params.roomId);
         if (!room) return res.status(404).json({ error: 'Room not found' });
@@ -283,37 +286,54 @@ exports.updateRoom = async (req, res) => {
             return res.status(403).json({ error: `Forbidden: You don't own this property` });
         }
 
-        const roomTypeBedMap = {
-            single: 1,
-            double: 2,
-            triple: 3,
-            four: 4,
-            five: 5,
-            six: 6,
-            seven: 7,
-            eight: 8
-        };
 
-        const totalBeds = roomTypeBedMap[type];
-        if (!totalBeds) {
-            return res.status(400).json({ error: 'Invalid room type' });
+
+        if (req.query.add || req.query.remove) {
+            try {
+                await updateBedsLogic(room, req.query);
+            } catch (err) {
+                return res.status(400).json({ error: err.message });
+            }
+        }
+        // Before updating, check for duplicate room number on the same floor
+
+        const duplicateRoom = await Room.findOne({
+            propertyId,
+            floor,
+            roomNumber,
+            _id: { $ne: req.params.roomId }
+        });
+        if (duplicateRoom) {
+            return res.status(400).json({ error: `Room number ${roomNumber} already exists on floor ${floor}` });
         }
 
-        const updateData = {
-            roomNumber,
-            floor,
-            type,
-            rentPerBed,
-            updatedBy: id,
-            updatedByName: currentUser.data.user.username,
-            updatedByRole: currentUser.data.user.role,
-        };
+        const oldRoomNumber = room.roomNumber;
+        const isRoomNumberChanged = roomNumber && roomNumber !== oldRoomNumber;
 
-        const updatedRoom = await Room.findByIdAndUpdate(req.params.roomId, updateData, { new: true });
+        if (isRoomNumberChanged) {
+            room.beds = room.beds.map((bed, idx) => {
+                const match = bed.bedId.match(/-B(\d+)$/);
+                const bedNum = match ? match[1] : (idx + 1);
+                return {
+                    ...bed,
+                    bedId: `${roomNumber}-B${bedNum}`
+                };
+            });
+        }
+
+        // Update other fields directly on the room object
+        room.roomNumber = roomNumber;
+        room.floor = floor;
+        room.rentPerBed = rentPerBed;
+        room.updatedBy = id;
+        room.updatedByName = currentUser.data.user.username;
+        room.updatedByRole = currentUser.data.user.role;
+
+        await room.save();
 
         res.status(200).json({
             message: 'Room updated successfully',
-            updatedRoom
+            updatedRoom: room
         });
 
         const title = 'Room Details Updated';
@@ -351,6 +371,256 @@ exports.updateRoom = async (req, res) => {
 
     } catch (error) {
         console.error('[updateRoom] Error:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+async function updateBedsLogic(room, { add, remove }) {
+
+    // Remove bed
+    if (remove) {
+        const removeList = Array.isArray(remove) ? remove : [remove];
+        for (const removeId of removeList) {
+            const bedToRemove = room.beds.find(bed => bed.bedId === removeId);
+            if (!bedToRemove) {
+                throw new Error(`Bed with ID ${removeId} not found`);
+            }
+            if (bedToRemove.status === 'occupied') {
+                throw new Error(`Cannot remove occupied bed: ${removeId}`);
+            }
+            room.beds = room.beds.filter(bed => bed.bedId !== removeId);
+        }
+        room.totalBeds = room.beds.length;
+    }
+
+    let existingBeds = room.beds;
+    // Add beds
+    if (add) {
+        const addCount = parseInt(add, 10);
+        if (isNaN(addCount) || addCount <= 0) {
+            throw new Error('Invalid add count');
+        }
+        if (existingBeds.length + addCount > 8) {
+            throw new Error('Cannot add more than 8 beds in a room');
+        }
+        const highestBedNumber = existingBeds.reduce((max, bed) => {
+            const match = bed.bedId.match(/-B(\d+)$/);
+            const bedNumber = match ? parseInt(match[1], 10) : 0;
+            return Math.max(max, bedNumber);
+        }, 0);
+
+        // Find all used numbers
+        const usedNumbers = existingBeds.map(bed => {
+            const match = bed.bedId.match(/-B(\d+)$/);
+            return match ? parseInt(match[1], 10) : null;
+        }).filter(n => n !== null);
+
+        // Find the lowest available numbers up to 8
+        const availableNumbers = [];
+        for (let i = 1; i <= 8; i++) {
+            if (!usedNumbers.includes(i)) availableNumbers.push(i);
+        }
+
+        // Add beds using available numbers
+        for (let i = 0; i < addCount; i++) {
+            const bedNum = availableNumbers[i];
+            if (bedNum === undefined) break; // Shouldn't happen due to earlier check
+            const newBedId = `${room.roomNumber}-B${bedNum}`;
+            existingBeds.push({
+                bedId: newBedId,
+                status: 'vacant',
+                tenantNo: null,
+                tenantPpt: null
+            });
+        }
+        room.totalBeds = existingBeds.length;
+        room.beds = existingBeds;
+    }
+
+    // Update room type
+    const bedCountToTypeMap = {
+        1: 'single', 2: 'double', 3: 'triple', 4: 'four',
+        5: 'five', 6: 'six', 7: 'seven', 8: 'eight'
+    };
+    room.type = bedCountToTypeMap[room.totalBeds] || room.type;
+
+    await room.save();
+    return room;
+}
+
+exports.updateBeds = async (req, res) => {
+    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    const id = currentUser.data.user._id;
+    const role = currentUser.data.user.role;
+
+    if (!id) {
+        return res.status(401).json({ error: 'Unauthorized: Missing userId' });
+    }
+
+    if (role !== 'owner') {
+        return res.status(403).json({ error: 'Forbidden: Only owners can update beds' });
+    }
+
+    if (!req.params.roomId) {
+        return res.status(400).json({ error: 'Room ID is required' });
+    }
+
+    try {
+        const { add, remove } = req.query;
+
+        const room = await Room.findById(req.params.roomId);
+        if (!room) return res.status(404).json({ error: 'Room not found' });
+
+        const propertyId = room.propertyId;
+        const property = await getOwnProperty(propertyId, currentUser, false);
+        const propertyPpid = property.pgpalId;
+        if (!property) {
+            return res.status(404).json({ error: 'Property not found' });
+        }
+        if (property.ownerId.toString() !== id) {
+            return res.status(403).json({ error: `Forbidden: You don't own this property` });
+        }
+
+        const existingBeds = room.beds;
+
+        // Handle adding beds
+        if (add) {
+            const addCount = parseInt(add, 10);
+            if (isNaN(addCount) || addCount <= 0) {
+                return res.status(400).json({ error: 'Invalid add count' });
+            }
+
+            const currentBedCount = existingBeds.length;
+            if (currentBedCount + addCount > 8) {
+                return res.status(400).json({ error: 'Cannot add more than 8 beds in a room' });
+            }
+
+            const newBeds = [];
+
+            // Find the highest existing bed number
+            const highestBedNumber = existingBeds.reduce((max, bed) => {
+                const match = bed.bedId.match(/-B(\d+)$/);
+                const bedNumber = match ? parseInt(match[1], 10) : 0;
+                return Math.max(max, bedNumber);
+            }, 0);
+
+            const usedNumbers = existingBeds.map(bed => {
+                const match = bed.bedId.match(/-B(\d+)$/);
+                return match ? parseInt(match[1], 10) : null;
+            }).filter(n => n !== null);
+
+            // Find the lowest available numbers up to 8
+            const availableNumbers = [];
+            for (let i = 1; i <= 8; i++) {
+                if (!usedNumbers.includes(i)) availableNumbers.push(i);
+            }
+
+            // Add beds using available numbers
+            for (let i = 0; i < addCount; i++) {
+                const bedNum = availableNumbers[i];
+                if (bedNum === undefined) break; // Shouldn't happen due to earlier check
+                const newBedId = `${room.roomNumber}-B${bedNum}`;
+                existingBeds.push({
+                    bedId: newBedId,
+                    status: 'vacant',
+                    tenantNo: null,
+                    tenantPpt: null
+                });
+            }
+
+            room.beds = [...existingBeds, ...newBeds];
+            room.totalBeds = room.beds.length;
+        }
+
+        // Handle removing a bed
+        if (remove) {
+            const bedToRemove = existingBeds.find(bed => bed.bedId === remove);
+            if (!bedToRemove) {
+                return res.status(404).json({ error: `Bed with ID ${remove} not found` });
+            }
+
+            if (bedToRemove.status === 'occupied') {
+                return res.status(400).json({ error: `Cannot remove occupied bed: ${remove}` });
+            }
+
+            room.beds = existingBeds.filter(bed => bed.bedId !== remove);
+            room.totalBeds = room.beds.length;
+        }
+
+        // Update room type based on total bed count
+        const bedCountToTypeMap = {
+            1: 'single',
+            2: 'double',
+            3: 'triple',
+            4: 'four',
+            5: 'five',
+            6: 'six',
+            7: 'seven',
+            8: 'eight'
+        };
+
+        room.type = bedCountToTypeMap[room.totalBeds] || room.type;
+
+        await room.save();
+
+        // Update total bed count in property-service
+        const totalBedsInProperty = await Room.aggregate([
+            { $match: { propertyId: new mongoose.Types.ObjectId(propertyId) } },
+            { $group: { _id: null, totalBeds: { $sum: "$totalBeds" } } }
+        ]);
+
+        const updatedTotalBeds = totalBedsInProperty[0]?.totalBeds || 0;
+
+        await axios.patch(`http://property-service:4002/api/property-service/properties/${propertyId}/update-beds`, {
+            totalBeds: updatedTotalBeds
+        }, {
+            headers: {
+                'x-user': JSON.stringify(currentUser),
+                'x-internal-service': true
+            }
+        });
+
+        const title = 'Room Details Updated';
+        const message = 'Room information has been updated. Please verify the latest changes.';
+        const typee = 'alert';
+        const method = ['in-app', 'email'];
+
+        try {
+            console.log('Adding notification job to the queue...');
+
+            await notificationQueue.add('notifications', {
+                tenantIds: [ppid],
+                propertyPpid: propertyPpid,
+                title,
+                message,
+                type: typee,
+                method,
+                createdBy: currentUser?.data?.user?.pgpalId || 'system'
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 3000
+                }
+            });
+
+            console.log('Notification job added successfully');
+
+        } catch (err) {
+            console.error('Failed to queue notification:', err.message);
+        }
+
+        await invalidateCacheByPattern(`*${propertyId}*`);
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
+
+        res.status(200).json({
+            message: 'Beds updated successfully',
+            updatedBeds: room.beds,
+            updatedRoomType: room.type
+        });
+
+    } catch (error) {
+        console.error('[updateBeds] Error:', error.message);
         res.status(500).json({ error: error.message });
     }
 };
@@ -468,165 +738,3 @@ exports.deleteRoom = async (req, res) => {
     }
 };
 
-exports.updateBeds = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']) || {};
-    const id = currentUser.data.user._id;
-    const role = currentUser.data.user.role;
-
-    if (!id) {
-        return res.status(401).json({ error: 'Unauthorized: Missing userId' });
-    }
-
-    if (role !== 'owner') {
-        return res.status(403).json({ error: 'Forbidden: Only owners can update beds' });
-    }
-
-    if (!req.params.roomId) {
-        return res.status(400).json({ error: 'Room ID is required' });
-    }
-
-    try {
-        const { add, remove } = req.query;
-
-        const room = await Room.findById(req.params.roomId);
-        if (!room) return res.status(404).json({ error: 'Room not found' });
-
-        const propertyId = room.propertyId;
-        const property = await getOwnProperty(propertyId, currentUser, false);
-        const propertyPpid = property.pgpalId;
-        if (!property) {
-            return res.status(404).json({ error: 'Property not found' });
-        }
-        if (property.ownerId.toString() !== id) {
-            return res.status(403).json({ error: `Forbidden: You don't own this property` });
-        }
-
-        const existingBeds = room.beds;
-
-        // Handle adding beds
-        if (add) {
-            const addCount = parseInt(add, 10);
-            if (isNaN(addCount) || addCount <= 0) {
-                return res.status(400).json({ error: 'Invalid add count' });
-            }
-
-            const currentBedCount = existingBeds.length;
-            if (currentBedCount + addCount > 8) {
-                return res.status(400).json({ error: 'Cannot add more than 8 beds in a room' });
-            }
-
-            const newBeds = [];
-
-            // Find the highest existing bed number
-            const highestBedNumber = existingBeds.reduce((max, bed) => {
-                const match = bed.bedId.match(/-B(\d+)$/);
-                const bedNumber = match ? parseInt(match[1], 10) : 0;
-                return Math.max(max, bedNumber);
-            }, 0);
-
-            for (let i = 1; i <= addCount; i++) {
-                const newBedId = `${room.roomNumber}-B${highestBedNumber + i}`;
-                newBeds.push({
-                    bedId: newBedId,
-                    status: 'vacant',
-                    tenantNo: null,
-                    tenantPpt: null
-                });
-            }
-
-            room.beds = [...existingBeds, ...newBeds];
-            room.totalBeds = room.beds.length;
-        }
-
-        // Handle removing a bed
-        if (remove) {
-            const bedToRemove = existingBeds.find(bed => bed.bedId === remove);
-            if (!bedToRemove) {
-                return res.status(404).json({ error: `Bed with ID ${remove} not found` });
-            }
-
-            if (bedToRemove.status === 'occupied') {
-                return res.status(400).json({ error: `Cannot remove occupied bed: ${remove}` });
-            }
-
-            room.beds = existingBeds.filter(bed => bed.bedId !== remove);
-            room.totalBeds = room.beds.length;
-        }
-
-        // Update room type based on total bed count
-        const bedCountToTypeMap = {
-            1: 'single',
-            2: 'double',
-            3: 'triple',
-            4: 'four',
-            5: 'five',
-            6: 'six',
-            7: 'seven',
-            8: 'eight'
-        };
-
-        room.type = bedCountToTypeMap[room.totalBeds] || room.type;
-
-        await room.save();
-
-        // Update total bed count in property-service
-        const totalBedsInProperty = await Room.aggregate([
-            { $match: { propertyId: new mongoose.Types.ObjectId(propertyId) } },
-            { $group: { _id: null, totalBeds: { $sum: "$totalBeds" } } }
-        ]);
-
-        const updatedTotalBeds = totalBedsInProperty[0]?.totalBeds || 0;
-
-        await axios.patch(`http://property-service:4002/api/property-service/properties/${propertyId}/update-beds`, {
-            totalBeds: updatedTotalBeds
-        }, {
-            headers: {
-                'x-user': JSON.stringify(currentUser),
-                'x-internal-service': true
-            }
-        });
-
-        const title = 'Room Details Updated';
-        const message = 'Room information has been updated. Please verify the latest changes.';
-        const typee = 'alert';
-        const method = ['in-app', 'email'];
-
-        try {
-            console.log('Adding notification job to the queue...');
-
-            await notificationQueue.add('notifications', {
-                tenantIds: [ppid],
-                propertyPpid: propertyPpid,
-                title,
-                message,
-                type: typee,
-                method,
-                createdBy: currentUser?.data?.user?.pgpalId || 'system'
-            }, {
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 3000
-                }
-            });
-
-            console.log('Notification job added successfully');
-
-        } catch (err) {
-            console.error('Failed to queue notification:', err.message);
-        }
-
-        await invalidateCacheByPattern(`*${propertyId}*`);
-        await invalidateCacheByPattern(`*${propertyPpid}*`);
-
-        res.status(200).json({
-            message: 'Beds updated successfully',
-            updatedBeds: room.beds,
-            updatedRoomType: room.type
-        });
-
-    } catch (error) {
-        console.error('[updateBeds] Error:', error.message);
-        res.status(500).json({ error: error.message });
-    }
-};

@@ -64,6 +64,10 @@ module.exports = {
             'Dinner',
             'Pharmacy'
         ];
+        function normalizeAmenity(str) {
+            return str.trim().toLowerCase().replace(/\s+/g, '');
+        }
+        const validAmenitiesSet = new Set(validAmenities.map(normalizeAmenity));
 
         try {
             const { amenities } = req.body; // Expecting an array of amenities
@@ -75,8 +79,9 @@ module.exports = {
                 amenity.charAt(0).toUpperCase() + amenity.slice(1).toLowerCase()
             );
 
-            const invalidAmenities = capitalizedAmenities.filter((amenity) => !validAmenities.includes(amenity));
-            if (invalidAmenities.length > 0) {
+            const invalidAmenities = amenities.filter(
+                amenity => !validAmenitiesSet.has(normalizeAmenity(amenity))
+            );if (invalidAmenities.length > 0) {
                 return res.status(400).json({
                     error: `Invalid amenities: ${invalidAmenities.join(', ')}. Allowed values are: ${validAmenities.join(', ')}`
                 });
@@ -150,7 +155,6 @@ module.exports = {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
         const id = currentUser.data.user._id;
         const ppid = currentUser.data.user.pgpalId;
-        const amenityName = req.params.amenityName.charAt(0).toUpperCase() + req.params.amenityName.slice(1).toLowerCase();
 
         if (!id) {
             return res.status(401).json({ error: 'Unauthorized: Missing userId' });
@@ -164,22 +168,33 @@ module.exports = {
             const propertyPpid = property.pgpalId;
 
             if (property.ownerId.toString() !== id) {
-                return res.status(403).json({ error: 'Forbidden: You can only add amenities to your own properties' });
+                return res.status(403).json({ error: 'Forbidden: You can only delete amenities from your own properties' });
             }
-            if (!property.amenities.includes(amenityName)) {
-                return res.status(400).json({ error: 'Amenity does not exist' });
+
+            const { amenities } = req.body; // Expecting an array of amenities to delete
+            if (!amenities || !Array.isArray(amenities) || amenities.length === 0) {
+                return res.status(400).json({ error: 'Amenities are required and must be an array' });
             }
-            if (!amenityName) {
-                return res.status(400).json({ error: 'Amenity is required' });
+
+            // Capitalize amenities for consistency
+            const capitalizedAmenities = amenities.map((amenity) =>
+                amenity.charAt(0).toUpperCase() + amenity.slice(1).toLowerCase()
+            );
+
+            // Check if all amenities exist in the property
+            const notFound = capitalizedAmenities.filter(a => !property.amenities.includes(a));
+            if (notFound.length > 0) {
+                return res.status(400).json({ error: `Amenities do not exist: ${notFound.join(', ')}` });
             }
+
             await Property.findByIdAndUpdate(
                 req.params.id,
-                { $pull: { amenities: amenityName } },
+                { $pull: { amenities: { $in: capitalizedAmenities } } },
                 { new: true }
             );
 
-            const title = 'Amenity Removed';
-            const message = `An amenity has been removed from your property.`;
+            const title = 'Amenities Removed';
+            const message = `Amenities have been removed from your property: ${capitalizedAmenities.join(', ')}`;
             const type = 'alert';
             const method = ['in-app'];
 
@@ -211,8 +226,7 @@ module.exports = {
             await invalidateCacheByPattern(`*${propertyPpid}*`);
             await invalidateCacheByPattern(`*${req.params.id}*`);
 
-
-            res.status(200).json({ message: 'Amenity deleted successfully' });
+            res.status(200).json({ message: `Amenities deleted successfully: ${capitalizedAmenities.join(', ')}` });
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
