@@ -4,6 +4,7 @@ const { assignBed, getOwnProperty, getUserByPhone, getRoomByNumber, getUserByPpi
 const redisClient = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
+const sendMail = require('../utils/sendMail');
 
 // Helper to fetch property & verify ownership
 
@@ -32,6 +33,7 @@ exports.addTenant = async (req, res) => {
             return res.status(403).json({ error: 'You do not own this property' });
         }
         const propertyPPP = property.pgpalId;
+        const propertyName = property.name;
 
         const room = await getRoomByNumber(propertyId, roomNumber, currentUser);
         console.log('room ', room.pgpalId);
@@ -95,6 +97,7 @@ exports.addTenant = async (req, res) => {
             status: 'active',
             currentStay: {
                 propertyPpid: propertyPPP,
+                propertyName: propertyName,
                 roomPpid: roomPPR,
                 rent: room.rentPerBed,
                 rentPaid: rentPaid,
@@ -290,5 +293,58 @@ exports.deleteTenant = async (req, res) => {
         res.status(200).json({ message: 'Tenant deleted successfully' });
     } catch (err) {
         res.status(400).json({ error: err.message });
+    }
+};
+
+exports.notifyTenant = async (req, res) => {
+    const phone = req.query.phnum;
+    const pgpalId = req.query.ppid;
+    const _id = req.query.id;
+
+    try {
+        const tenant = await Tenant.findOne({ $or: [{ phone }, { pgpalId }, { _id }] });
+        if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+        // Check if tenant has unpaid rent
+        const rentDue = tenant.currentStay?.rentDue;
+        if (!rentDue || rentDue <= 0) {
+            return res.status(200).json({ message: `Tenant ${tenant.pgpalId} has no pending rent.` });
+        }
+
+        // Send email (replace with your actual mailer logic)
+        if (tenant.email) {
+            await sendMail({
+                to: tenant.email,
+                subject: 'Rent Due Reminder',
+                text: `Dear ${tenant.name}, your rent of ₹${rentDue} in ${tenant.currentStay.propertyName} is due. Please pay as soon as possible.`
+            });
+        }
+
+        // Send notification
+        const title = "Rent Due Reminder";
+        const message = `Dear ${tenant.name}, your rent of ₹${rentDue} in ${tenant.currentStay.propertyName} is due. Please pay as soon as possible.`;
+        const type = "alert";
+        const method = ["in-app", "email"];
+
+        await notificationQueue.add('notifications', {
+            tenantIds: [tenant.pgpalId],
+            propertyPpid: tenant.currentStay.propertyPpid,
+            title,
+            message,
+            type,
+            method,
+            createdBy: 'system'
+        }, {
+            attempts: 3,
+            backoff: {
+                type: 'exponential',
+                delay: 3000
+            }
+        });
+
+        res.status(200).json({ message: `notified ${tenant.pgpalId} successfully` });
+    } catch (err) {
+        console.error('[notifyTenant] Error:', err);
+        res.status(500).json({ error: err.message });
     }
 };

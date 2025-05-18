@@ -2,6 +2,10 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const vacateScehma = new Schema({
+    name: {
+        type: String,
+        required: true,
+    },
     tenantId: {
         type: String,
         required: true,

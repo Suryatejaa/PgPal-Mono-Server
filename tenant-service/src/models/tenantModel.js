@@ -33,6 +33,7 @@ const tenantSchema = new Schema({
     },
     currentStay: {
         propertyPpid: { type: String },
+        propertyName: { type: String },
         roomPpid: { type: String },
         rent: { type: Number },
         rentPaid: { type: Number },

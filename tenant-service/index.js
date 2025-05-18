@@ -20,6 +20,8 @@ app.use(cors({
 }));
 app.use(cookieParser());
 app.use('/api/tenant-service', tenantRoutes);
+app.use('/api/tenant-service', paymentRoutes);
+
 
 
 // MongoDB connection

@@ -121,8 +121,11 @@ exports.getRentStatus = async (req, res) => {
         const propertyPpid = tenant.currentStay.propertyPpid;
 
         const property = await getOwnProperty(propertyPpid, currentUser, ppid = true);
-        console.log('property ', property);
-        if (property.status !== 200) return res.status(404).json({ error: property.error });
+        console.log(property.pgpalId)
+        console.log(property.ownerId.toString() !== id)
+        console.log(property.ownerId.toString())
+        console.log(id)
+        if (property.status && property.status !== 200) return res.status(404).json({ error: property.error });
         if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
 
         if (redisClient.isReady) {
@@ -164,7 +167,6 @@ exports.getRentSummary = async (req, res) => {
     try {
 
         const property = await getOwnProperty(propertyPpid, currentUser, ppid = true);
-        console.log(property);
         if (property.status && property.status !== 200) return res.status(404).json({ error: property.error });
         if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
 
@@ -183,10 +185,11 @@ exports.getRentSummary = async (req, res) => {
             tenantId: t.pgpalId,
             name: t.name,
             phone: t.phone,
+            status: t.status,
             rent: t.currentStay.rent,
             rentPaid: t.currentStay.rentPaid,
             rentDue: t.currentStay.rentDue,
-            status: t.currentStay.rentPaidStatus,
+            rentStatus: t.currentStay.rentPaidStatus,
             nextRentDueDate: t.currentStay.nextRentDueDate
         }));
 
@@ -232,7 +235,8 @@ exports.getRentDefaulters = async (req, res) => {
             tenantId: t.pgpalId,
             name: t.name,
             phone: t.phone,
-            rentDue: t.currentStay.rentDue,
+            rentDue: t.currentStay.rentDue,            
+            status: t.currentStay.rentPaidStatus,
             rentPaidDate: t.currentStay.rentPaidDate
         }));
 

@@ -64,6 +64,7 @@ exports.raiseVacate = async (req, res) => {
 
         currentStaySnapShot = {
             propertyId: currentStay.propertyPpid,
+            propertyName: currentStay.propertyName,
             roomId: currentStay.roomPpid,
             bedId: currentStay.bedId,
             rent: currentStay.rent,
@@ -86,6 +87,7 @@ exports.raiseVacate = async (req, res) => {
             status: 'inactive',
             currentStay: {
                 propertyPpid: null,
+                propertyName: null,
                 roomPpid: null,
                 bedId: null,
                 rent: null,
@@ -112,8 +114,10 @@ exports.raiseVacate = async (req, res) => {
 
 
         const vacate = {
+            name: updatedTenant.name,
             tenantId: updatedTenant.pgpalId,
             propertyId: stayHistory.propertyId,
+            propertyName: updatedTenant.currentStay.propertyName,
             roomId: stayHistory.roomId,
             bedId: stayHistory.bedId,
             isImmediateVacate: isImmediateVacate,
@@ -212,6 +216,7 @@ exports.withdrawVacate = async (req, res) => {
         const previousSnapshot = vacate.previousSnapshot;
         const backupStay = {
             propertyPpid: previousSnapshot.propertyId,
+            propertyName: previousSnapshot.propertyName,
             roomPpid: previousSnapshot.roomId,
             bedId: previousSnapshot.bedId,
             rent: previousSnapshot.rent,

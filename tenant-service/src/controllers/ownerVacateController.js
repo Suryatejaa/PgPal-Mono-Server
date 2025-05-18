@@ -23,6 +23,7 @@ exports.removeTenant = async (req, res) => {
     try {
         console.log(pgpalId);
         const tenant = await Tenant.findOne({ pgpalId: { $regex: `^${pgpalId}$`, $options: 'i' } });
+        console.log("Remove tenant: ", pgpalId, tenant);
         const profile = tenant;
 
         if (!profile) return res.status(404).json({ error: 'Tenant not found' });
@@ -62,6 +63,7 @@ exports.removeTenant = async (req, res) => {
         };
         const currentStaySnapShot = {
             propertyId: currentStay.propertyPpid,
+            propertyName: property.name,
             roomId: currentStay.roomPpid,
             bedId: currentStay.bedId,
             rent: currentStay.rent,
@@ -84,6 +86,7 @@ exports.removeTenant = async (req, res) => {
             status: 'inactive',
             currentStay: {
                 propertyPpid: null,
+                propertyName: null,
                 roomPpid: null,
                 bedId: null,
                 rent: null,
@@ -106,8 +109,10 @@ exports.removeTenant = async (req, res) => {
         if (!updatedTenant) return res.status(404).json({ error: 'Tenant not found' });
 
         const vacate = {
+            name: updatedTenant.name,
             tenantId: updatedTenant.pgpalId,
             propertyId: stayHistory.propertyId,
+            propertyName: stayHistory.propertyName,
             roomId: stayHistory.roomId,
             bedId: stayHistory.bedId,
             isImmediateVacate: isImmediateVacate,
@@ -184,7 +189,9 @@ exports.retainTenant = async (req, res) => {
     if (!pgpalId) return res.status(400).json({ error: 'Tenant PPID is required' });
 
     try {
+        // const tenant = await Tenant.findOne({ pgpalId: { $regex: `^${pgpalId}$`, $options: 'i' } });
         const tenant = await Tenant.findOne({ pgpalId: pgpalId });
+        console.log('Retain tenant: ', pgpalId, tenant);
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
         const profile = tenant;
         if (profile.status === 'active') return res.status(400).json({ error: 'Tenant is already active' });
@@ -199,7 +206,9 @@ exports.retainTenant = async (req, res) => {
 
         const previousSnapshot = vacate.previousSnapshot;
         const backupStay = {
+            
             propertyPpid: previousSnapshot.propertyId,
+            propertyName: previousSnapshot.propertyName,
             roomPpid: previousSnapshot.roomId,
             bedId: previousSnapshot.bedId,
             rent: previousSnapshot.rent,

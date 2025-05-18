@@ -57,28 +57,28 @@ exports.getTenantByQuery = async (req, res) => {
                 return res.status(200).send(JSON.parse(cached));
             }
         }
-        const tenant = await Tenant.findOne(query);
+        const tenants = await Tenant.find(query);
 
-        if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
-        console.log(tenant.pgpalId);
+        if (!tenants || tenants.length === 0) return res.status(404).json({ error: 'Tenant not found' });
+        console.log(tenants.map(t => t.pgpalId));
 
-        const refreshedCurrentStay = refreshRentForBilling(tenant.currentStay);
+        const refreshedCurrentStays = tenants.map(t => refreshRentForBilling(t.currentStay));
 
-        const response = {
+        const responses = tenants.map((tenant, index) => ({
             name: tenant.name,
             pgpalId: tenant.pgpalId,
             phone: tenant.phone,
             aadhar: tenant.aadhar,
             status: tenant.status,
             In_Notice_Period: tenant.isInNoticePeriod,
-            currentStay: refreshedCurrentStay,
+            currentStay: refreshedCurrentStays[index],
             addedBy: tenant.createdBy,
             stayHistory: tenant.stayHistory ? tenant.stayHistory : null
-        };
+        }));
 
-        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+        await redisClient.set(cacheKey, JSON.stringify(responses), { EX: 300 });
 
-        res.status(200).json(response);
+        res.status(200).json(responses);
     } catch (err) {
         res.status(400).json({ error: err.message });
     }
