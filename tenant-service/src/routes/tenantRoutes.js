@@ -30,7 +30,7 @@ router.post('/vacate', VacateController.raiseVacate);
 router.post('/withdraw-vacate', VacateController.withdrawVacate);
 
 router.post('/remove-tenant/:ppid', OwnerVacateController.removeTenant);
-router.post('/retain-tenant/:ppid', OwnerVacateController.retainTenant);
+router.post('/retain-tenant/:vacateId', OwnerVacateController.retainTenant);
 router.get('/vacateHistory/:pppid', cacheMiddleware, OwnerVacateController.getVacateHistotyByProperty);
 
 //rent-service

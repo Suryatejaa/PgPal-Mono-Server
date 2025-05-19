@@ -109,7 +109,6 @@ exports.getVacates = async (req, res) => {
     if (ownerConfirmation.ownerId.toString() !== id && role !== 'admin') {
         return res.status(403).json({ error: 'Forbidden: You can only access your own properties' });
     }
-    const { pppid } = req.params;
     const period = req.query.period || 'week';
     const days = period === 'month' ? 30 : 7;
     const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -123,8 +122,8 @@ exports.getVacates = async (req, res) => {
                 return res.status(200).send(JSON.parse(cached));
             }
         }
-
-        const vacates = await getVacates(pppid, period, JSON.parse(req.headers['x-user']));
+        console.log('fromDate:', fromDate, propertyPpid);
+        const vacates = await getVacates(propertyPpid, period, JSON.parse(req.headers['x-user']));
 
         if (redisClient.isReady) {
             await redisClient.set(cacheKey, JSON.stringify(vacates), { EX: 600 });

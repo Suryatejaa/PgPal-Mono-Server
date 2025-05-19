@@ -150,6 +150,7 @@ exports.addRooms = async (req, res) => {
 
         await invalidateCacheByPattern(`*${propertyId}*`);
         await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${property._id}*`);
 
 
         await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
@@ -236,6 +237,7 @@ exports.addRooms = async (req, res) => {
 
         await invalidateCacheByPattern(`*${propertyId}*`);
         await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${property._id}*`);
 
 
         res.status(201).json({
@@ -256,7 +258,7 @@ exports.updateRoom = async (req, res) => {
     const role = currentUser.data.user.role;
     const ppid = currentUser.data.user.pgpalId;
 
-    console.log(req.originalUrl)
+    console.log(req.originalUrl);
 
     if (!id) {
         return res.status(401).json({ error: 'Unauthorized: Missing userId' });
@@ -368,6 +370,7 @@ exports.updateRoom = async (req, res) => {
 
         await invalidateCacheByPattern(`*${propertyId}*`);
         await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${property._id}*`);
 
     } catch (error) {
         console.error('[updateRoom] Error:', error.message);
@@ -612,6 +615,7 @@ exports.updateBeds = async (req, res) => {
 
         await invalidateCacheByPattern(`*${propertyId}*`);
         await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${property._id}*`);
 
         res.status(200).json({
             message: 'Beds updated successfully',
@@ -728,6 +732,7 @@ exports.deleteRoom = async (req, res) => {
         }
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${property._id}*`);
         await invalidateCacheByPattern(`*${propertyId}*`);
 
 

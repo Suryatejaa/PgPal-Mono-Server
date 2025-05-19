@@ -9,7 +9,6 @@ const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 // 1. Update rent details for a tenant
 exports.updateRent = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']) || {};
-    const { propertyPpid } = req.params;
     const role = currentUser.data.user.role;
     const id = currentUser.data.user._id;
 
@@ -31,6 +30,7 @@ exports.updateRent = async (req, res) => {
         if (!property) return res.status(404).json({ error: 'Property not found' });
         if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
 
+        const propertyPpid = property.pgpalId;
 
         const rent = tenant.currentStay.rent;
         const lastPaid = tenant.currentStay.rentPaid ? tenant.currentStay.rentPaid : 0;
@@ -97,7 +97,12 @@ exports.updateRent = async (req, res) => {
         }
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${property._id}*`);
         await invalidateCacheByPattern(`*${tenantId}*`);
+        await invalidateCacheByPattern(`*/tenants?ppid*`);
+        await invalidateCacheByPattern(`*/tenants?*`);
+
+
 
         res.status(200).json({ message: 'Rent updated successfully', tenant: updatedTenant });
 
@@ -121,10 +126,10 @@ exports.getRentStatus = async (req, res) => {
         const propertyPpid = tenant.currentStay.propertyPpid;
 
         const property = await getOwnProperty(propertyPpid, currentUser, ppid = true);
-        console.log(property.pgpalId)
-        console.log(property.ownerId.toString() !== id)
-        console.log(property.ownerId.toString())
-        console.log(id)
+        console.log(property.pgpalId);
+        console.log(property.ownerId.toString() !== id);
+        console.log(property.ownerId.toString());
+        console.log(id);
         if (property.status && property.status !== 200) return res.status(404).json({ error: property.error });
         if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
 
@@ -235,7 +240,7 @@ exports.getRentDefaulters = async (req, res) => {
             tenantId: t.pgpalId,
             name: t.name,
             phone: t.phone,
-            rentDue: t.currentStay.rentDue,            
+            rentDue: t.currentStay.rentDue,
             status: t.currentStay.rentPaidStatus,
             rentPaidDate: t.currentStay.rentPaidDate
         }));

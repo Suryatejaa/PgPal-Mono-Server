@@ -336,11 +336,12 @@ exports.getVacates = async (req, res) => {
 
 
     try {
+        console.log(pppid, fromDate);
         const vacates = await Vacates.find({
             propertyId: pppid,
             vacateDate: { $gte: fromDate }
         }).countDocuments();
-
+       
         const response = { period, vacates };
         const cacheKey = '/api' + req.originalUrl; // Always add /api
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });

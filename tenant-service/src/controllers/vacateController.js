@@ -167,6 +167,7 @@ exports.raiseVacate = async (req, res) => {
 
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${property._id}*`);
 
         res.status(201).json({
             Comments: {
@@ -264,11 +265,11 @@ exports.withdrawVacate = async (req, res) => {
         if (!updatedVacate) return res.status(404).json({ error: 'Vacate request not found' });
 
         const propertyPpid = backupStay.propertyPpid;
-        
-       const title= "Vacate Request Withdrawn";
-       const message= "A tenant has withdrawn their vacate request.";
-        const type= "info";
-        const method= ["in-app"]
+
+        const title = "Vacate Request Withdrawn";
+        const message = "A tenant has withdrawn their vacate request.";
+        const type = "info";
+        const method = ["in-app"];
 
         try {
             console.log('Adding notification job to the queue...');
@@ -297,6 +298,7 @@ exports.withdrawVacate = async (req, res) => {
 
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${property._id}*`);
 
         res.status(200).json({
             message: 'Vacate request withdrawn successfully',

@@ -29,7 +29,6 @@ exports.getRoomsByPropertyId = async (req, res) => {
 
 
         if (redisClient.isReady) {
-            console.log('Getting cache for key:', cacheKey);
             const cached = await redisClient.get(cacheKey);
             console.log(cached);
             if (cached) {

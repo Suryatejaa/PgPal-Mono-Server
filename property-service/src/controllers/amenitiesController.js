@@ -81,7 +81,7 @@ module.exports = {
 
             const invalidAmenities = amenities.filter(
                 amenity => !validAmenitiesSet.has(normalizeAmenity(amenity))
-            );if (invalidAmenities.length > 0) {
+            ); if (invalidAmenities.length > 0) {
                 return res.status(400).json({
                     error: `Invalid amenities: ${invalidAmenities.join(', ')}. Allowed values are: ${validAmenities.join(', ')}`
                 });
@@ -142,6 +142,7 @@ module.exports = {
             }
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
+            await invalidateCacheByPattern(`*${property._id}*`);
             await invalidateCacheByPattern(`*${req.params.id}*`);
 
 
@@ -224,6 +225,7 @@ module.exports = {
             }
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
+            await invalidateCacheByPattern(`*${property._id}*`);
             await invalidateCacheByPattern(`*${req.params.id}*`);
 
             res.status(200).json({ message: `Amenities deleted successfully: ${capitalizedAmenities.join(', ')}` });

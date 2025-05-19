@@ -157,10 +157,11 @@ exports.addTenant = async (req, res) => {
 
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${property._id}*`);
         await invalidateCacheByPattern(`*${propertyId}*`);
 
 
-        console.log('Tenant added and assigned successfully')
+        console.log('Tenant added and assigned successfully');
         res.status(201).json({
             message: 'Tenant added and assigned successfully',
             tenant
@@ -232,6 +233,7 @@ exports.updateTenant = async (req, res) => {
         }
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${property._id}*`);
 
         res.status(200).json({ message: 'Tenant updated successfully', updatedTenant });
     } catch (err) {
@@ -289,6 +291,7 @@ exports.deleteTenant = async (req, res) => {
 
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${property._id}*`);
 
         res.status(200).json({ message: 'Tenant deleted successfully' });
     } catch (err) {

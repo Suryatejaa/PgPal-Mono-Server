@@ -300,39 +300,68 @@ const getUserById = async (req, res) => {
     }
 };
 
+const otpGenerator = require('../utils/otpGenerator');
+const sendOtpEmail = require('../utils/sendOtpEmail');
 
 
 const updateUser = async (req, res) => {
     try {
-
         const userId = req.user._id;
-        console.log('Body ', req.body);
+        const { username, email, phoneNumber, currentPassword, newPassword, confirmNewPassword } = req.body;
         const updateFields = {};
-        for (const key in req.body) {
-            if (Object.prototype.hasOwnProperty.call(req.body, key)) {
-                updateFields[key] = req.body[key];
+
+        // Only allow username and phoneNumber direct update
+        if (username) updateFields.username = username;
+        if (phoneNumber) updateFields.phoneNumber = phoneNumber;
+
+        // Email change: send OTP, do not update immediately
+        if (email) {
+            const user = await User.findById(userId);
+            if (!user) return res.status(404).json({ message: 'User not found.' });
+            if (user.email === email) {
+                return res.status(400).json({ message: 'Email is already set to this value.' });
             }
+            const otp = otpGenerator();
+            otpStore[email] = { otp, otpExpiry: Date.now() + 5 * 60 * 1000, userId };
+            await sendOtpEmail(email, otp);
+            return res.status(200).json({ message: 'OTP sent to new email. Please verify OTP to update email.' });
         }
-        console.log(userId, updateFields);
+
+        // Password change
+        if (currentPassword || newPassword || confirmNewPassword) {
+            if (!currentPassword || !newPassword || !confirmNewPassword) {
+                return res.status(400).json({ message: 'Current, new, and confirm new passwords are required.' });
+            }
+            if (newPassword !== confirmNewPassword) {
+                return res.status(400).json({ message: 'New passwords do not match.' });
+            }
+            const user = await User.findById(userId);
+            if (!user) return res.status(404).json({ message: 'User not found.' });
+            const isMatch = await user.comparePassword(currentPassword);
+            if (!isMatch) {
+                return res.status(400).json({ message: 'Current password is incorrect.' });
+            }
+            updateFields.password = newPassword; // Should be hashed by pre-save hook
+        }
+
+        if (Object.keys(updateFields).length === 0) {
+            return res.status(400).json({ message: 'No valid fields to update.' });
+        }
 
         const user = await User.findByIdAndUpdate(userId, updateFields, { new: true });
-        console.log('User ', user);
+        if (!user) return res.status(404).json({ message: 'User not found.' });
 
-        const allUsernames = 'all_usernames';
-        const allEmails = 'all_emails';
-        const allPhoneNumbers = 'all_phone_numbers';
-        await invalidateCacheByPattern(`*${allUsernames}*`);
-        await invalidateCacheByPattern(`*${allEmails}*`);
-        await invalidateCacheByPattern(`*${allPhoneNumbers}*`);
+        // Invalidate caches
+        await invalidateCacheByPattern('*all_usernames*');
+        await invalidateCacheByPattern('*all_emails*');
+        await invalidateCacheByPattern('*all_phone_numbers*');
 
         res.send(user);
     } catch (error) {
-        res.status(400).send({ message: 'Error updating user' });
+        res.status(400).send({ message: 'Error updating user', error: error.message });
     }
 };
 
-const otpGenerator = require('../utils/otpGenerator');
-const sendOtpEmail = require('../utils/sendOtpEmail');
 const sendOtp = async (req, res) => {
     try {
         const userDetails = req.body;
@@ -351,6 +380,41 @@ const sendOtp = async (req, res) => {
     }
 };
 console.log("otpStore: ", otpStore);
+
+const verifyEmailOtp = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { email, otp } = req.body;
+        const userData = otpStore[email];
+
+        if (!userData) {
+            return res.status(400).json({ message: 'OTP expired or not found.' });
+        }
+        if (userData.userId.toString() !== userId.toString()) {
+            return res.status(403).json({ message: 'OTP does not belong to this user.' });
+        }
+        if (userData.otp !== otp.toString()) {
+            return res.status(400).json({ message: 'Invalid OTP.' });
+        }
+        if (Date.now() > userData.otpExpiry) {
+            delete otpStore[email];
+            return res.status(400).json({ message: 'OTP expired. Request a new OTP.' });
+        }
+
+        // Update the user's email
+        const user = await User.findByIdAndUpdate(userId, { email }, { new: true });
+        if (!user) return res.status(404).json({ message: 'User not found.' });
+
+        delete otpStore[email];
+
+        // Invalidate caches
+        await invalidateCacheByPattern('*all_emails*');
+
+        res.status(200).json({ message: 'Email updated successfully.', user });
+    } catch (error) {
+        res.status(400).json({ message: 'Error verifying OTP', error: error.message });
+    }
+};
 
 const verifyOtp = async (req, res) => {
     try {
@@ -524,5 +588,6 @@ module.exports = {
     checkEmailAvailability,
     checkPhoneNumberAvailability,
     refreshToken,
-    getUserById
+    getUserById,
+    verifyEmailOtp
 };

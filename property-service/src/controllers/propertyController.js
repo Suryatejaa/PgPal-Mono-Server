@@ -314,6 +314,7 @@ module.exports = {
 
             const propertyPpid = updatedProperty.pgpalId;
             await invalidateCacheByPattern(`*${propertyPpid}*`);
+            await invalidateCacheByPattern(`*${property._id}*`);
 
             const title = 'Property Details Updated';
             const message = 'Property details have been updated. Please review the latest information.';
@@ -410,6 +411,7 @@ module.exports = {
             }
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
+            await invalidateCacheByPattern(`*${property._id}*`);
 
             res.status(200).json({ message: 'Property deleted successfully' });
         } catch (error) {
@@ -540,6 +542,7 @@ module.exports = {
             }
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
+            await invalidateCacheByPattern(`*${property._id}*`);
 
             res.status(200).json(property);
         } catch (error) {

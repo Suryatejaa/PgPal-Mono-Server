@@ -76,6 +76,7 @@ exports.selectMenu = async (req, res) => {
         }
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${property._id}*`);
 
         res.status(200).json({ message: 'Menu selection updated successfully', menu: updatedMenu });
     } catch (error) {
@@ -153,6 +154,7 @@ exports.addWeeklyMenu = async (req, res) => {
         }
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${property._id}*`);
 
         res.status(201).json(weeklyMenu);
     } catch (error) {
@@ -397,6 +399,7 @@ exports.updateWeeklyMenu = async (req, res) => {
         }
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${property._id}*`);
 
         res.status(200).json(savedMenu);
     } catch (error) {
@@ -473,6 +476,7 @@ exports.deleteWeeklyMenu = async (req, res) => {
         }
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${property._id}*`);
 
         // await redisClient.del(`/api/kitchen-service/${propertyPpid}`);
         // await redisClient.del(`/api/kitchen-service/${propertyPpid}/menu-today`);

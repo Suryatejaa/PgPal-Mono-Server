@@ -82,6 +82,7 @@ module.exports = {
             }
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
+            await invalidateCacheByPattern(`*${property._id}*`);
             await invalidateCacheByPattern(`*${req.params.id}*`);
 
 
@@ -173,6 +174,7 @@ module.exports = {
             }
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
+            await invalidateCacheByPattern(`*${property._id}*`);
             await invalidateCacheByPattern(`*${req.params.id}*`);
 
 

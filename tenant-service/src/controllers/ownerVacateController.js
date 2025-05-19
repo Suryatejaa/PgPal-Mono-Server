@@ -163,6 +163,8 @@ exports.removeTenant = async (req, res) => {
 
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${property._id}*`);
+
 
         res.status(201).json({
             message: 'Tenant removed successfully',
@@ -182,21 +184,24 @@ exports.retainTenant = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']);
     const role = currentUser.data.user.role;
     const id = currentUser.data.user._id;
-    const pgpalId = req.params.ppid;
+    const vacateId = req.params.vacateId;
 
     if (role !== 'owner') return res.status(403).json({ error: 'Only owners can retain tenants' });
     if (!id) return res.status(401).json({ error: 'Unauthorized: Missing userId' });
-    if (!pgpalId) return res.status(400).json({ error: 'Tenant PPID is required' });
+    if (!vacateId) return res.status(400).json({ error: 'Vacate ID is required' });
+
+
 
     try {
         // const tenant = await Tenant.findOne({ pgpalId: { $regex: `^${pgpalId}$`, $options: 'i' } });
-        const tenant = await Tenant.findOne({ pgpalId: pgpalId });
-        console.log('Retain tenant: ', pgpalId, tenant);
+        const vacate = await Vacates.findById(vacateId);
+        if (!vacate) return res.status(404).json({ error: 'Vacate request not found' });
+        const pgpalId = vacate.tenantId;
+        const tenant = await Tenant.findOne({ pgpalId: vacate.tenantId });
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
         const profile = tenant;
         if (profile.status === 'active') return res.status(400).json({ error: 'Tenant is already active' });
-        const vacate = await Vacates.findOne({ tenantId: profile.pgpalId });
-        if (!vacate) return res.status(404).json({ error: 'Vacate request not found' });
+
         if (!vacate.removedByOwner) return res.status(400).json({ error: 'This request raised by tenant, please ask tenant to withdraw request' });
 
         const property = await getOwnProperty(profile.stayHistory[0].propertyId, currentUser, ppid = true);
@@ -206,7 +211,7 @@ exports.retainTenant = async (req, res) => {
 
         const previousSnapshot = vacate.previousSnapshot;
         const backupStay = {
-            
+
             propertyPpid: previousSnapshot.propertyId,
             propertyName: previousSnapshot.propertyName,
             roomPpid: previousSnapshot.roomId,
@@ -245,7 +250,7 @@ exports.retainTenant = async (req, res) => {
         updateProfile.stayHistory = [...profile.stayHistory];
 
 
-        const assignBedResponse = await assignBed(previousSnapshot.roomId, previousSnapshot.bedId, profile.phone, previousSnapshot.rent, pgpalId, currentUser);
+        const assignBedResponse = await assignBed(previousSnapshot.roomId, previousSnapshot.bedId, profile.phone, previousSnapshot.rent, vacate.tenantId, currentUser);
         if (!assignBedResponse) return res.status(400).json({ error: 'Failed to assign bed' });
 
         const updatedTenant = await Tenant.findByIdAndUpdate(tenant._id, updateProfile, { new: true });
@@ -288,6 +293,9 @@ exports.retainTenant = async (req, res) => {
 
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${property._id}*`);
+        await invalidateCacheByPattern(`*${property._id}*`);
+
 
         res.status(200).json({
             message: 'Tenant retained successfully',
