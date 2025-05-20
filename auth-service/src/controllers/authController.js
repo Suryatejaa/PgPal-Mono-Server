@@ -137,24 +137,13 @@ const logoutUser = async (req, res) => {
 const getUser = async (req, res) => {
     try {
 
-        const cacheKey = '/api' + req.originalUrl; // Always add /api
-
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
-            if (cached) {
-                console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
-            }
-        }
-
+       
         const token = req.cookies.token;
         if (!token) {
             return res.status(401).json({ message: "Not authenticated" });
         }
         const user = req.user;
-        if (redisClient.isReady) {
-            await redisClient.set(cacheKey, JSON.stringify(user), { EX: 600 });
-        }
+       
         res.send(user);
     } catch (error) {
         res.status(400).send({
@@ -311,16 +300,31 @@ const updateUser = async (req, res) => {
         const updateFields = {};
 
         // Only allow username and phoneNumber direct update
-        if (username) updateFields.username = username;
-        if (phoneNumber) updateFields.phoneNumber = phoneNumber;
+        if (username) {
+            const existingUser = await User.findOne({ username: username.toLowerCase(), _id: { $ne: userId } });
+            if (existingUser) {
+                return res.status(400).json({ message: 'Username is already taken.' });
+            }
+            updateFields.username = username;
+        }
+        if (phoneNumber) {
+            const existingUser = await User.findOne({ phoneNumber, _id: { $ne: userId } });
+            if (existingUser) {
+                return res.status(400).json({ message: 'Phone number is already taken.' });
+            }
+            const user = await User.findByIdAndUpdate(userId, { phoneNumber }, { new: true });
 
-        // Email change: send OTP, do not update immediately
+            }
+        // Email change: check if email is already taken
         if (email) {
+            const existingUser = await User.findOne({ email, _id: { $ne: userId } });
+            if (existingUser) {
+                return res.status(400).json({ message: 'Email is already taken.' });
+            }        
+
             const user = await User.findById(userId);
             if (!user) return res.status(404).json({ message: 'User not found.' });
-            if (user.email === email) {
-                return res.status(400).json({ message: 'Email is already set to this value.' });
-            }
+           
             const otp = otpGenerator();
             otpStore[email] = { otp, otpExpiry: Date.now() + 5 * 60 * 1000, userId };
             await sendOtpEmail(email, otp);
@@ -383,16 +387,18 @@ console.log("otpStore: ", otpStore);
 
 const verifyEmailOtp = async (req, res) => {
     try {
-        const userId = req.user._id;
         const { email, otp } = req.body;
         const userData = otpStore[email];
+        const userId = userData.userId;
 
         if (!userData) {
             return res.status(400).json({ message: 'OTP expired or not found.' });
         }
-        if (userData.userId.toString() !== userId.toString()) {
-            return res.status(403).json({ message: 'OTP does not belong to this user.' });
+        const otpString = otp.toString();
+        if (userData.otp !== otpString) {
+            return res.status(400).send({ message: 'Invalid OTP' });
         }
+
         if (userData.otp !== otp.toString()) {
             return res.status(400).json({ message: 'Invalid OTP.' });
         }
@@ -413,6 +419,27 @@ const verifyEmailOtp = async (req, res) => {
         res.status(200).json({ message: 'Email updated successfully.', user });
     } catch (error) {
         res.status(400).json({ message: 'Error verifying OTP', error: error.message });
+    }
+};
+const resendOtp = async (req, res) => {
+    try {
+        const { email, ...userDetails } = req.body;
+        if (!email) {
+            return res.status(400).json({ message: 'Email is required to resend OTP.' });
+        }
+
+        const otp = otpGenerator();
+        const otpExpiry = Date.now() + 5 * 60 * 1000; // 5 minutes
+
+        // Store OTP and any relevant user details for later verification
+        otpStore[email] = { otp, otpExpiry, ...userDetails };
+
+        await sendOtpEmail(email, otp);
+
+        res.status(200).json({ message: 'OTP resent to your email. Please check your inbox.' });
+    } catch (error) {
+        console.error('Error resending OTP:', error.message);
+        res.status(500).json({ message: 'Failed to resend OTP. Please try again later.' });
     }
 };
 
@@ -589,5 +616,6 @@ module.exports = {
     checkPhoneNumberAvailability,
     refreshToken,
     getUserById,
-    verifyEmailOtp
+    verifyEmailOtp,
+    resendOtp
 };

@@ -26,11 +26,14 @@ router.get('/', (req, res) => {
 router.post('/register', validateRequest, UserController.registerUser);
 router.post('/login', validateLogin, UserController.loginUser);
 router.post('/otp/send', validateRequest, UserController.sendOtp);
-router.patch('/me', authenticate, updateUserValidation, UserController.updateUser);
+router.put('/me', authenticate, updateUserValidation, UserController.updateUser);
 
 router.get('/me', authenticate, cacheMiddleware, UserController.getUser);
 router.post('/otp/verify', UserController.verifyOtp);
+router.post('/email-otp/verify', UserController.verifyEmailOtp);
+router.post('/resend-otp', UserController.resendOtp);
 router.get('/user', restrictToInternal, UserController.getUserById);
+
 
 router.post('/forgot-password-request', passwordController.forgotPasswordRequestUser);
 router.post('/forgot-password-verify-otp', passwordController.forgotPasswordVerifyOtp);
