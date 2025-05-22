@@ -345,7 +345,8 @@ const updateUser = async (req, res) => {
             if (!isMatch) {
                 return res.status(400).json({ message: 'Current password is incorrect.' });
             }
-            updateFields.password = newPassword; // Should be hashed by pre-save hook
+            await User.findOneAndUpdate(userId, { password:newPassword }, { new: true });
+            return res.status(200).json({message:"Password Updated Successfully"})
         }
 
         if (Object.keys(updateFields).length === 0) {

@@ -38,7 +38,7 @@ router.get('/user', restrictToInternal, UserController.getUserById);
 router.post('/forgot-password-request', passwordController.forgotPasswordRequestUser);
 router.post('/forgot-password-verify-otp', passwordController.forgotPasswordVerifyOtp);
 router.post('/forgot-password-reset', passwordController.forgotPasswordResetUser);
-router.patch('/password-reset', authenticate, passwordController.passwordResetUser);
+router.put('/password-reset', authenticate, passwordController.passwordResetUser);
 
 router.post('/logout', authenticate, UserController.logoutUser);
 

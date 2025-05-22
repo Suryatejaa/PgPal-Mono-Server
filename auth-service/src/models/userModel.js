@@ -70,6 +70,23 @@ userSchema.pre('save', async function (next) {
     this.password = await bcrypt.hash(this.password, salt);
     next();
 });
+const hashPassword = async (password) => {
+    const salt = await bcrypt.genSalt(12);
+    return bcrypt.hash(password, salt);
+};
+userSchema.pre('findOneAndUpdate', async function (next) {
+    const update = this.getUpdate(); // Get the update payload
+
+    if (!update.password) return next(); // No password update, skip hashing
+
+    if (!validatePassword(update.password)) {
+        return next(new Error("Password does not meet complexity requirements"));
+    }
+
+    update.password = await hashPassword(update.password);
+    this.setUpdate(update); // Reapply modified update
+    next();
+});
 
 userSchema.methods.comparePassword = async function (candidatePassword) {
     return await bcrypt.compare(candidatePassword, this.password);
