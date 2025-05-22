@@ -76,7 +76,7 @@ exports.selectMenu = async (req, res) => {
         }
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
-        await invalidateCacheByPattern(`*${property._id}*`);
+        await invalidateCacheByPattern(`*${ownerConfirmation._id}*`);
 
         res.status(200).json({ message: 'Menu selection updated successfully', menu: updatedMenu });
     } catch (error) {
@@ -88,15 +88,21 @@ exports.selectMenu = async (req, res) => {
 exports.addWeeklyMenu = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']);
     const ppid = currentUser.data.user.pgpalId;
+
     if (currentUser.data.user.role !== 'owner') {
         return res.status(403).json({ error: 'Only owners can add menu' });
     }
 
-    const { propertyPpid, date, meals } = req.body;
+    const { propertyPpid, date, meals, menuNo } = req.body;
 
-    if (!propertyPpid || !date || !meals) {
-        return res.status(400).json({ error: 'Property ID, date, and meals are required' });
+    if (!propertyPpid || !date || !meals || menuNo === undefined) {
+        return res.status(400).json({ error: 'Property ID, date, meals, and menu number are required' });
     }
+
+    if (menuNo < 1 || menuNo > 4) {
+        return res.status(400).json({ error: 'Menu number must be between 1 and 4' });
+    }
+
     const ownerConfirmation = await getPropertyOwner(propertyPpid, currentUser);
     if (!ownerConfirmation) {
         return res.status(404).json({ error: 'Property not found' });
@@ -105,12 +111,10 @@ exports.addWeeklyMenu = async (req, res) => {
         return res.status(403).json({ error: 'You are not the owner of this property' });
     }
 
-    const isMenusExist = await WeeklyMenu.countDocuments({ propertyPpid });
-
-    const menuNo = isMenusExist > 0 ? isMenusExist + 1 : 1; // Increment menu number if it exists
-
-    if (menuNo > 4) {
-        return res.status(400).json({ error: 'Maximum of 4 weekly menus can be added, you can update existing menus' });
+    // Check if a menu with the same menuNo already exists
+    const existingMenu = await WeeklyMenu.findOne({ propertyPpid, menuNo });
+    if (existingMenu) {
+        return res.status(400).json({ error: `Menu number ${menuNo} already exists. Please choose a different number.` });
     }
 
     try {
@@ -154,7 +158,7 @@ exports.addWeeklyMenu = async (req, res) => {
         }
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
-        await invalidateCacheByPattern(`*${property._id}*`);
+        await invalidateCacheByPattern(`*${ownerConfirmation._id}*`);
 
         res.status(201).json(weeklyMenu);
     } catch (error) {
@@ -298,16 +302,18 @@ exports.getMenuList = async (req, res) => {
     try {
 
         if (redisClient.isReady) {
+            console.log('CacheKey:', cacheKey);
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('Returning cached username availability');
+                console.log('Returning cached menu list availability: ', cached);
                 return res.status(200).send(JSON.parse(cached));
             }
         }
 
-        const menus = await WeeklyMenu.find({ propertyPpid: propertyId }).populate('menu.meals.items', 'name');
-        if (!menus || menus.length === 0) return res.status(404).json({ error: 'No menus found' });
-
+        console.log("Not returned from cache");
+        const menus = await WeeklyMenu.find({ propertyPpid: propertyId });
+        if (!menus || menus.length === 0) return res.status(404).json({ message: 'No menus found' });
+        console.log(menus ? menus : 'No menus found');
         const response = {
             propertyId,
             totalMenus: menus.length,
@@ -317,7 +323,7 @@ exports.getMenuList = async (req, res) => {
         // Cache the response in Redis with a TTL of 10 minutes
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
-        res.status(200).json(response);
+        res.status(200).json(response.totalMenus ? response : { message: 'No menus found' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -338,6 +344,7 @@ exports.updateWeeklyMenu = async (req, res) => {
         return res.status(400).json({ error: 'Property ID, menu number, and meals are required' });
     }
     const ownerConfirmation = await getPropertyOwner(propertyPpid, currentUser);
+    console.log(ownerConfirmation);
     if (!ownerConfirmation) {
         return res.status(404).json({ error: 'Property not found' });
     }
@@ -350,20 +357,8 @@ exports.updateWeeklyMenu = async (req, res) => {
         return res.status(404).json({ error: 'Menu not found' });
     }
     try {
-        const updatedMenu = [...existingMenu.menu];
 
-        meals.forEach(newDay => {
-            const existingDayIndex = updatedMenu.findIndex(dayMenu => dayMenu.day === newDay.day);
-            if (existingDayIndex !== -1) {
-                // Update existing day's meals
-                updatedMenu[existingDayIndex].meals = newDay.meals;
-            } else {
-                // Append new day
-                updatedMenu.push(newDay);
-            }
-        });
-
-        existingMenu.menu = updatedMenu;
+        existingMenu.menu = meals;
         existingMenu.updatedAt = new Date();
 
         const savedMenu = await existingMenu.save();
@@ -399,7 +394,7 @@ exports.updateWeeklyMenu = async (req, res) => {
         }
 
         await invalidateCacheByPattern(`*${propertyPpid}*`);
-        await invalidateCacheByPattern(`*${property._id}*`);
+        await invalidateCacheByPattern(`*${ownerConfirmation._id}*`);
 
         res.status(200).json(savedMenu);
     } catch (error) {
@@ -434,16 +429,6 @@ exports.deleteWeeklyMenu = async (req, res) => {
         }
 
         const remainingMenus = await WeeklyMenu.find({ propertyPpid });
-        if (remainingMenus.length === 0) {
-            return res.status(404).json({ error: 'No remaining menus for this property' });
-        }
-        // Update menu numbers for remaining menus
-        await Promise.all(
-            remainingMenus.map(async (menu, index) => {
-                menu.menuNo = index + 1; // Update menu number
-                await menu.save(); // Save the updated menu
-            })
-        );
 
         const title = 'Weekly Menu Removed';
         const message = `A weekly menu has been deleted. Make sure a new one is added to avoid disruption.`;
@@ -475,16 +460,17 @@ exports.deleteWeeklyMenu = async (req, res) => {
             console.error('Failed to queue notification:', err.message);
         }
 
-        await invalidateCacheByPattern(`*${propertyPpid}*`);
-        await invalidateCacheByPattern(`*${property._id}*`);
+        await invalidateCacheByPattern(`*/api/api/kitchen-service/${propertyPpid}*`);
+        await invalidateCacheByPattern(`*${ownerConfirmation._id}*`);
 
-        // await redisClient.del(`/api/kitchen-service/${propertyPpid}`);
-        // await redisClient.del(`/api/kitchen-service/${propertyPpid}/menu-today`);
+        const cacheKey = `/api/api/kitchen-service/${propertyPpid}`;
+        await redisClient.del(cacheKey);
+
 
         // Send the updated menus as response
-        res.status(200).json(remainingMenus);
 
-        res.status(200).json({ message: 'Menu deleted successfully' });
+
+        res.status(200).json({ message: 'Menu deleted successfully', remainingMenus });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

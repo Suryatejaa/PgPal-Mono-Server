@@ -49,6 +49,17 @@ const complaintSchema = new Schema({
         type: String,
         required: true
     },
+    tenantName: {
+        type: String,
+        required: true
+    },
+    tenantStay: {
+        type: {
+            roomNo: String,
+            bedId: String,
+        },
+        required: true
+    },
     propertyId: {
         type: String,
         required: true
@@ -73,7 +84,7 @@ const complaintSchema = new Schema({
     },
     status: {
         type: String,
-        enum: ['Pending', 'Resolved', 'Closed','In Progress', 'Rejected'],
+        enum: ['Pending', 'Resolved', 'Closed', 'In Progress', 'Rejected'],
         default: 'Pending'
     },
     notes: [

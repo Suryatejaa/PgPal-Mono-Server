@@ -151,13 +151,15 @@ exports.getMyStay = async (req, res) => {
     const cacheKey = '/api' + req.originalUrl; // Always add /api
     if (role !== 'tenant') return res.status(403).json({ error: 'Forbidden, Access denied' });
 
+    console.log('currentUser:', currentUser);
     try {
 
-        const tenant = await Tenant.find({ $or: [{ phone: currentUser.data.user.phone }, { pgpalId }, { _id }] });
+        const tenant = await Tenant.find({ $or: [{ phone: currentUser.data.user.phoneNumber }, { pgpalId }, { _id }] });
+        console.log('tenant:', tenant);
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
         const response = { currentStay: tenant[0].currentStay };
-
+        console.log('response:', response);
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
         res.status(200).json(response);

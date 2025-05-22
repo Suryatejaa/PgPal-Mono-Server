@@ -13,6 +13,7 @@ router.post('/', notificationController.sendNotification);
 router.post('/bulk', notificationController.sendBulkNotifications);
 router.get('/', notificationController.getNotifications);
 router.put('/:id/read', notificationController.markAsRead);
+router.put('/:createdBy/read-all', notificationController.markAllAsRead);
 router.delete('/:id', notificationController.deleteNotification);
 
 module.exports = router;

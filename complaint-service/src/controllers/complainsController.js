@@ -63,12 +63,15 @@ module.exports = {
             return res.status(400).json({ error: 'Property ID, complaint type, and description are required' });
         }
 
-        const tenantConfirmation = await getTenantConfirmation(tenantId, currentUser);
+        const getTenant = await getTenantConfirmation(tenantId, currentUser);
+        const tenantConfirmation = getTenant[0];
+        console.log(tenantConfirmation);
         if (!tenantConfirmation) {
             return res.status(404).json({ error: 'Tenant not found' });
         }
 
         if (tenantConfirmation.status !== 'active') {
+            console.log('Tenant status: ', tenantConfirmation.status);
             return res.status(403).json({ error: 'Tenant is not active' });
         }
         if (propertyId !== tenantConfirmation.currentStay.propertyPpid) {
@@ -85,11 +88,16 @@ module.exports = {
         if (!complaintType) {
             return res.status(400).json({ error: 'Invalid complaint type' });
         }
-
+        const roomNo = tenantConfirmation.currentStay.bedId.split('-')[0];
         try {
             const complaint = await Complaint.create({
                 complaintId: generateRITM(),
                 tenantId,
+                tenantName: tenantConfirmation.name,
+                tenantStay: {
+                    roomNo: roomNo,
+                    bedId: tenantConfirmation.currentStay.bedId,
+                },
                 propertyId,
                 complaintOn,
                 complaintType,
@@ -203,6 +211,7 @@ module.exports = {
         const currentUser = JSON.parse(req.headers['x-user']);
         const ppid = currentUser.data.user.pgpalId;
         const id = currentUser.data.user._id;
+
         try {
             const complaint = await Complaint.findOne({ complaintId: req.params.id });
             if (!complaint) return res.status(404).json({ error: 'Complaint not found' });
@@ -212,32 +221,63 @@ module.exports = {
                 return res.status(404).json({ error: 'Property not found' });
             }
 
+            // Check permissions
             if (complaint.tenantId !== ppid && confirmOwner.ownerId !== id) {
                 return res.status(403).json({ error: 'Forbidden: You do not have permission to update this complaint' });
             }
-            if (complaint.status !== 'Pending') {
-                return res.status(403).json({ error: 'Forbidden: You cannot update a complaint that is not pending' });
+
+            // Block updates if the complaint is "Closed" or "Rejected"
+            if (complaint.status === 'Closed' || complaint.status === 'Rejected') {
+                return res.status(403).json({ error: `Forbidden: You cannot update a complaint that is ${complaint.status}` });
             }
 
+            // Handle status updates
             if (req.body.status && req.body.status !== complaint.status) {
                 if (req.body.status === 'Resolved' && !req.body.notes) {
                     return res.status(400).json({ error: 'Notes are required when resolving a complaint' });
                 }
 
-                req.body.resolvedAt = Date.now();
-                req.body.resolvedBy = ppid;
-
-                if (req.body.notes) {
-                    complaint.notes.push({
-                        message: req.body.notes,
-                        by: ppid
-                    });
-                }
+                req.body.resolvedAt = req.body.status === 'Resolved' ? Date.now() : complaint.resolvedAt;
+                req.body.resolvedBy = req.body.status === 'Resolved' ? ppid : complaint.resolvedBy;
             }
 
+            // Append new notes if provided
+            if (req.body.notes) {
+                let noteToAdd;
+
+                // If notes is an object, use it directly
+                if (typeof req.body.notes === 'object' && req.body.notes.message && req.body.notes.by) {
+                    noteToAdd = {
+                        message: req.body.notes.message,
+                        by: req.body.notes.by,
+                        at: new Date()
+                    };
+                } else if (typeof req.body.notes === 'string') {
+                    // If notes is a string, construct the note object
+                    noteToAdd = {
+                        message: req.body.notes,
+                        by: ppid,
+                        at: new Date()
+                    };
+                } else {
+                    return res.status(400).json({ error: 'Invalid notes format' });
+                }
+
+                await Complaint.updateOne(
+                    { complaintId: req.params.id },
+                    {
+                        $push: {
+                            notes: noteToAdd
+                        }
+                    }
+                );
+            }
+
+            // Update other fields
+            const { notes, ...otherFields } = req.body; // Exclude notes from the update
             const updatedComplaint = await Complaint.findOneAndUpdate(
                 { complaintId: req.params.id },
-                { $set: { ...req.body, updatedAt: Date.now() } },
+                { $set: { ...otherFields, updatedAt: Date.now() } },
                 { new: true }
             );
 
@@ -277,7 +317,8 @@ module.exports = {
 
             res.status(200).json(updatedComplaint);
         } catch (error) {
-            res.status(500).json({ error: 'Failed to update complaint' });
+            console.log(error.message);
+            res.status(500).json({ error: 'Failed to update complaint', err: error });
         }
     },
 
