@@ -106,7 +106,7 @@ router.post('/protected', authenticate, (req, res) => {
     });
 });
 
-router.post('/refresh-token', authenticate, UserController.refreshToken);
+router.post('/refresh-token', UserController.refreshToken);
 
 // router.put('/profile/update-profile/:id', authenticate, ProfileController.updateProfile);
 

@@ -11,7 +11,7 @@ const sendOtp = async (req, res) => {
         const otpExpiry = Date.now() + 5 * 60 * 1000;
 
         otpStore[email] = { otp, otpExpiry, ...userDetails };
-        console.log('OTP Store: ', otpStore);
+        //console.log('OTP Store: ', otpStore);
 
         await sendOtpEmail(email, otp);
         res.status(200).send({ message: 'OTP sent to your email. Verify OTP to complete registration.' });
@@ -31,7 +31,7 @@ const forgotPasswordRequestUser = async (req, res) => {
         ]
     }).select('email').lean())?.email;
 
-    console.log('cred ',credential, 'email ',email)
+    //console.log('cred ',credential, 'email ',email)
 
     if (!email) return res.status(404).send({ message: 'User not found' });
 
@@ -50,7 +50,7 @@ const forgotPasswordRequestUser = async (req, res) => {
 const forgotPasswordVerifyOtp = async (req, res) => {
     const { otp, newPassword, confirmPassword } = req.body;
     const otpString = otp.toString();
-    console.log("otpStore: ", otpStore);
+    //console.log("otpStore: ", otpStore);
     for (const email in otpStore) {
         if (otpStore[email].otp === otpString) {
             if (Date.now() > otpStore[email].otpExpiry) {

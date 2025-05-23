@@ -29,9 +29,9 @@ exports.assignBed = async (req, res) => {
         return res.status(400).json({ error: 'Room ID, Bed ID, and Tenant No are required' });
     }
     try {
-        console.log('roomid: ',roomId)
+        //console.log('roomid: ',roomId)
         const room = await Room.findOne({ pgpalId: roomId });
-        console.log('room: ',room);
+        //console.log('room: ',room);
         const propertyId = room.propertyId;
         const property = await getOwnProperty(propertyId, currentUser, false);
         if (!property) {
@@ -43,7 +43,7 @@ exports.assignBed = async (req, res) => {
 
         if (!room) return res.status(404).json({ error: 'Room not found' });
 
-        console.log(room.rentPerBed);
+        //console.log(room.rentPerBed);
         const bed = room.beds.find(b => b.bedId === bedId);
         if (!bed) return res.status(404).json({ error: 'Bed not found' });
         if (bed.status === 'occupied') {
@@ -56,7 +56,7 @@ exports.assignBed = async (req, res) => {
         bed.tenantPpt = tenantPpt;
         room.status = room.beds.every(b => b.status === 'occupied') ? 'occupied' : 'partially occupied';
         await room.save();
-        console.log("Bed assigned successfully", room);
+        //console.log("Bed assigned successfully", room);
 
         res.status(200).json({ status: 200, message: 'Bed assigned successfully', room });
     }
@@ -77,7 +77,7 @@ exports.clearBed = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']) || {};
     const id = currentUser.data.user._id;
     const role = currentUser.data.user.role;
-    console.log('clearBed called', roomId, bedId, id, role);
+    //console.log('clearBed called', roomId, bedId, id, role);
     if (!id) {
         return res.status(401).json({ error: 'Unauthorized: Missing userId' });
     }
@@ -90,7 +90,7 @@ exports.clearBed = async (req, res) => {
         if (!room) return res.status(404).json({ error: 'Room not found' });
 
         const bed = room.beds.find(b => b.bedId === bedId);
-        console.log('Clearing bed:', bed);
+        //console.log('Clearing bed:', bed);
         if (!bed) return res.status(404).json({ error: 'Bed not found' });
         if (bed.status === 'vacant') {
             return res.status(400).json({ error: 'Bed is already vacant' });
@@ -101,7 +101,7 @@ exports.clearBed = async (req, res) => {
         bed.tenantPpt = null;
         room.status = room.beds.every(b => b.status === 'vacant') ? 'vacant' : 'partially occupied';
         await room.save();
-        console.log('Bed cleared successfully', room);
+        //console.log('Bed cleared successfully', room);
 
         res.status(200).json({ status: 200, message: 'Bed cleared successfully', room });
     }

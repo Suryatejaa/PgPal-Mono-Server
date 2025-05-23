@@ -21,12 +21,12 @@ app.use(cookieParser());
 app.use('/api/notification-service', notificationRoutes);
 
 // MongoDB connection
-mongoose.connect(process.env.MONGO_URI, {   
+mongoose.connect(process.env.MONGO_URI, {
     serverSelectionTimeoutMS: 30000 // Increase timeout to 30s
 }
 )
-    .then(() => console.log('MongoDB Connected',process.env.MONGO_URI))
-    .catch((err) => console.log('MongoDb connection error', err));
+    .then(() => console.log('MongoDB Connected', process.env.MONGO_URI))
+    .catch((err) => console.log('MongoDB connection error', err));
 
 // Routes
 app.get('/', (req, res) => {

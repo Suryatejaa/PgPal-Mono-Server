@@ -7,7 +7,7 @@ const getOwnProperty = async (propertyId, currentUser, ppid) => {
     } else {
         url = `http://property-service:4002/api/property-service/property/${propertyId}`;
     }
-    console.log(url);
+    //console.log(url);
     try {
         const response = await axios.get(url, {
             headers: {
@@ -17,7 +17,7 @@ const getOwnProperty = async (propertyId, currentUser, ppid) => {
         });
         return response.data;
     } catch (error) {
-        console.log(error.message);
+        //console.log(error.message);
         return null;
     }
 };

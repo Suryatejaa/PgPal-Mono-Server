@@ -21,12 +21,12 @@ app.use(cookieParser());
 app.use('/api/dashboard-service', dashboardRoutes);
 
 // MongoDB connection
-mongoose.connect(process.env.MONGO_URI, {   
+mongoose.connect(process.env.MONGO_URI, {
     serverSelectionTimeoutMS: 10000 // Increase timeout to 30s
 }
 )
     .then(() => console.log('MongoDB Connected'))
-    .catch((err) => console.log('MongoDb connection error', err));
+    .catch((err) => console.log('MongoDB connection error', err));
 
 // Routes
 app.get('/', (req, res) => {

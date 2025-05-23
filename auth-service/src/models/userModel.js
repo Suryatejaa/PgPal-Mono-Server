@@ -95,7 +95,7 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 userSchema.methods.generateAuthToken = function () {
     const user = this;
     const payload = { _id: user._id.toString(), name: user.username, pgpalId: user.pgpalId, role: user.role };
-    console.log('Token Payload:', payload);
+    //console.log('Token Payload:', payload);
 
     const token = jwt.sign(payload, process.env.JWT_SECRET, {
         expiresIn: '15m',
@@ -106,7 +106,7 @@ userSchema.methods.generateAuthToken = function () {
 userSchema.methods.generateRefreshToken = function () {
     const user = this;
     const payload = { _id: user._id.toString(), name: user.username, pgpalId: user.pgpalId, role: user.role };
-    console.log('Refresh Token Payload:', payload);
+    //console.log('Refresh Token Payload:', payload);
 
     const refreshToken = jwt.sign(payload, process.env.REFRESH_TOKEN_SECRET, {
         expiresIn: '7d',
@@ -137,7 +137,7 @@ userSchema.pre('save', async function (next) {
             else if (this.role === 'tenant') {
                 this.pgpalId = 'PPT' + Math.floor(100000 + Math.random() * 900000); // 6 digit code
             } else {
-                console.log(`Unknown role for user ${this._id}: ${this.role}`); // Updated log message to reflect 'user'
+                //console.log(`Unknown role for user ${this._id}: ${this.role}`); // Updated log message to reflect 'user'
                 return next(); // Skip this user if the role is unknown
             }
             uniqueId = await this.model('User').findOne({ pgpalId: this.pgpalId });

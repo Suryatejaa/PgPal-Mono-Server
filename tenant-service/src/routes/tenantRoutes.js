@@ -15,6 +15,7 @@ router.delete('/delete', TenantController.deleteTenant);
 
 router.get('/', cacheMiddleware, TenantGetController.getTenants);
 router.get('/tenants', cacheMiddleware, TenantGetController.getTenantByQuery);
+router.get('/active-tenants/:propertyId', cacheMiddleware, TenantGetController.getActiveTenantsForProperty);
 router.get('/tenants-int/:phnum', cacheMiddleware, TenantGetController.getTenantByPhNum);
 router.get('/tenant-currentStay', cacheMiddleware, TenantGetController.getTenantStayStatus);
 router.get('/tenant-history', cacheMiddleware, TenantGetController.getTenantHistory);
@@ -25,6 +26,7 @@ router.get('/myStay', cacheMiddleware, TenantGetController.getMyStay);
 router.get('/tenantDocs/:pppid', cacheMiddleware, TenantGetController.getTenantDocs);
 router.get('/checkins/:pppid', cacheMiddleware, TenantGetController.getCheckins);
 router.get('/vacates/:pppid', cacheMiddleware, TenantGetController.getVacates);
+router.get('/notify-tenant', TenantController.notifyTenant);
 
 router.post('/vacate', VacateController.raiseVacate);
 router.post('/withdraw-vacate', VacateController.withdrawVacate);

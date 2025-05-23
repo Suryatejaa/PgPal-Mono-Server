@@ -65,13 +65,13 @@ module.exports = {
 
         const getTenant = await getTenantConfirmation(tenantId, currentUser);
         const tenantConfirmation = getTenant[0];
-        console.log(tenantConfirmation);
+        //console.log(tenantConfirmation);
         if (!tenantConfirmation) {
             return res.status(404).json({ error: 'Tenant not found' });
         }
 
         if (tenantConfirmation.status !== 'active') {
-            console.log('Tenant status: ', tenantConfirmation.status);
+            //console.log('Tenant status: ', tenantConfirmation.status);
             return res.status(403).json({ error: 'Tenant is not active' });
         }
         if (propertyId !== tenantConfirmation.currentStay.propertyPpid) {
@@ -114,25 +114,26 @@ module.exports = {
             const method = ["in-app", "email"];
 
             try {
-                console.log('Adding notification job to the queue...');
+                //console.log('Adding notification job to the queue...');
+                const owner = await getPropertyOwner(propertyId, currentUser);
+                const ownerId = owner?.ownerId;
 
                 await notificationQueue.add('notifications', {
-                    tenantIds: [tenantId],
+                    ownerId,
                     propertyPpid: propertyId,
+                    audience: 'owner',
                     title,
                     message,
                     type,
                     method,
+                    meta: { complaintId: complaint.complaintId },
                     createdBy: currentUser?.data?.user?.pgpalId || 'system'
                 }, {
                     attempts: 3,
-                    backoff: {
-                        type: 'exponential',
-                        delay: 3000
-                    }
+                    backoff: { type: 'exponential', delay: 3000 }
                 });
 
-                console.log('Notification job added successfully');
+                //console.log('Notification job added successfully');
 
             } catch (err) {
                 console.error('Failed to queue notification:', err.message);
@@ -148,7 +149,7 @@ module.exports = {
     },
 
     async getComplaints(req, res) {
-        console.log('called');
+        //console.log('called');
         try {
 
             const cacheKey = '/api' + req.originalUrl; // Always add /api
@@ -156,7 +157,7 @@ module.exports = {
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
                 if (cached) {
-                    console.log('Returning cached username availability');
+                    //console.log('Returning cached username availability');
                     return res.status(200).send(JSON.parse(cached));
                 }
             }
@@ -189,7 +190,7 @@ module.exports = {
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
                 if (cached) {
-                    console.log('Returning cached username availability');
+                    //console.log('Returning cached username availability');
                     return res.status(200).send(JSON.parse(cached));
                 }
             }
@@ -288,26 +289,40 @@ module.exports = {
             const type = 'complaint_update';
             const method = ['in-app', 'email'];
 
+            const isOwner = confirmOwner.ownerId === id;
+            const isTenant = complaint.tenantId === ppid;
+
+            let notify = {};
+            if (isOwner) {
+                notify = {
+                    tenantId: complaint.tenantId,
+                    audience: 'tenant'
+                };
+            } else if (isTenant) {
+                notify = {
+                    ownerId: confirmOwner.ownerId,
+                    audience: 'owner'
+                };
+            }
+
             try {
-                console.log('Adding notification job to the queue...');
+                //console.log('Adding notification job to the queue...');
 
                 await notificationQueue.add('notifications', {
-                    tenantIds: [ppid],
+                    ...notify,
                     propertyPpid: complaint.propertyId,
                     title,
                     message,
                     type,
                     method,
+                    meta: { complaintId: complaint.complaintId },
                     createdBy: currentUser?.data?.user?.pgpalId || 'system'
                 }, {
                     attempts: 3,
-                    backoff: {
-                        type: 'exponential',
-                        delay: 3000
-                    }
+                    backoff: { type: 'exponential', delay: 3000 }
                 });
 
-                console.log('Notification job added successfully');
+                //console.log('Notification job added successfully');
 
             } catch (err) {
                 console.error('Failed to queue notification:', err.message);
@@ -317,7 +332,7 @@ module.exports = {
 
             res.status(200).json(updatedComplaint);
         } catch (error) {
-            console.log(error.message);
+            //console.log(error.message);
             res.status(500).json({ error: 'Failed to update complaint', err: error });
         }
     },
@@ -343,25 +358,24 @@ module.exports = {
             const method = ['in-app', 'email'];
 
             try {
-                console.log('Adding notification job to the queue...');
+                //console.log('Adding notification job to the queue...');
 
                 await notificationQueue.add('notifications', {
-                    tenantIds: [ppid],
+                    tenantId: ppid,
                     propertyPpid: propertyId,
+                    audience: 'tenant',
                     title,
                     message,
                     type,
                     method,
+                    meta: { complaintId: complaint.complaintId },
                     createdBy: currentUser?.data?.user?.pgpalId || 'system'
                 }, {
                     attempts: 3,
-                    backoff: {
-                        type: 'exponential',
-                        delay: 3000
-                    }
+                    backoff: { type: 'exponential', delay: 3000 }
                 });
 
-                console.log('Notification job added successfully');
+                //console.log('Notification job added successfully');
 
             } catch (err) {
                 console.error('Failed to queue notification:', err.message);
@@ -409,7 +423,7 @@ module.exports = {
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
                 if (cached) {
-                    console.log('Returning cached username availability');
+                    //console.log('Returning cached username availability');
                     return res.status(200).send(JSON.parse(cached));
                 }
             }

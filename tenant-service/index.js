@@ -3,7 +3,7 @@ const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const tenantRoutes = require('./src/routes/tenantRoutes');
-const paymentRoutes = require('./src/routes/paymentRoutes')
+const paymentRoutes = require('./src/routes/paymentRoutes');
 const cookieParser = require('cookie-parser');
 
 // Load environment variables
@@ -20,7 +20,7 @@ app.use(cors({
 }));
 app.use(cookieParser());
 app.use('/api/tenant-service', tenantRoutes);
-app.use('/api/tenant-service', paymentRoutes);
+app.use('/api/rent-service', paymentRoutes);
 
 
 
@@ -30,14 +30,12 @@ mongoose.connect(process.env.MONGO_URI, {
     useUnifiedTopology: true,
 })
     .then(() => console.log('Connected to MongoDB'));
-
-
-// Routes
-app.get('/', (req, res) => {
-    res.send('Tenant Service is running');
-});
+        // Routes
+        app.get('/', (req, res) => {
+            res.send('Tenant Service is running');
+        });
 
 // Start the server
 app.listen(PORT, () => {
-    console.log(`Tenant Service  is running on port ${PORT}`);
+    console.log(`Tenant Service is running on port ${PORT}`);
 });

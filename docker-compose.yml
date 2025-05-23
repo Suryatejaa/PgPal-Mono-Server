@@ -26,7 +26,7 @@ services:
       - "4002:4002"
     environment:
       - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_property_service
-      - JWT_SECRET=your_jwt_secret
+      - JWT_SECRET=${JWT_SECRET}
       - PORT=4002
       - REDIS_URL=redis://redis:6379
     depends_on:
@@ -41,7 +41,7 @@ services:
     environment:
       - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_room_service
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=your_jwt_secret
+      - JWT_SECRET=${JWT_SECRET}
       - PORT=4003
     depends_on:
       - mongo
@@ -55,7 +55,7 @@ services:
     environment:
       - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_tenant_service
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=your_jwt_secret
+      - JWT_SECRET=${JWT_SECRET}
       - PORT=4004
     depends_on:
       - mongo
@@ -64,7 +64,7 @@ services:
   payment-service:
     build: ./payment-service
     ports:
-      - "4005:4005"
+      - "4010:4010"
     environment:
       - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_payment_service
       - REDIS_URL=redis://redis:6379
@@ -79,7 +79,7 @@ services:
       - "4006:4006"
     environment:
       - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_complaints_service
-      - JWT_SECRET=your_jwt_secret
+      - JWT_SECRET=${JWT_SECRET}
       - PORT=4006
       - EMAIL=echoliftagency@gmail.com
       - EMAIL_PASSWORD=dinh blaq osyc cpds
@@ -96,7 +96,7 @@ services:
     environment:
       - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_kitchen_service
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=your_jwt_secret
+      - JWT_SECRET=${JWT_SECRET}
       - PORT=4007
     depends_on:
       - mongo
@@ -109,7 +109,7 @@ services:
     environment:
       - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_dashboard_service
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=your_jwt_secret
+      - JWT_SECRET=${JWT_SECRET}
       - PORT=4008
     depends_on:
       - mongo
@@ -123,7 +123,7 @@ services:
     environment:
       - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_notification_service
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=your_jwt_secret
+      - JWT_SECRET=${JWT_SECRET}
       - PORT=4009
     depends_on:
       - mongo 
@@ -139,7 +139,7 @@ services:
     environment:
       - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_notification_service
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=your_jwt_secret
+      - JWT_SECRET=${JWT_SECRET}
       - PORT=4009
 
   gateway:

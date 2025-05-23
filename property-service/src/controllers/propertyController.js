@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const redisClient = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
+const { getActiveTenantsForProperty } = require('./internalApis');
 
 
 
@@ -27,7 +28,7 @@ module.exports = {
     async addProperty(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
 
-        console.log('Current User:', currentUser);
+        //console.log('Current User:', currentUser);
         const id = currentUser.data.user._id;
         const role = currentUser.data.user.role;
         const phone = currentUser.data.user.phoneNumber;
@@ -41,12 +42,12 @@ module.exports = {
         }
 
         try {
-            const { name, address, totalBeds, contact, totalRooms, occupiedBeds } = req.body;
+            const { name, address, totalBeds, contact, totalRooms, pgGenderType, occupiedBeds } = req.body;
             const availableBeds = totalBeds - occupiedBeds;
             if (availableBeds < 0) {
                 return res.status(400).json({ error: 'Occupied beds cannot exceed total beds' });
             }
-            console.log('checkpoint 2');
+            //console.log('checkpoint 2');
 
             const property = await Property.create({
                 name,
@@ -55,6 +56,7 @@ module.exports = {
                 totalBeds,
                 totalRooms,
                 occupiedBeds,
+                pgGenderType,
                 availableBeds,
                 ownerContact: {
                     phone,
@@ -66,7 +68,7 @@ module.exports = {
             res.status(201).json(property);
 
             const propertyPpid = property.pgpalId;
-            console.log('Property PPID ', propertyPpid);
+            //console.log('Property PPID ', propertyPpid);
 
             const title = 'New Property Added';
             const message = 'A new property has been successfully registered.';
@@ -74,7 +76,7 @@ module.exports = {
             const method = ['in-app'];
 
             try {
-                console.log('Adding notification job to the queue...');
+                //console.log('Adding notification job to the queue...');
 
                 await notificationQueue.add('notifications', {
                     tenantIds: [ppid],
@@ -92,7 +94,7 @@ module.exports = {
                     }
                 });
 
-                console.log('Notification job added successfully');
+                //console.log('Notification job added successfully');
 
             } catch (err) {
                 console.error('Failed to queue notification:', err.message);
@@ -102,7 +104,7 @@ module.exports = {
 
 
         } catch (error) {
-            console.log(error.message);
+            //console.log(error.message);
             res.status(500).json({ error: error.message });
         }
     },
@@ -144,7 +146,7 @@ module.exports = {
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
                 if (cached) {
-                    console.log('Returning cached username availability');
+                    //console.log('Returning cached username availability');
                     return res.status(200).send(JSON.parse(cached));
                 }
             }
@@ -168,14 +170,14 @@ module.exports = {
     async getPropertyForRoom(req, res) {
         const id = req.params.id;
         const ppid = req.query.ppid;
-        console.log('Called getPropertyforRoom ', id);
+        //console.log('Called getPropertyforRoom ', id);
         const cacheKey = '/api' + req.originalUrl; // Always add /api
 
         try {
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
                 if (cached) {
-                    console.log('Returning cached username availability');
+                    //console.log('Returning cached username availability');
                     return res.status(200).send(JSON.parse(cached));
                 }
             }
@@ -202,7 +204,7 @@ module.exports = {
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
                 if (cached) {
-                    console.log('Returning cached username availability');
+                    //console.log('Returning cached username availability');
                     return res.status(200).send(JSON.parse(cached));
                 }
             }
@@ -227,7 +229,7 @@ module.exports = {
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
                 if (cached) {
-                    console.log('Returning cached username availability');
+                    //console.log('Returning cached username availability');
                     return res.status(200).send(JSON.parse(cached));
                 }
             }
@@ -255,7 +257,7 @@ module.exports = {
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
                 if (cached) {
-                    console.log('Returning cached username availability');
+                    //console.log('Returning cached username availability');
                     return res.status(200).send(JSON.parse(cached));
                 }
             }
@@ -321,12 +323,12 @@ module.exports = {
             const type = 'alert';
             const method = ['in-app', 'email'];
 
-            try {
-                console.log('Adding notification job to the queue...');
-
+            const tenants = await getActiveTenantsForProperty(propertyPpid); // Implement this utility
+            for (const tenant of tenants) {
                 await notificationQueue.add('notifications', {
-                    tenantIds: [ppid],
-                    propertyPpid: propertyPpid,
+                    tenantId: tenant.pgpalId,
+                    propertyPpid,
+                    audience: 'tenant',
                     title,
                     message,
                     type,
@@ -339,11 +341,6 @@ module.exports = {
                         delay: 3000
                     }
                 });
-
-                console.log('Notification job added successfully');
-
-            } catch (err) {
-                console.error('Failed to queue notification:', err.message);
             }
 
             res.status(200).json(updatedProperty);
@@ -385,12 +382,12 @@ module.exports = {
             const type = 'alert';
             const method = ['in-app', 'email'];
 
-            try {
-                console.log('Adding notification job to the queue...');
-
+            const tenants = await getActiveTenantsForProperty(propertyPpid); // Implement this utility
+            for (const tenant of tenants) {
                 await notificationQueue.add('notifications', {
-                    tenantIds: [ppid],
-                    propertyPpid: propertyPpid,
+                    tenantId: tenant.pgpalId,
+                    propertyPpid,
+                    audience: 'tenant',
                     title,
                     message,
                     type,
@@ -403,11 +400,6 @@ module.exports = {
                         delay: 3000
                     }
                 });
-
-                console.log('Notification job added successfully');
-
-            } catch (err) {
-                console.error('Failed to queue notification:', err.message);
             }
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
@@ -442,7 +434,7 @@ module.exports = {
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
                 if (cached) {
-                    console.log('Returning cached username availability');
+                    //console.log('Returning cached username availability');
                     return res.status(200).send(JSON.parse(cached));
                 }
             }
@@ -472,7 +464,7 @@ module.exports = {
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
                 if (cached) {
-                    console.log('Returning cached username availability');
+                    //console.log('Returning cached username availability');
                     return res.status(200).send(JSON.parse(cached));
                 }
             }
@@ -516,31 +508,6 @@ module.exports = {
 
             const propertyPpid = property.pgpalId;
 
-            try {
-                console.log('Adding notification job to the queue...');
-
-                await notificationQueue.add('notifications', {
-                    tenantIds: [ppid],
-                    propertyPpid: propertyPpid,
-                    title,
-                    message,
-                    type,
-                    method,
-                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
-                }, {
-                    attempts: 3,
-                    backoff: {
-                        type: 'exponential',
-                        delay: 3000
-                    }
-                });
-
-                console.log('Notification job added successfully');
-
-            } catch (err) {
-                console.error('Failed to queue notification:', err.message);
-            }
-
             await invalidateCacheByPattern(`*${propertyPpid}*`);
             await invalidateCacheByPattern(`*${property._id}*`);
 
@@ -579,7 +546,7 @@ module.exports = {
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
                 if (cached) {
-                    console.log('Returning cached username availability');
+                    //console.log('Returning cached username availability');
                     return res.status(200).send(JSON.parse(cached));
                 }
             }
@@ -607,7 +574,7 @@ module.exports = {
     },
 
     async updateTotalBeds(req, res) {
-        console.log('method called');
+        //console.log('method called');
         const currentUser = JSON.parse(req.headers['x-user']) || {};
         const id = currentUser.data.user._id;
         const role = currentUser.data.user.role;
@@ -619,8 +586,8 @@ module.exports = {
         try {
             const { totalBeds, totalRooms, occupiedBeds, availableBeds } = req.body;
 
-            console.log(req.params.id);
-            console.log(totalBeds);
+            //console.log(req.params.id);
+            //console.log(totalBeds);
 
             const property = await Property.findById(req.params.id);
             if (!property) {
@@ -644,6 +611,48 @@ module.exports = {
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
-    }
+    },
+
+    async updateLocation(req, res) {
+        const currentUser = JSON.parse(req.headers['x-user']) || {};
+        const id = currentUser.data.user._id;
+        const role = currentUser.data.user.role;
+
+        if (role !== 'owner') {
+            return res.status(403).json({ error: 'Forbidden: Only owners can update property location' });
+        }
+
+        try {
+            const { lat, lng } = req.body;
+            if (typeof lat !== 'number' || typeof lng !== 'number') {
+                return res.status(400).json({ error: 'Latitude and longitude must be numbers' });
+            }
+
+
+            const property = await Property.findById(req.params.id);
+            console.log(property);
+            if (!property) {
+                return res.status(404).json({ error: 'Property not found' });
+            }
+            if (property.ownerId !== id) {
+                return res.status(403).json({ error: 'Forbidden: You can only update your own properties' });
+            }
+
+            property.location = {
+                latitude: lat,
+                longitude: lng
+            };
+            const updatedProperty = await Property.findByIdAndUpdate(req.params.id, { location: property.location }, { new: true });
+            console.log(updatedProperty);
+            await invalidateCacheByPattern(`*${property.pgpalId}*`);
+
+            res.status(200).json({
+                message: 'Location updated successfully',
+                location: updatedProperty.location
+            });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
 
 };

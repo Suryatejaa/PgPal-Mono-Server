@@ -38,15 +38,17 @@ module.exports = {
             const method = ['in-app'];
 
             try {
-                console.log('Adding notification job to the queue...');
+                //console.log('Adding notification job to the queue...');
 
                 await notificationQueue.add('notifications', {
-                    tenantIds: [ppid],
+                    ownerId: property.ownerId,
                     propertyPpid: propertyPpid,
+                    audience: 'owner',
                     title,
                     message,
                     type,
                     method,
+                    meta: { reviewId: newReview?._id || review?._id }, // add reviewId for context if available
                     createdBy: currentUser?.data?.user?.pgpalId || 'system'
                 }, {
                     attempts: 3,
@@ -56,7 +58,7 @@ module.exports = {
                     }
                 });
 
-                console.log('Notification job added successfully');
+                //console.log('Notification job added successfully');
 
             } catch (err) {
                 console.error('Failed to queue notification:', err.message);
@@ -116,16 +118,18 @@ module.exports = {
             const type = 'info';
             const method = ['in-app'];
 
-            try {
-                console.log('Adding notification job to the queue...');
 
+            try {
+                // Notify the property owner
                 await notificationQueue.add('notifications', {
-                    tenantIds: [ppid],
+                    ownerId: property.ownerId,
                     propertyPpid: propertyPpid,
+                    audience: 'owner',
                     title,
                     message,
                     type,
                     method,
+                    meta: { reviewId: review._id },
                     createdBy: currentUser?.data?.user?.pgpalId || 'system'
                 }, {
                     attempts: 3,
@@ -135,11 +139,34 @@ module.exports = {
                     }
                 });
 
-                console.log('Notification job added successfully');
+                // Notify the user who raised the review (if not the current editor)
+                if (review.updatedBy.toString() !== id) {
+                    await notificationQueue.add('notifications', {
+                        tenantId: review.updatedBy,
+                        propertyPpid: propertyPpid,
+                        audience: 'tenant',
+                        title: 'Your Review Was Updated',
+                        message: 'Your review for this property was updated by the property owner.',
+                        type,
+                        method,
+                        meta: { reviewId: review._id },
+                        createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                    }, {
+                        attempts: 3,
+                        backoff: {
+                            type: 'exponential',
+                            delay: 3000
+                        }
+                    });
+                }
+
+                //console.log('Notification job added successfully');
 
             } catch (err) {
                 console.error('Failed to queue notification:', err.message);
             }
+
+            // ...existing code...
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
             await invalidateCacheByPattern(`*${property._id}*`);
@@ -161,8 +188,8 @@ module.exports = {
             return res.status(401).json({ error: 'Unauthorized: Missing userId' });
         }
         try {
-            console.log(req.params.id);
-            console.log(req.params.reviewId);
+            //console.log(req.params.id);
+            //console.log(req.params.reviewId);
 
             const review = await Review.findOne(
                 { propertyId: req.params.id, _id: req.params.reviewId }
@@ -188,31 +215,6 @@ module.exports = {
             const type = 'alert';
             const method = ['in-app'];
 
-            try {
-                console.log('Adding notification job to the queue...');
-
-                await notificationQueue.add('notifications', {
-                    tenantIds: [ppid],
-                    propertyPpid: propertyPpid,
-                    title,
-                    message,
-                    type,
-                    method,
-                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
-                }, {
-                    attempts: 3,
-                    backoff: {
-                        type: 'exponential',
-                        delay: 3000
-                    }
-                });
-
-                console.log('Notification job added successfully');
-
-            } catch (err) {
-                console.error('Failed to queue notification:', err.message);
-            }
-
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
             await invalidateCacheByPattern(`*${property._id}*`);
@@ -234,7 +236,7 @@ module.exports = {
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
                 if (cached) {
-                    console.log('Returning cached username availability');
+                    //console.log('Returning cached username availability');
                     return res.status(200).send(JSON.parse(cached));
                 }
             }

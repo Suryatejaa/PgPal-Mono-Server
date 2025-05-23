@@ -11,7 +11,7 @@ const allowedOrigins = ['http://localhost:5173', 'http://localhost:4000'];
 
 const corsOptions = {
     origin: function (origin, callback) {
-        console.log('Origin ',origin)
+        //console.log('Origin ',origin)
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
@@ -27,9 +27,9 @@ app.use(cors(corsOptions));
 
 app.use((req, res, next) => {
 
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+    //console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
     res.on('finish', () => {
-        console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} - ${res.statusCode}`);
+        //console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} - ${res.statusCode}`);
     });
     next();
 
@@ -40,7 +40,7 @@ app.use(cookieParser());
 
 
 const authenticate = async (req, res, next) => {
-    // console.log(`[authenticate] Processing request for: ${req.originalUrl}`);
+    // //console.log(`[authenticate] Processing request for: ${req.originalUrl}`);
 
     if (req.headers['x-internal-service']) {
         return next();
@@ -50,7 +50,6 @@ const authenticate = async (req, res, next) => {
     if (!token) {
         return res.status(401).json({ message: 'Missing token' });
     }
-    console.log('Token from cookies:', token);
     try {
         const response = await axios.post('http://auth-service:4001/api/auth-service/protected', {}, {
             headers: {
@@ -59,7 +58,7 @@ const authenticate = async (req, res, next) => {
             withCredentials: true,
         });
 
-        // console.log('[authenticate] Response from auth-service:', response.data);
+        // //console.log('[authenticate] Response from auth-service:', response.data);
 
         if (response.status === 200) {
             req.user = { data: response.data, token };
@@ -115,9 +114,15 @@ app.use('/api/tenant-service', authenticate, attachUserHeader,
         changeOrigin: true,
     }));
 
+app.use('/api/rent-service', authenticate, attachUserHeader,
+    createProxyMiddleware({
+        target: 'http://tenant-service:4004', // Updated target
+        changeOrigin: true,
+    }));
+
 app.use('/api/payment-service', authenticate, attachUserHeader,
     createProxyMiddleware({
-        target: 'http://payment-service:4005',
+        target: 'http://payment-service:4010',
         changeOrigin: true,
     }));
 

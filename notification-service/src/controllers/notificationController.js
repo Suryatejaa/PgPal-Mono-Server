@@ -12,8 +12,9 @@ exports.sendNotification = async (req, res) => {
             return res.status(400).json({ error: 'tenantId, propertyPpid, title, and message are required' });
         }
 
-        const tenantConfirmation = await getTenantConfirmation(tenantId, currentUser);
-        console.log(tenantConfirmation);
+        const tenant = await getTenantConfirmation(tenantId, currentUser);
+        const tenantConfirmation = tenant[0];
+        //console.log(tenantConfirmation);
         if (!tenantConfirmation) {
             return res.status(404).json({ error: 'Tenant not found' });
         }
@@ -41,13 +42,22 @@ exports.sendNotification = async (req, res) => {
 
 exports.getNotifications = async (req, res) => {
     try {
-        const { tenantId, propertyPpid, status, unread } = req.query;
+        const { tenantId, ownerId, propertyPpid, status, unread, audience } = req.query;
         const filter = {};
 
-        if (tenantId) filter.tenantId = tenantId;
+        // Role-based filtering
+        if (tenantId) {
+            filter.tenantId = tenantId;
+            filter.audience = { $in: ['tenant', 'all'] };
+        } else if (ownerId) {
+            filter.ownerId = ownerId;
+            filter.audience = { $in: ['owner', 'all'] };
+        }
+
         if (propertyPpid) filter.propertyPpid = propertyPpid;
         if (status) filter.status = status;
         if (unread === 'true') filter.isRead = false;
+        if (audience) filter.audience = audience; // Optional override
 
         const notifications = await Notification.find(filter).sort({ createdAt: -1 });
 
@@ -81,8 +91,8 @@ exports.markAllAsRead = async (req, res) => {
     try {
         const currentUser = JSON.parse(req.headers['x-user']);
 
-        const createdBy = req.params.createdBy
-        const notifications = await Notification.updateMany({createdBy: createdBy}, { isRead: true, status: 'read' });
+        const createdBy = req.params.createdBy;
+        const notifications = await Notification.updateMany({ createdBy: createdBy }, { isRead: true, status: 'read' });
         if (!notifications) {
             return res.status(404).json({ error: 'No notifications found' });
         }
@@ -104,6 +114,23 @@ exports.deleteNotification = async (req, res) => {
         }
 
         res.status(200).json({ message: 'Notification deleted' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.deleteAllNotifications = async (req, res) => {
+    try {
+        const currentUser = JSON.parse(req.headers['x-user']);
+        const createdBy = req.params.createdBy;
+
+        const deleted = await Notification.deleteMany({ createdBy: createdBy });
+
+        if (!deleted) {
+            return res.status(404).json({ error: 'No notifications found' });
+        }
+
+        res.status(200).json({ message: 'All notifications deleted' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

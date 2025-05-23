@@ -18,7 +18,6 @@ const registerUser = async (req, res) => {
 
         // Store user data temporarily
         userDetails = { username, email, phoneNumber, gender, role, password, location };
-        console.log(userDetails);
         try {
             const otpResponse = await axios.post('http://localhost:4001/api/auth-service/otp/send', userDetails);
             if (otpResponse.status === 200) {
@@ -41,10 +40,8 @@ const registerUser = async (req, res) => {
 };
 
 const loginUser = async (req, res) => {
-    console.log('Login called');
     try {
         const { credential, password, role } = req.body;
-        console.log(credential, password, role);
         //Find user by credential and role;
         const user = await User.findOne({
             $and: [
@@ -69,7 +66,6 @@ const loginUser = async (req, res) => {
 
         const token = user.generateAuthToken();
         const refreshToken = user.generateRefreshToken();
-        console.log('Token generated called');
         const cookieExpires = 3600000; // 1 hour in milliseconds
         res.cookie('token', token, {
             httpOnly: false,
@@ -88,7 +84,6 @@ const loginUser = async (req, res) => {
         res.setHeader('Authorization', `Bearer ${token}`);
         res.setHeader('Refresh-Token', refreshToken);
         setHeader(res, token);
-        console.log(`token set ${token}`);
         res.send({
             message: 'Logged in successfully',
             user: {
@@ -137,13 +132,13 @@ const logoutUser = async (req, res) => {
 const getUser = async (req, res) => {
     try {
 
-       
+
         const token = req.cookies.token;
         if (!token) {
             return res.status(401).json({ message: "Not authenticated" });
         }
         const user = req.user;
-       
+
         res.send(user);
     } catch (error) {
         res.status(400).send({
@@ -179,7 +174,6 @@ const checkUsernameAvailability = async (req, res) => {
         let { username } = req.query;
         if (username) username = username.toLowerCase();
         const isTaken = usernames.includes(username);
-        console.log('istaken ', isTaken);
         res.status(200).send({
             available: !isTaken,
             message: isTaken ? 'Username is not available' : 'Username is available'
@@ -266,7 +260,6 @@ const getUserById = async (req, res) => {
         const id = req.query.id;
         const phoneNumber = req.query.phnum;
         const pgpalId = req.query.ppid;
-        console.log('called ', id, phoneNumber, pgpalId);
         const query = {};
         if (id) query._id = id;
         if (phoneNumber) query.phoneNumber = phoneNumber;
@@ -275,13 +268,10 @@ const getUserById = async (req, res) => {
         const user = await User.findOne({ $or: Object.entries(query).map(([key, value]) => ({ [key]: value })) }
             , { password: 0, refreshToken: 0 });
         if (!user) {
-            console.log('User not found');
             return res.status(404).json({ message: 'User not found' });
         }
-        console.log('user: ', user);
         res.send(user);
     } catch (error) {
-        console.log('error ', error.message);
         res.status(400).send({
             error: error.message,
             message: 'Error getting user by ID'
@@ -314,17 +304,17 @@ const updateUser = async (req, res) => {
             }
             const user = await User.findByIdAndUpdate(userId, { phoneNumber }, { new: true });
 
-            }
+        }
         // Email change: check if email is already taken
         if (email) {
             const existingUser = await User.findOne({ email, _id: { $ne: userId } });
             if (existingUser) {
                 return res.status(400).json({ message: 'Email is already taken.' });
-            }        
+            }
 
             const user = await User.findById(userId);
             if (!user) return res.status(404).json({ message: 'User not found.' });
-           
+
             const otp = otpGenerator();
             otpStore[email] = { otp, otpExpiry: Date.now() + 5 * 60 * 1000, userId };
             await sendOtpEmail(email, otp);
@@ -345,8 +335,8 @@ const updateUser = async (req, res) => {
             if (!isMatch) {
                 return res.status(400).json({ message: 'Current password is incorrect.' });
             }
-            await User.findOneAndUpdate(userId, { password:newPassword }, { new: true });
-            return res.status(200).json({message:"Password Updated Successfully"})
+            await User.findOneAndUpdate(userId, { password: newPassword }, { new: true });
+            return res.status(200).json({ message: "Password Updated Successfully" });
         }
 
         if (Object.keys(updateFields).length === 0) {
@@ -375,7 +365,6 @@ const sendOtp = async (req, res) => {
         const otpExpiry = Date.now() + 5 * 60 * 1000;
 
         otpStore[email] = { otp, otpExpiry, ...userDetails };
-        console.log('OTP Store: ', otpStore);
 
         await sendOtpEmail(email, otp);
         res.status(200).send({ message: 'OTP sent to your email. Verify OTP to complete registration.' });
@@ -384,7 +373,6 @@ const sendOtp = async (req, res) => {
         throw new Error('Failed to send OTP. Please try again later.');
     }
 };
-console.log("otpStore: ", otpStore);
 
 const verifyEmailOtp = async (req, res) => {
     try {
@@ -448,8 +436,8 @@ const verifyOtp = async (req, res) => {
     try {
         const { email, otp } = req.body;
         const userData = otpStore[email];
-        console.log(email, otp);
-        console.log('from verify otp ', otpStore);
+        //console.log(email, otp);
+        //console.log('from verify otp ', otpStore);
 
         if (!userData) {
             return res.status(400).send({ message: 'User data not found or OTP expired.' });
@@ -472,7 +460,6 @@ const verifyOtp = async (req, res) => {
                         }
                     }
                 );
-                console.log('Response from tenant-service:', response.data);
                 const ppid = response.data;
                 return ppid;
             } catch (error) {
@@ -484,7 +471,6 @@ const verifyOtp = async (req, res) => {
         let pgpalId;
         if (userData.role === 'tenant') {
             pgpalId = await getPgpalId();
-            console.log(pgpalId);
             if (!pgpalId) {
                 pgpalId = generatePPT();
             }
@@ -520,17 +506,13 @@ const verifyOtp = async (req, res) => {
         const token = user.generateAuthToken();
         const refreshToken = user.generateRefreshToken();
 
-        console.log('Generated token:', token);
-        console.log('Generated refresh token:', refreshToken);
 
         try {
             await User.findByIdAndUpdate(user._id, { refreshToken: refreshToken });
-            console.log('Refresh token saved to database');
         } catch (error) {
             console.error('Error saving refresh token to database:', error.message);
         }
 
-        console.log('Token generated called');
         res.cookie('token', token, { httpOnly: true, sameSite: 'None', maxAge: 15 * 60 * 1000, path: '/', secure: 'lax' }); // 5 mins
         res.cookie('refreshToken', refreshToken, { httpOnly: true, sameSite: 'None', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/', secure: 'lax' }); // 7 days
         res.setHeader('Authorization', `Bearer ${token}`);

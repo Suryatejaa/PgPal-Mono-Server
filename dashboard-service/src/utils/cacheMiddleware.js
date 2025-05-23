@@ -6,7 +6,7 @@ const cacheMiddleware = async (req, res, next) => {
         const cachedData = await redisClient.get(key);
         if (cachedData) {
             // If data is found in cache, return it
-            console.log(`From cacheMiddleware ${cachedData}`)
+            //console.log(`From cacheMiddleware ${cachedData}`)
             return res.status(200).json(JSON.parse(cachedData));
         }
         next(); // Proceed to the controller if no cache is found

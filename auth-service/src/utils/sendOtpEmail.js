@@ -14,8 +14,8 @@ const sendOtpEmail = async (email, otp) => {
         },
     });
     console.log(email, otp)
-    // console.log(process.env.EMAIL);
-    // console.log(process.env.EMAIL_PASSWORD);
+    // //console.log(process.env.EMAIL);
+    // //console.log(process.env.EMAIL_PASSWORD);
     const mailOptions = {
         from: process.env.EMAIL,
         to: email,
@@ -24,10 +24,10 @@ const sendOtpEmail = async (email, otp) => {
     };
     transporter.sendMail(mailOptions, (error, info) => {
         if (error) {
-            console.log(error);
+            //console.log(error);
         }
         else {
-            console.log("Email sent: " + info.response);
+            //console.log("Email sent: " + info.response);
         }
     });
 };

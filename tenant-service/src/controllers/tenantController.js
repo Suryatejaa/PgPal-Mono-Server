@@ -22,41 +22,41 @@ exports.addTenant = async (req, res) => {
         const { name, email, phone, gender, address, aadhar, propertyId, roomNumber, bedId, rentPaid, rentPaidDate, rentDueDate, rentPaidMethod, deposit, noticePeriodInMonths } = req.body;
         if (!name || !phone || !propertyId || !roomNumber || !bedId || !aadhar || deposit === undefined || noticePeriodInMonths === undefined || (rentPaid !== 0 && !rentPaidMethod)) {
 
-            console.log('Missing required fields');
+            //console.log('Missing required fields');
             return res.status(400).json({ error: 'Missing required fields, please check' });
 
         }
         const property = await getOwnProperty(propertyId, currentUser, ppid = false);
-        console.log('property ', property.pgpalId);
+        //console.log('property ', property.pgpalId);
         if (!property || property.ownerId !== ownerId) {
-            console.log('You do not own this property');
+            //console.log('You do not own this property');
             return res.status(403).json({ error: 'You do not own this property' });
         }
         const propertyPPP = property.pgpalId;
         const propertyName = property.name;
 
         const room = await getRoomByNumber(propertyId, roomNumber, currentUser);
-        console.log('room ', room.pgpalId);
+        //console.log('room ', room.pgpalId);
         if (!room) return res.status(404).json({ error: 'Room not found' });
         const roomPPR = room.pgpalId;
 
         const existing = await Tenant.findOne({ $or: [{ phone }, { aadhar }] });
 
-        console.log(existing?.aadhar, aadhar);
+        //console.log(existing?.aadhar, aadhar);
 
         if (existing?.status === 'active' && existing?.phone === phone.toString()) {
-            console.log('Tenant with this phone already exists');
+            //console.log('Tenant with this phone already exists');
             return res.status(400).json({ error: 'Tenant with this phone already exists' });
         }
         if (existing?.status === 'active' && existing?.aadhar === aadhar.toString()) {
-            console.log('Tenant with this aadhar already exists');
+            //console.log('Tenant with this aadhar already exists');
             return res.status(400).json({ error: 'Tenant with this aadhar already exists' });
         }
 
         const bed = room.beds.find(b => b.bedId === bedId);
 
         if (!bed || bed.status === 'occupied') {
-            console.log('Bed not available');
+            //console.log('Bed not available');
             return res.status(400).json({ error: 'Bed not available' });
         }
 
@@ -79,7 +79,7 @@ exports.addTenant = async (req, res) => {
 
         const assigned = await assignBed(roomPPR, bedId, phone, rent, tenantPpt, currentUser);
         if (assigned?.status !== 200) {
-            console.log('Failed to assign bed');
+            //console.log('Failed to assign bed');
             return res.status(400).json({ error: 'Failed to assign bed' });
         }
         const newDue = Math.max(rent - rentPaid, 0);
@@ -131,14 +131,15 @@ exports.addTenant = async (req, res) => {
         const method = ["in-app", "email"];
 
         try {
-            console.log('Adding notification job to the queue...');
+            //console.log('Adding notification job to the queue...');
 
             await notificationQueue.add('notifications', {
-                tenantIds: [tenantPpt],
+                tenantId: tenantPpt,
                 propertyPpid: propertyPpid,
+                audience: 'tenant',
                 title,
                 message,
-                type: type,
+                type,
                 method,
                 createdBy: currentUser?.data?.user?.pgpalId || 'system'
             }, {
@@ -149,7 +150,7 @@ exports.addTenant = async (req, res) => {
                 }
             });
 
-            console.log('Notification job added successfully');
+            //console.log('Notification job added successfully');
 
         } catch (err) {
             console.error('Failed to queue notification:', err.message);
@@ -161,7 +162,7 @@ exports.addTenant = async (req, res) => {
         await invalidateCacheByPattern(`*${propertyId}*`);
 
 
-        console.log('Tenant added and assigned successfully');
+        //console.log('Tenant added and assigned successfully');
         res.status(201).json({
             message: 'Tenant added and assigned successfully',
             tenant
@@ -208,14 +209,14 @@ exports.updateTenant = async (req, res) => {
         const method = ["in-app"];
 
         try {
-            console.log('Adding notification job to the queue...');
-
+            //console.log('Adding notification job to the queue...');
             await notificationQueue.add('notifications', {
-                tenantIds: [Tenant.pgpalId],
+                tenantId: Tenant.pgpalId,
                 propertyPpid: propertyPpid,
+                audience: 'tenant',
                 title,
                 message,
-                type: type,
+                type,
                 method,
                 createdBy: currentUser?.data?.user?.pgpalId || 'system'
             }, {
@@ -226,7 +227,7 @@ exports.updateTenant = async (req, res) => {
                 }
             });
 
-            console.log('Notification job added successfully');
+            //console.log('Notification job added successfully');
 
         } catch (err) {
             console.error('Failed to queue notification:', err.message);
@@ -265,14 +266,14 @@ exports.deleteTenant = async (req, res) => {
         const method = ["in-app", "email"];
 
         try {
-            console.log('Adding notification job to the queue...');
-
+            //console.log('Adding notification job to the queue...');
             await notificationQueue.add('notifications', {
-                tenantIds: [Tenant.pgpalId],
+                tenantId: Tenant.pgpalId,
                 propertyPpid: propertyPpid,
+                audience: 'tenant',
                 title,
                 message,
-                type: type,
+                type,
                 method,
                 createdBy: currentUser?.data?.user?.pgpalId || 'system'
             }, {
@@ -283,7 +284,7 @@ exports.deleteTenant = async (req, res) => {
                 }
             });
 
-            console.log('Notification job added successfully');
+            //console.log('Notification job added successfully');
 
         } catch (err) {
             console.error('Failed to queue notification:', err.message);
@@ -330,8 +331,9 @@ exports.notifyTenant = async (req, res) => {
         const method = ["in-app", "email"];
 
         await notificationQueue.add('notifications', {
-            tenantIds: [tenant.pgpalId],
+            tenantId: tenant.pgpalId,
             propertyPpid: tenant.currentStay.propertyPpid,
+            audience: 'tenant',
             title,
             message,
             type,

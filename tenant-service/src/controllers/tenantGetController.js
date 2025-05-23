@@ -36,7 +36,7 @@ exports.getTenantByQuery = async (req, res) => {
     const status = req.query.status;
     const propertyId = req.query.propertyId;
 
-    console.log('called with ', phone || pgpalId || _id || status || propertyId);
+    //console.log('called with ', phone || pgpalId || _id || status || propertyId);
 
     const query = {
         $or: [
@@ -53,14 +53,14 @@ exports.getTenantByQuery = async (req, res) => {
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('Returning cached username availability');
+                //console.log('Returning cached username availability');
                 return res.status(200).send(JSON.parse(cached));
             }
         }
         const tenants = await Tenant.find(query);
 
         if (!tenants || tenants.length === 0) return res.status(404).json({ error: 'Tenant not found' });
-        console.log(tenants.map(t => t.pgpalId));
+        //console.log(tenants.map(t => t.pgpalId));
 
         const refreshedCurrentStays = tenants.map(t => refreshRentForBilling(t.currentStay));
 
@@ -84,6 +84,41 @@ exports.getTenantByQuery = async (req, res) => {
     }
 };
 
+exports.getActiveTenantsForProperty = async (req, res) => {
+    const internalService = req.headers['x-internal-service'];
+    if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
+    const propertyPpid = req.params.pppId;
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
+    try {
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                //console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
+
+        const tenants = await Tenant.find({ "currentStay.propertyPpid": propertyPpid, status: 'active' });
+        if (!tenants || tenants.length === 0) return res.status(404).json({ error: 'Tenant not found' });
+        const refreshedCurrentStays = tenants.map(t => refreshRentForBilling(t.currentStay));
+        const responses = tenants.map((tenant, index) => ({
+            name: tenant.name,
+            pgpalId: tenant.pgpalId,
+            phone: tenant.phone,
+            aadhar: tenant.aadhar,
+            status: tenant.status,
+            In_Notice_Period: tenant.isInNoticePeriod,
+            currentStay: refreshedCurrentStays[index],
+            addedBy: tenant.createdBy,
+            stayHistory: tenant.stayHistory ? tenant.stayHistory : null
+        }));
+        await redisClient.set(cacheKey, JSON.stringify(responses), { EX: 300 });
+        res.status(200).json(responses);
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+};
+
 exports.getTenantByPhNum = async (req, res) => {
 
     const internalService = req.headers['x-internal-service'];
@@ -92,12 +127,12 @@ exports.getTenantByPhNum = async (req, res) => {
     const phone = req.params.phnum;
     const cacheKey = '/api' + req.originalUrl; // Always add /api
 
-    console.log(phone);
+    //console.log(phone);
     try {
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('Returning cached username availability');
+                //console.log('Returning cached username availability');
                 return res.status(200).send(JSON.parse(cached));
             }
         }
@@ -107,11 +142,11 @@ exports.getTenantByPhNum = async (req, res) => {
 
         await redisClient.set(cacheKey, JSON.stringify(ppId[0]), { EX: 300 });
 
-        console.log('tenant: ', tenant);
-        console.log('ppid: ', ppId);
+        //console.log('tenant: ', tenant);
+        //console.log('ppid: ', ppId);
         res.status(200).json(ppId[0]);
     } catch (err) {
-        console.log(err.message);
+        //console.log(err.message);
         res.status(400).json({ message: err.message });
     }
 };
@@ -126,7 +161,7 @@ exports.getTenantStayStatus = async (req, res) => {
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('Returning cached username availability');
+                //console.log('Returning cached username availability');
                 return res.status(200).send(JSON.parse(cached));
             }
         }
@@ -151,15 +186,15 @@ exports.getMyStay = async (req, res) => {
     const cacheKey = '/api' + req.originalUrl; // Always add /api
     if (role !== 'tenant') return res.status(403).json({ error: 'Forbidden, Access denied' });
 
-    console.log('currentUser:', currentUser);
+    //console.log('currentUser:', currentUser);
     try {
 
         const tenant = await Tenant.find({ $or: [{ phone: currentUser.data.user.phoneNumber }, { pgpalId }, { _id }] });
-        console.log('tenant:', tenant);
+        //console.log('tenant:', tenant);
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
         const response = { currentStay: tenant[0].currentStay };
-        console.log('response:', response);
+        //console.log('response:', response);
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
         res.status(200).json(response);
@@ -179,7 +214,7 @@ exports.getTenantHistory = async (req, res) => {
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('Returning cached username availability');
+                //console.log('Returning cached username availability');
                 return res.status(200).send(JSON.parse(cached));
             }
         }
@@ -207,7 +242,7 @@ exports.getTenantsByRoom = async (req, res) => {
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('Returning cached username availability');
+                //console.log('Returning cached username availability');
                 return res.status(200).send(JSON.parse(cached));
             }
         }
@@ -265,7 +300,7 @@ exports.
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
                 if (cached) {
-                    console.log('Returning cached username availability');
+                    //console.log('Returning cached username availability');
                     return res.status(200).send(JSON.parse(cached));
                 }
             }
@@ -301,7 +336,7 @@ exports.getCheckins = async (req, res) => {
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('Returning cached username availability');
+                //console.log('Returning cached username availability');
                 return res.status(200).send(JSON.parse(cached));
             }
         }
@@ -338,12 +373,12 @@ exports.getVacates = async (req, res) => {
 
 
     try {
-        console.log(pppid, fromDate);
+        //console.log(pppid, fromDate);
         const vacates = await Vacates.find({
             propertyId: pppid,
             vacateDate: { $gte: fromDate }
         }).countDocuments();
-       
+
         const response = { period, vacates };
         const cacheKey = '/api' + req.originalUrl; // Always add /api
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });

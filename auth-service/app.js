@@ -23,10 +23,8 @@ app.use(cors({
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
     serverSelectionTimeoutMS: 10000 // Increase timeout to 30s
-}
-)
-    .then(() => console.log('MongoDB Connected'))
-    .catch((err) => console.log('MongoDb connection error', err));
+}).then(() => console.log('MongoDB Connected'))
+    .catch((err) => console.log('MongoDB connection error', err));
 
 // Routes
 app.use('/api/auth-service', authRoutes);

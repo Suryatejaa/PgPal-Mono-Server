@@ -7,7 +7,7 @@ const getOwnProperty = async (propertyId, currentUser, ppid) => {
     } else {
         url = `http://property-service:4002/api/property-service/property/${propertyId}`;
     }
-    console.log(url)
+    //console.log(url)
     try {
         const response = await axios.get(url, {
             headers: {
@@ -17,6 +17,21 @@ const getOwnProperty = async (propertyId, currentUser, ppid) => {
         });
         return response.data;
     } catch (error) {
+        return null;
+    }
+};
+
+const getActiveTenantsForProperty = async (propertyId, currentUser) => {
+    try {
+        const response = await axios.get(`http://tenant-service:4004/api/tenant-service/active-tenants/${propertyId}`, {
+            headers: {
+                'x-user': JSON.stringify(currentUser),
+                'x-internal-service': true
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error('[getActiveTenantsForProperty] Error:', error.message);
         return null;
     }
 };
@@ -78,5 +93,6 @@ module.exports = {
     getOwnProperty,
     getTenantConfirmation,
     getPropertyOwner,
-    sendNotification
+    sendNotification,
+    getActiveTenantsForProperty
 };

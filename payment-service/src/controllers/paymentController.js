@@ -15,7 +15,7 @@ exports.updateRent = async (req, res) => {
     }
 
     const profile = await getTenantConfirmation(tenantId, currentUser);
-    console.log([profile]);
+    //console.log([profile]);
 
     const property = await getOwnProperty(profile.currentStay.propertyPpid, currentUser, ppid = true);
     if (!property) return res.status(404).json({ error: 'Property not found' });

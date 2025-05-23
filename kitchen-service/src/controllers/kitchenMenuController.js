@@ -1,6 +1,6 @@
 const WeeklyMenu = require('../models/kitchenMenuModel');
 const { getPropertyOwner } = require('./internalApis');
-const { getTenantConfirmation } = require('./internalApis');
+const { getTenantConfirmation, getActiveTenantsForProperty } = require('./internalApis');
 const { getFormattedDayName } = require('../utils/getFormatedDay');
 const redisClient = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
@@ -29,7 +29,7 @@ exports.selectMenu = async (req, res) => {
         return res.status(403).json({ error: 'You are not the owner of this property' });
     }
 
-
+   
     try {
         // Set `selected` to false for all menus
         await WeeklyMenu.updateMany({ propertyPpid }, { $set: { selected: false } });
@@ -50,25 +50,29 @@ exports.selectMenu = async (req, res) => {
         const type = 'reminder';
         const method = ['in-app'];
 
+        const tenants = await getActiveTenantsForProperty(propertyPpid); // Implement this utility
+        const tenantIds = tenants.map(t => t.pgpalId);
         try {
             console.log('Adding notification job to the queue...');
 
-            await notificationQueue.add('notifications', {
-                tenantIds: [ppid],
-                propertyPpid: propertyPpid,
-                title,
-                message,
-                type,
-                method,
-                createdBy: currentUser?.data?.user?.pgpalId || 'system'
-            }, {
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 3000
-                }
-            });
-
+            for (const tenantId of tenantIds) {
+                await notificationQueue.add('notifications', {
+                    tenantId,
+                    propertyPpid,
+                    audience: 'tenant',
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+            }
             console.log('Notification job added successfully');
 
         } catch (err) {
@@ -132,25 +136,29 @@ exports.addWeeklyMenu = async (req, res) => {
         const type = 'info';
         const method = ['in-app'];
 
+        const tenants = await getActiveTenantsForProperty(propertyPpid); // Implement this utility
+        const tenantIds = tenants.map(t => t.pgpalId);
         try {
             console.log('Adding notification job to the queue...');
 
-            await notificationQueue.add('notifications', {
-                tenantIds: [ppid],
-                propertyPpid: propertyPpid,
-                title,
-                message,
-                type,
-                method,
-                createdBy: currentUser?.data?.user?.pgpalId || 'system'
-            }, {
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 3000
-                }
-            });
-
+            for (const tenantId of tenantIds) {
+                await notificationQueue.add('notifications', {
+                    tenantId,
+                    propertyPpid,
+                    audience: 'tenant',
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+            }
             console.log('Notification job added successfully');
 
         } catch (err) {
@@ -197,7 +205,7 @@ exports.getTodayMenu = async (req, res) => {
 
     if (role === 'tenant') {
         const tenantConfirmation = await getTenantConfirmation(ppid, currentUser);
-        console.log(tenantConfirmation);
+        //console.log(tenantConfirmation);
         if (!tenantConfirmation) {
             return res.status(404).json({ error: 'Tenant not found' });
         }
@@ -216,7 +224,7 @@ exports.getTodayMenu = async (req, res) => {
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('Returning cached username availability');
+                //console.log('Returning cached username availability');
                 return res.status(200).send(JSON.parse(cached));
             }
         }
@@ -239,7 +247,7 @@ exports.getTodayMenu = async (req, res) => {
             .filter(menu => menu.meals.length > 0); // Filter out menus with no meals for today
 
 
-        console.log(todayMenu);
+        //console.log(todayMenu);
         if (!todayMenu || todayMenu.length === 0)
             return res.status(404).json({ error: 'Today\'s menu not found' });
 
@@ -302,18 +310,18 @@ exports.getMenuList = async (req, res) => {
     try {
 
         if (redisClient.isReady) {
-            console.log('CacheKey:', cacheKey);
+            //console.log('CacheKey:', cacheKey);
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('Returning cached menu list availability: ', cached);
+                //console.log('Returning cached menu list availability: ', cached);
                 return res.status(200).send(JSON.parse(cached));
             }
         }
 
-        console.log("Not returned from cache");
+        //console.log("Not returned from cache");
         const menus = await WeeklyMenu.find({ propertyPpid: propertyId });
         if (!menus || menus.length === 0) return res.status(404).json({ message: 'No menus found' });
-        console.log(menus ? menus : 'No menus found');
+        //console.log(menus ? menus : 'No menus found');
         const response = {
             propertyId,
             totalMenus: menus.length,
@@ -344,7 +352,7 @@ exports.updateWeeklyMenu = async (req, res) => {
         return res.status(400).json({ error: 'Property ID, menu number, and meals are required' });
     }
     const ownerConfirmation = await getPropertyOwner(propertyPpid, currentUser);
-    console.log(ownerConfirmation);
+    //console.log(ownerConfirmation);
     if (!ownerConfirmation) {
         return res.status(404).json({ error: 'Property not found' });
     }
@@ -368,25 +376,29 @@ exports.updateWeeklyMenu = async (req, res) => {
         const type = 'alert';
         const method = ['in-app'];
 
+        const tenants = await getActiveTenantsForProperty(propertyPpid); // Implement this utility
+        const tenantIds = tenants.map(t => t.pgpalId);
         try {
             console.log('Adding notification job to the queue...');
 
-            await notificationQueue.add('notifications', {
-                tenantIds: [ppid],
-                propertyPpid: propertyPpid,
-                title,
-                message,
-                type,
-                method,
-                createdBy: currentUser?.data?.user?.pgpalId || 'system'
-            }, {
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 3000
-                }
-            });
-
+            for (const tenantId of tenantIds) {
+                await notificationQueue.add('notifications', {
+                    tenantId,
+                    propertyPpid,
+                    audience: 'tenant',
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+            }
             console.log('Notification job added successfully');
 
         } catch (err) {
@@ -435,25 +447,29 @@ exports.deleteWeeklyMenu = async (req, res) => {
         const type = 'alert';
         const method = ['in-app', 'email'];
 
+        const tenants = await getActiveTenantsForProperty(propertyPpid); // Implement this utility
+        const tenantIds = tenants.map(t => t.pgpalId);
         try {
             console.log('Adding notification job to the queue...');
 
-            await notificationQueue.add('notifications', {
-                tenantIds: [ppid],
-                propertyPpid: propertyPpid,
-                title,
-                message,
-                type,
-                method,
-                createdBy: currentUser?.data?.user?.pgpalId || 'system'
-            }, {
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 3000
-                }
-            });
-
+            for (const tenantId of tenantIds) {
+                await notificationQueue.add('notifications', {
+                    tenantId,
+                    propertyPpid,
+                    audience: 'tenant',
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+            }
             console.log('Notification job added successfully');
 
         } catch (err) {

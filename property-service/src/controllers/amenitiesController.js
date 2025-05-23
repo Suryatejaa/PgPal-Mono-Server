@@ -2,6 +2,7 @@ const Property = require('../models/propertyModel');
 const redisClient = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
+const { getActiveTenantsForProperty } = require('./internalApis');
 
 module.exports = {
     async getAmenities(req, res) {
@@ -16,7 +17,7 @@ module.exports = {
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
                 if (cached) {
-                    console.log('Returning cached username availability');
+                    //console.log('Returning cached username availability');
                     return res.status(200).send(JSON.parse(cached));
                 }
             }
@@ -116,30 +117,34 @@ module.exports = {
             const type = 'info';
             const method = ['in-app'];
 
+            const tenants = await getActiveTenantsForProperty(propertyPpid); // Implement this utility
+            const tenantIds = tenants.map(t => t.pgpalId);
             try {
                 console.log('Adding notification job to the queue...');
 
-                await notificationQueue.add('notifications', {
-                    tenantIds: [ppid],
-                    propertyPpid: propertyPpid,
-                    title,
-                    message,
-                    type,
-                    method,
-                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
-                }, {
-                    attempts: 3,
-                    backoff: {
-                        type: 'exponential',
-                        delay: 3000
-                    }
-                });
-
+                for (const tenantId of tenantIds) {
+                    await notificationQueue.add('notifications', {
+                        tenantId,
+                        propertyPpid,
+                        audience: 'tenant',
+                        title,
+                        message,
+                        type,
+                        method,
+                        createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                    }, {
+                        attempts: 3,
+                        backoff: {
+                            type: 'exponential',
+                            delay: 3000
+                        }
+                    });
+                }
                 console.log('Notification job added successfully');
 
             } catch (err) {
                 console.error('Failed to queue notification:', err.message);
-            }
+            } 
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
             await invalidateCacheByPattern(`*${property._id}*`);
@@ -199,25 +204,29 @@ module.exports = {
             const type = 'alert';
             const method = ['in-app'];
 
+            const tenants = await getActiveTenantsForProperty(propertyPpid); // Implement this utility
+            const tenantIds = tenants.map(t => t.pgpalId);
             try {
                 console.log('Adding notification job to the queue...');
 
-                await notificationQueue.add('notifications', {
-                    tenantIds: [ppid],
-                    propertyPpid,
-                    title,
-                    message,
-                    type,
-                    method,
-                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
-                }, {
-                    attempts: 3,
-                    backoff: {
-                        type: 'exponential',
-                        delay: 3000
-                    }
-                });
-
+                for (const tenantId of tenantIds) {
+                    await notificationQueue.add('notifications', {
+                        tenantId,
+                        propertyPpid,
+                        audience: 'tenant',
+                        title,
+                        message,
+                        type,
+                        method,
+                        createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                    }, {
+                        attempts: 3,
+                        backoff: {
+                            type: 'exponential',
+                            delay: 3000
+                        }
+                    });
+                }
                 console.log('Notification job added successfully');
 
             } catch (err) {

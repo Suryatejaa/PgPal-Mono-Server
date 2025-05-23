@@ -5,6 +5,7 @@ const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
 const { getOwnProperty } = require('./internalApis.js');
 const mongoose = require('mongoose');
+const { getActiveTenantsForProperty } = require('./internalApis.js');
 
 const retryTenantService = async (tenantPayload, currentUser, retries = 3, delay = 1000) => {
     for (let attempt = 1; attempt <= retries; attempt++) {
@@ -176,7 +177,7 @@ exports.addRooms = async (req, res) => {
                 noticePeriodInMonths: tenant.noticePeriodInMonths || 1
             };
 
-            console.log(tenantPayload);
+            //console.log(tenantPayload);
 
             try {
                 const tenantResponse = await retryTenantService(tenantPayload, currentUser);
@@ -209,31 +210,7 @@ exports.addRooms = async (req, res) => {
         const message = 'A new room has been successfully added to the property.';
         const typee = 'info';
         const method = ['in-app'];
-
-        try {
-            console.log('Adding notification job to the queue...');
-
-            await notificationQueue.add('notifications', {
-                tenantIds: [ppid],
-                propertyPpid: propertyPpid,
-                title,
-                message,
-                type: typee,
-                method,
-                createdBy: currentUser?.data?.user?.pgpalId || 'system'
-            }, {
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 3000
-                }
-            });
-
-            console.log('Notification job added successfully');
-
-        } catch (err) {
-            console.error('Failed to queue notification:', err.message);
-        }
+       
 
         await invalidateCacheByPattern(`*${propertyId}*`);
         await invalidateCacheByPattern(`*${propertyPpid}*`);
@@ -258,7 +235,7 @@ exports.updateRoom = async (req, res) => {
     const role = currentUser.data.user.role;
     const ppid = currentUser.data.user.pgpalId;
 
-    console.log(req.originalUrl);
+    //console.log(req.originalUrl);
 
     if (!id) {
         return res.status(401).json({ error: 'Unauthorized: Missing userId' });
@@ -277,7 +254,7 @@ exports.updateRoom = async (req, res) => {
 
         const room = await Room.findById(req.params.roomId);
         if (!room) return res.status(404).json({ error: 'Room not found' });
-
+        
         const propertyId = room.propertyId;
         const property = await getOwnProperty(propertyId, currentUser, false);
         const propertyPpid = property.pgpalId;
@@ -338,31 +315,37 @@ exports.updateRoom = async (req, res) => {
             updatedRoom: room
         });
 
+        const occupiedBeds = room.beds.filter(bed => bed.status === 'occupied' && bed.tenantPpt);
+
         const title = 'Room Details Updated';
         const message = 'Room information has been updated. Please verify the latest changes.';
         const typee = 'alert';
         const method = ['in-app', 'email'];
 
         try {
-            console.log('Adding notification job to the queue...');
+            //console.log('Adding notification job to the queue...');
 
-            await notificationQueue.add('notifications', {
-                tenantIds: [ppid],
-                propertyPpid: propertyPpid,
-                title,
-                message,
-                type: typee,
-                method,
-                createdBy: currentUser?.data?.user?.pgpalId || 'system'
-            }, {
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 3000
-                }
-            });
+            for (const bed of occupiedBeds) {
+                await notificationQueue.add('notifications', {
+                    tenantId: bed.tenantPpt,
+                    propertyPpid: propertyPpid,
+                    audience: 'tenant',
+                    title,
+                    message,
+                    type: typee,
+                    method,
+                    meta: { roomId: room._id, bedId: bed.bedId },
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+            }
 
-            console.log('Notification job added successfully');
+            //console.log('Notification job added successfully');
 
         } catch (err) {
             console.error('Failed to queue notification:', err.message);
@@ -589,26 +572,27 @@ exports.updateBeds = async (req, res) => {
         const method = ['in-app', 'email'];
 
         try {
-            console.log('Adding notification job to the queue...');
-
-            await notificationQueue.add('notifications', {
-                tenantIds: [ppid],
-                propertyPpid: propertyPpid,
-                title,
-                message,
-                type: typee,
-                method,
-                createdBy: currentUser?.data?.user?.pgpalId || 'system'
-            }, {
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 3000
-                }
-            });
-
-            console.log('Notification job added successfully');
-
+            // Notify only tenants currently staying in this room
+            const occupiedBeds = room.beds.filter(bed => bed.status === 'occupied' && bed.tenantPpt);
+            for (const bed of occupiedBeds) {
+                await notificationQueue.add('notifications', {
+                    tenantId: bed.tenantPpt,
+                    propertyPpid: propertyPpid,
+                    audience: 'tenant',
+                    title,
+                    message,
+                    type: typee,
+                    method,
+                    meta: { roomId: room._id, bedId: bed.bedId },
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+            }
         } catch (err) {
             console.error('Failed to queue notification:', err.message);
         }
@@ -707,26 +691,27 @@ exports.deleteRoom = async (req, res) => {
         const method = ['in-app', 'email'];
 
         try {
-            console.log('Adding notification job to the queue...');
-
-            await notificationQueue.add('notifications', {
-                tenantIds: [ppid],
-                propertyPpid: propertyPpid,
-                title,
-                message,
-                type,
-                method,
-                createdBy: currentUser?.data?.user?.pgpalId || 'system'
-            }, {
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 3000
-                }
-            });
-
-            console.log('Notification job added successfully');
-
+            // Notify only tenants currently staying in this room
+            const occupiedBeds = room.beds.filter(bed => bed.status === 'occupied' && bed.tenantPpt);
+            for (const bed of occupiedBeds) {
+                await notificationQueue.add('notifications', {
+                    tenantId: bed.tenantPpt,
+                    propertyPpid: propertyPpid,
+                    audience: 'tenant',
+                    title,
+                    message,
+                    type: typee,
+                    method,
+                    meta: { roomId: room._id, bedId: bed.bedId },
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+            }
         } catch (err) {
             console.error('Failed to queue notification:', err.message);
         }

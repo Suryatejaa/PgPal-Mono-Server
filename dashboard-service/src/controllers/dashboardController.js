@@ -22,7 +22,7 @@ exports.getOverview = async (req, res) => {
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('Returning cached username availability');
+                //console.log('Returning cached username availability');
                 return res.status(200).send(JSON.parse(cached));
             }
         }
@@ -54,7 +54,7 @@ exports.getOverview = async (req, res) => {
 
 
 exports.getCheckins = async (req, res) => {
-    console.log('first');
+    //console.log('first');
     const currentUser = JSON.parse(req.headers['x-user']) || {};
     const { propertyPpid } = req.params;
     const role = currentUser.data.user.role;
@@ -77,7 +77,7 @@ exports.getCheckins = async (req, res) => {
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('Returning cached username availability');
+                //console.log('Returning cached username availability');
                 return res.status(200).send(JSON.parse(cached));
             }
         }
@@ -118,11 +118,11 @@ exports.getVacates = async (req, res) => {
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('Returning cached username availability');
+                //console.log('Returning cached username availability');
                 return res.status(200).send(JSON.parse(cached));
             }
         }
-        console.log('fromDate:', fromDate, propertyPpid);
+        //console.log('fromDate:', fromDate, propertyPpid);
         const vacates = await getVacates(propertyPpid, period, JSON.parse(req.headers['x-user']));
 
         if (redisClient.isReady) {
@@ -137,7 +137,7 @@ exports.getVacates = async (req, res) => {
 
 
 exports.getComplaintStats = async (req, res) => {
-    console.log('first');
+    //console.log('first');
     const currentUser = JSON.parse(req.headers['x-user']) || {};
     const { propertyPpid } = req.params;
     const role = currentUser.data.user.role;
@@ -147,7 +147,7 @@ exports.getComplaintStats = async (req, res) => {
     }
 
     const cacheKey = '/api' + req.originalUrl; // Always add /api
-    console.log(`Cache key in controller: ${cacheKey}`);
+    //console.log(`Cache key in controller: ${cacheKey}`);
 
     // In getComplaintStats method
     if (!redisClient.isReady) {
@@ -166,7 +166,7 @@ exports.getComplaintStats = async (req, res) => {
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('Returning cached username availability');
+                //console.log('Returning cached username availability');
                 return res.status(200).send(JSON.parse(cached));
             }
         }
@@ -179,7 +179,7 @@ exports.getComplaintStats = async (req, res) => {
         }
         if (redisClient.isReady) {
             await redisClient.set(cacheKey, JSON.stringify(stats), { EX: 600 });
-            console.log(`Cache key in controller: ${cacheKey}`);
+            //console.log(`Cache key in controller: ${cacheKey}`);
 
         }
 

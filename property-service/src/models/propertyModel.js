@@ -33,7 +33,11 @@ const propertySchema = new mongoose.Schema({
         unique: true,
         default: () => { return generatePPP(); }// Generate a new property ID
     },
-
+    pgGenderType: {
+        type: String,
+        enum: ['gents', 'ladies', 'colive'],
+        required: true
+    },
     address: {
         type: {
             plotNumber: { type: String, required: true },

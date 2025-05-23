@@ -3,6 +3,7 @@ const Rule = require('../models/ruleModel');
 const redisClient = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
+const { getActiveTenantsForProperty } = require('./internalApis');
 
 const normalizeRule = (rule) => {
     return rule.trim().toLowerCase().replace(/[^\w\s]/g, ''); // Trim, convert to lowercase, and remove punctuation
@@ -57,26 +58,26 @@ module.exports = {
             const method = ['in-app'];
 
             try {
-                console.log('Adding notification job to the queue...');
-
-                await notificationQueue.add('notifications', {
-                    tenantIds: [ppid],
-                    propertyPpid: propertyPpid,
-                    title,
-                    message,
-                    type,
-                    method,
-                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
-                }, {
-                    attempts: 3,
-                    backoff: {
-                        type: 'exponential',
-                        delay: 3000
-                    }
-                });
-
-                console.log('Notification job added successfully');
-
+                const tenants = await getActiveTenantsForProperty(propertyPpid);
+                for (const tenant of tenants) {
+                    await notificationQueue.add('notifications', {
+                        tenantId: tenant.pgpalId,
+                        propertyPpid: propertyPpid,
+                        audience: 'tenant',
+                        title,
+                        message,
+                        type,
+                        method,
+                        meta: { ruleId: newRule._id },
+                        createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                    }, {
+                        attempts: 3,
+                        backoff: {
+                            type: 'exponential',
+                            delay: 3000
+                        }
+                    });
+                }
             } catch (err) {
                 console.error('Failed to queue notification:', err.message);
             }
@@ -99,7 +100,7 @@ module.exports = {
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
                 if (cached) {
-                    console.log('Returning cached username availability');
+                    //console.log('Returning cached username availability');
                     return res.status(200).send(JSON.parse(cached));
                 }
             }
@@ -149,30 +150,29 @@ module.exports = {
             const method = ['in-app'];
 
             try {
-                console.log('Adding notification job to the queue...');
-
-                await notificationQueue.add('notifications', {
-                    tenantIds: [ppid],
-                    propertyPpid: propertyPpid,
-                    title,
-                    message,
-                    type,
-                    method,
-                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
-                }, {
-                    attempts: 3,
-                    backoff: {
-                        type: 'exponential',
-                        delay: 3000
-                    }
-                });
-
-                console.log('Notification job added successfully');
-
+                const tenants = await getActiveTenantsForProperty(propertyPpid);
+                for (const tenant of tenants) {
+                    await notificationQueue.add('notifications', {
+                        tenantId: tenant.pgpalId,
+                        propertyPpid: propertyPpid,
+                        audience: 'tenant',
+                        title,
+                        message,
+                        type,
+                        method,
+                        meta: { ruleId: rule._id },
+                        createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                    }, {
+                        attempts: 3,
+                        backoff: {
+                            type: 'exponential',
+                            delay: 3000
+                        }
+                    });
+                }
             } catch (err) {
                 console.error('Failed to queue notification:', err.message);
             }
-
             await invalidateCacheByPattern(`*${propertyPpid}*`);
             await invalidateCacheByPattern(`*${property._id}*`);
             await invalidateCacheByPattern(`*${req.params.id}*`);

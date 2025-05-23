@@ -72,15 +72,17 @@ exports.updateRent = async (req, res) => {
         const method = ["in-app"];
 
         try {
-            console.log('Adding notification job to the queue...');
+            //console.log('Adding notification job to the queue...');
 
             await notificationQueue.add('notifications', {
-                tenantIds: [tenantId],
+                tenantId: tenantId,
                 propertyPpid: propertyPpid,
+                audience: 'tenant',
                 title,
                 message,
-                type: type,
+                type,
                 method,
+                meta: { rentPaidDate: updatedTenant.currentStay.rentPaidDate, rentPaid: updatedTenant.currentStay.rentPaid },
                 createdBy: currentUser?.data?.user?.pgpalId || 'system'
             }, {
                 attempts: 3,
@@ -89,8 +91,7 @@ exports.updateRent = async (req, res) => {
                     delay: 3000
                 }
             });
-
-            console.log('Notification job added successfully');
+            //console.log('Notification job added successfully');
 
         } catch (err) {
             console.error('Failed to queue notification:', err.message);
@@ -126,17 +127,17 @@ exports.getRentStatus = async (req, res) => {
         const propertyPpid = tenant.currentStay.propertyPpid;
 
         const property = await getOwnProperty(propertyPpid, currentUser, ppid = true);
-        console.log(property.pgpalId);
-        console.log(property.ownerId.toString() !== id);
-        console.log(property.ownerId.toString());
-        console.log(id);
+        //console.log(property.pgpalId);
+        //console.log(property.ownerId.toString() !== id);
+        //console.log(property.ownerId.toString());
+        //console.log(id);
         if (property.status && property.status !== 200) return res.status(404).json({ error: property.error });
         if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
 
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('Returning cached username availability');
+                //console.log('Returning cached username availability');
                 return res.status(200).send(JSON.parse(cached));
             }
         }
@@ -179,7 +180,7 @@ exports.getRentSummary = async (req, res) => {
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('Returning cached username availability');
+                //console.log('Returning cached username availability');
                 return res.status(200).send(JSON.parse(cached));
             }
         }
@@ -218,14 +219,14 @@ exports.getRentDefaulters = async (req, res) => {
     const { propertyPpid } = req.params;
     try {
         const property = await getOwnProperty(propertyPpid, currentUser, ppid = true);
-        console.log(property.status);
+        //console.log(property.status);
         if (property.status && property.status !== 200) return res.status(404).json({ error: property.error });
         if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
 
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('Returning cached username availability');
+                //console.log('Returning cached username availability');
                 return res.status(200).send(JSON.parse(cached));
             }
         }

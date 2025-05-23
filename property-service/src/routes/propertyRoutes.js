@@ -19,7 +19,8 @@ router.get('/property-ppid/:ppid', cacheMiddleware, PropertyController.getProper
 router.put('/:id', PropertyController.updateProperty);
 router.patch('/properties/:id/update-beds',PropertyController.updateTotalBeds)
 router.delete('/:id', PropertyController.deleteProperty);
-    
+router.put('/properties/:id/location', PropertyController.updateLocation);
+
 router.get('/:id/reviews', cacheMiddleware, reviewController.getPropertyReviews);
 router.post('/:id/reviews', reviewController.addReview);
 router.put('/:id/reviews/:reviewId', reviewController.editReview);

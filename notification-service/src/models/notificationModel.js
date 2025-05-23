@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const notificationSchema = new Schema({
-    tenantId: { type: String, required: true },
+    tenantId: { type: String }, // For tenant-specific notifications
+    ownerId: { type: String },  // For owner-specific notifications
     propertyPpid: { type: String, required: true },
     type: {
         type: String,
@@ -23,7 +24,14 @@ const notificationSchema = new Schema({
     },
     isRead: { type: Boolean, default: false },
     createdBy: { type: String }, // owner/admin ID
-    sentAt: { type: Date, default: Date.now }
+    sentAt: { type: Date, default: Date.now },
+    // NEW FIELDS:
+    audience: {
+        type: String,
+        enum: ['tenant', 'owner', 'all'],
+        default: 'tenant'
+    },
+    meta: { type: Object }, // For any extra info (complaintId, menuId, etc.)
 }, { timestamps: true });
 
 module.exports = mongoose.model('Notification', notificationSchema);

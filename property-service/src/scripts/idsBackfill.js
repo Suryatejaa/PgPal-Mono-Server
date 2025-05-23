@@ -6,22 +6,22 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://host.docker.internal:27017/pgpaal_property_service';
-console.log(MONGO_URI);
+//console.log(MONGO_URI);
 
 mongoose.connect(MONGO_URI);
 
 const backfillPropertyIds = async () => {
     const properties = await User.find({ pgpalId: { $exists: false } });
-    console.log(`Found ${properties.length} properties to update...`);
+    //console.log(`Found ${properties.length} properties to update...`);
     let pgpalId;
     for (const property of properties) {
         pgpalId = generatePPP(); // Generate a new property ID
         await property.updateOne({ pgpalId }); // Updated to use 'property' instead of 'user'
-        console.log(`Updated property: ${property._id} with pgpalId: ${pgpalId}`); // Updated log message to reflect 'property._id'
-        console.log(`Updated property: ${property.name}`); // Updated log message to reflect 'property.name'
+        //console.log(`Updated property: ${property._id} with pgpalId: ${pgpalId}`); // Updated log message to reflect 'property._id'
+        //console.log(`Updated property: ${property.name}`); // Updated log message to reflect 'property.name'
     }
 
-    console.log('All done!');
+    //console.log('All done!');
 };
 
 backfillPropertyIds();

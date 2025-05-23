@@ -24,7 +24,6 @@ mongoose.connect(process.env.MONGO_URI, {
 })
     .then(() => console.log('Connected to MongoDB'));
 
-
 // Routes
 app.get('/', (req, res) => {
     res.send('Payment Service is running');

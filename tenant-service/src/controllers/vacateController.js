@@ -4,6 +4,7 @@ const Tenant = require('../models/tenantModel');
 const redisClient = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
+const { getOwnProperty } = require('./internalApis.js');
 
 exports.raiseVacate = async (req, res) => {
     const currentUser = JSON.parse(req.headers['x-user']);
@@ -135,31 +136,47 @@ exports.raiseVacate = async (req, res) => {
 
         const propertyPpid = stayHistory.propertyId;
 
+        const property = await getOwnProperty(propertyPpid);
+
         const title = "Vacate Request Raised";
         const message = "A tenant has raised a request to vacate the property.";
         const type = "reminder";
         const method = ["in-app", "email"];
 
         try {
-            console.log('Adding notification job to the queue...');
+            //console.log('Adding notification job to the queue...');
+            if (property && property.ownerId) {
+                await notificationQueue.add('notifications', {
+                    ownerId: property.ownerId,
+                    propertyPpid: propertyPpid,
+                    audience: 'owner',
+                    title,
+                    message,
+                    type,
+                    method,
+                    meta: { vacateId: vacateRequest._id },
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: { type: 'exponential', delay: 3000 }
+                });
+            }
 
             await notificationQueue.add('notifications', {
-                tenantIds: [pgpalId],
+                tenantId: pgpalId,
                 propertyPpid: propertyPpid,
-                title,
-                message,
+                audience: 'tenant',
+                title: 'Your Vacate Request Submitted',
+                message: 'Your vacate request has been submitted successfully.',
                 type,
                 method,
+                meta: { vacateId: vacateRequest._id },
                 createdBy: currentUser?.data?.user?.pgpalId || 'system'
             }, {
                 attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 3000
-                }
+                backoff: { type: 'exponential', delay: 3000 }
             });
-
-            console.log('Notification job added successfully');
+            //console.log('Notification job added successfully');
 
         } catch (err) {
             console.error('Failed to queue notification:', err.message);
@@ -266,31 +283,50 @@ exports.withdrawVacate = async (req, res) => {
 
         const propertyPpid = backupStay.propertyPpid;
 
+        const property = await getOwnProperty(propertyPpid);
+
         const title = "Vacate Request Withdrawn";
         const message = "A tenant has withdrawn their vacate request.";
         const type = "info";
         const method = ["in-app"];
 
         try {
-            console.log('Adding notification job to the queue...');
+            //console.log('Adding notification job to the queue...');
+            const property = await Property.findOne({ pgpalId: propertyPpid });
+            if (property && property.ownerId) {
+                await notificationQueue.add('notifications', {
+                    ownerId: property.ownerId,
+                    propertyPpid: propertyPpid,
+                    audience: 'owner',
+                    title,
+                    message,
+                    type,
+                    method,
+                    meta: { vacateId: updatedVacate?._id },
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: { type: 'exponential', delay: 3000 }
+                });
+            }
 
+            // Notify the tenant (confirmation)
             await notificationQueue.add('notifications', {
-                tenantIds: [pgpalId],
+                tenantId: pgpalId,
                 propertyPpid: propertyPpid,
-                title,
-                message,
-                type: type,
+                audience: 'tenant',
+                title: 'Vacate Request Withdrawn',
+                message: 'You have successfully withdrawn your vacate request.',
+                type,
                 method,
+                meta: { vacateId: updatedVacate?._id },
                 createdBy: currentUser?.data?.user?.pgpalId || 'system'
             }, {
                 attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 3000
-                }
+                backoff: { type: 'exponential', delay: 3000 }
             });
 
-            console.log('Notification job added successfully');
+            //console.log('Notification job added successfully');
 
         } catch (err) {
             console.error('Failed to queue notification:', err.message);

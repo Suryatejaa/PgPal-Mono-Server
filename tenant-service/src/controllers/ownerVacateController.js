@@ -21,9 +21,9 @@ exports.removeTenant = async (req, res) => {
     if (!pgpalId) return res.status(400).json({ error: 'Tenant PPID is required' });
 
     try {
-        console.log(pgpalId);
+        //console.log(pgpalId);
         const tenant = await Tenant.findOne({ pgpalId: { $regex: `^${pgpalId}$`, $options: 'i' } });
-        console.log("Remove tenant: ", pgpalId, tenant);
+        //console.log("Remove tenant: ", pgpalId, tenant);
         const profile = tenant;
 
         if (!profile) return res.status(404).json({ error: 'Tenant not found' });
@@ -137,15 +137,17 @@ exports.removeTenant = async (req, res) => {
         const method = ["in-app", "email", "sms"];
 
         try {
-            console.log('Adding notification job to the queue...');
+            //console.log('Adding notification job to the queue...');
 
             await notificationQueue.add('notifications', {
-                tenantIds: [pgpalId],
+                tenantId: pgpalId,
                 propertyPpid: propertyPpid,
+                audience: 'tenant',
                 title,
                 message,
-                type: type,
+                type,
                 method,
+                meta: { vacateId: vacateRequest._id },
                 createdBy: currentUser?.data?.user?.pgpalId || 'system'
             }, {
                 attempts: 3,
@@ -155,7 +157,7 @@ exports.removeTenant = async (req, res) => {
                 }
             });
 
-            console.log('Notification job added successfully');
+            //console.log('Notification job added successfully');
 
         } catch (err) {
             console.error('Failed to queue notification:', err.message);
@@ -267,15 +269,17 @@ exports.retainTenant = async (req, res) => {
         const method = ["in-app", "email"];
 
         try {
-            console.log('Adding notification job to the queue...');
+            //console.log('Adding notification job to the queue...');
 
             await notificationQueue.add('notifications', {
-                tenantIds: [pgpalId],
+                tenantId: pgpalId,
                 propertyPpid: propertyPpid,
+                audience: 'tenant',
                 title,
                 message,
-                type: type,
+                type,
                 method,
+                meta: { vacateId: vacateId },
                 createdBy: currentUser?.data?.user?.pgpalId || 'system'
             }, {
                 attempts: 3,
@@ -284,8 +288,7 @@ exports.retainTenant = async (req, res) => {
                     delay: 3000
                 }
             });
-
-            console.log('Notification job added successfully');
+            //console.log('Notification job added successfully');
 
         } catch (err) {
             console.error('Failed to queue notification:', err.message);
@@ -327,7 +330,7 @@ exports.getVacateHistory = async (req, res) => {
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('Returning cached username availability');
+                //console.log('Returning cached username availability');
                 return res.status(200).send(JSON.parse(cached));
             }
         }
@@ -360,7 +363,7 @@ exports.getVacateHistotyByProperty = async (req, res) => {
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('Returning cached username availability');
+                //console.log('Returning cached username availability');
                 return res.status(200).send(JSON.parse(cached));
             }
         }

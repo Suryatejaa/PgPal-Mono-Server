@@ -15,6 +15,21 @@ const getTenantConfirmation = async (tenantId, currentUser) => {
     }
 };
 
+const getActiveTenantsForProperty = async (propertyId, currentUser) => {
+    try {
+        const response = await axios.get(`http://tenant-service:4004/api/tenant-service/active-tenants/${propertyId}`, {
+            headers: {
+                'x-user': JSON.stringify(currentUser),
+                'x-internal-service': true
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error('[getActiveTenantsForProperty] Error:', error.message);
+        return null;
+    }
+};
+
 const sendNotification = async (currentUser, tenantId, title, message, type, method) => {
 
     try {
@@ -40,5 +55,6 @@ const sendNotification = async (currentUser, tenantId, title, message, type, met
 
 module.exports = {
     getTenantConfirmation,
-    sendNotification
+    sendNotification,
+    getActiveTenantsForProperty,
 };

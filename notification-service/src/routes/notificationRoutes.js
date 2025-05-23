@@ -10,10 +10,11 @@ const restrictToInternal = (req, res, next) => {
 };
 
 router.post('/', notificationController.sendNotification);
-router.post('/bulk', notificationController.sendBulkNotifications);
+router.post('/bulk',restrictToInternal, notificationController.sendBulkNotifications);
 router.get('/', notificationController.getNotifications);
 router.put('/:id/read', notificationController.markAsRead);
 router.put('/:createdBy/read-all', notificationController.markAllAsRead);
 router.delete('/:id', notificationController.deleteNotification);
+router.delete('/:createdBy/delete-all', notificationController.deleteAllNotifications);
 
 module.exports = router;

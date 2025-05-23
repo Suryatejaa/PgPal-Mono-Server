@@ -26,14 +26,12 @@ mongoose.connect(process.env.MONGO_URI, {
     useUnifiedTopology: true,
 })
     .then(() => console.log('Connected to MongoDB'));
-
-
-// Routes
-app.get('/', (req, res) => {
-    res.send('Room Service is running');
-});
+        // Routes
+        app.get('/', (req, res) => {
+            res.send('Room Service is running');
+        });
 
 // Start the server
 app.listen(PORT, () => {
-    console.log(`Room Server is running on port ${PORT}`);
+    console.log(`Room Service is running on port ${PORT}`);
 });
