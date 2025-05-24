@@ -79,7 +79,8 @@ exports.removeTenant = async (req, res) => {
             advanceBalance: currentStay.advance,
             assignedAt: currentStay.assignedAt,
             noticePeriodInMonths: currentStay.noticePeriodInMonths,
-            isInNoticePeriod: currentStay.isInNoticePeriod
+            isInNoticePeriod: currentStay.isInNoticePeriod,
+            location: currentStay.location,
         };
 
         const updateProfile = {
@@ -231,7 +232,8 @@ exports.retainTenant = async (req, res) => {
             assignedAt: previousSnapshot.assignedAt,
             noticePeriodInMonths: previousSnapshot.noticePeriodInMonths,
             isInNoticePeriod: false,
-            updatedAt: new Date()
+            updatedAt: new Date(),
+            location: previousSnapshot.location
         };
         const updateProfile = {
             status: 'active',

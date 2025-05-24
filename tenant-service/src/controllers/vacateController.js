@@ -80,7 +80,8 @@ exports.raiseVacate = async (req, res) => {
             deposit: currentStay.deposit,
             assignedAt: currentStay.assignedAt,
             noticePeriodInMonths: currentStay.noticePeriodInMonths,
-            isInNoticePeriod: currentStay.isInNoticePeriod
+            isInNoticePeriod: currentStay.isInNoticePeriod,
+            location: currentStay.location,
         };
 
 
@@ -95,7 +96,8 @@ exports.raiseVacate = async (req, res) => {
                 deposit: null,
                 assignedAt: null,
                 noticePeriodInMonths: 0,
-                isInNoticePeriod: false
+                isInNoticePeriod: false,
+                location: null,
             },
             stayHistory: [...profile.stayHistory, stayHistory],
             isInNoticePeriod: true,
@@ -250,7 +252,8 @@ exports.withdrawVacate = async (req, res) => {
             assignedAt: previousSnapshot.assignedAt,
             noticePeriodInMonths: previousSnapshot.noticePeriodInMonths,
             isInNoticePeriod: false,
-            updatedAt: new Date()
+            updatedAt: new Date(),
+            location: previousSnapshot.location
         };
 
 

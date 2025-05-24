@@ -411,6 +411,31 @@ module.exports = {
         }
     },
 
+    async getNearbyProperties(req, res) {
+       
+        try {
+            const { latitude, longitude, maxDistance = 5000 } = req.query; // maxDistance in meters (default 5km)
+            if (!latitude || !longitude) {
+                return res.status(400).json({ error: 'Latitude and longitude are required' });
+            }
+
+            const properties = await Property.find({
+                location: {
+                    $near: {
+                        $geometry: {
+                            type: "Point",
+                            coordinates: [parseFloat(longitude), parseFloat(latitude)]
+                        },
+                        $maxDistance: parseInt(maxDistance)
+                    }
+                }
+            });
+
+            res.status(200).json(properties);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
 
     async searchProperties(req, res) {
         try {
@@ -623,14 +648,16 @@ module.exports = {
         }
 
         try {
-            const { lat, lng } = req.body;
+            let { lat, lng, latitude, longitude } = req.body;
+            if (typeof latitude === 'number' && typeof longitude === 'number') {
+                lat = latitude;
+                lng = longitude;
+            }
             if (typeof lat !== 'number' || typeof lng !== 'number') {
                 return res.status(400).json({ error: 'Latitude and longitude must be numbers' });
             }
 
-
             const property = await Property.findById(req.params.id);
-            console.log(property);
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
@@ -638,12 +665,16 @@ module.exports = {
                 return res.status(403).json({ error: 'Forbidden: You can only update your own properties' });
             }
 
-            property.location = {
-                latitude: lat,
-                longitude: lng
+           const location = {
+                type: "Point",
+                coordinates: [lng, lat]
             };
-            const updatedProperty = await Property.findByIdAndUpdate(req.params.id, { location: property.location }, { new: true });
-            console.log(updatedProperty);
+            const updatedProperty = await Property.findByIdAndUpdate(
+                req.params.id,
+                { location },
+                { new: true }
+            );
+
             await invalidateCacheByPattern(`*${property.pgpalId}*`);
 
             res.status(200).json({

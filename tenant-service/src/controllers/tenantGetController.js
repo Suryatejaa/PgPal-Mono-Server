@@ -90,17 +90,19 @@ exports.getActiveTenantsForProperty = async (req, res) => {
     const propertyPpid = req.params.pppId;
     const cacheKey = '/api' + req.originalUrl; // Always add /api
     try {
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
-            if (cached) {
-                //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
-            }
-        }
+        // if (redisClient.isReady) {
+        //     const cached = await redisClient.get(cacheKey);
+        //     if (cached) {
+        //         //console.log('Returning cached username availability');
+        //         return res.status(200).send(JSON.parse(cached));
+        //     }
+        // }
 
+        console.log('Fetching active tenants for property:', propertyPpid);
         const tenants = await Tenant.find({ "currentStay.propertyPpid": propertyPpid, status: 'active' });
         if (!tenants || tenants.length === 0) return res.status(404).json({ error: 'Tenant not found' });
         const refreshedCurrentStays = tenants.map(t => refreshRentForBilling(t.currentStay));
+        console.log('Active Tenants:', tenants.length);
         const responses = tenants.map((tenant, index) => ({
             name: tenant.name,
             pgpalId: tenant.pgpalId,
@@ -210,6 +212,14 @@ exports.getTenantHistory = async (req, res) => {
     const _id = req.query.id;
     const cacheKey = '/api' + req.originalUrl; // Always add /api
 
+    const filter = {
+        $or: [
+            phone ? { phone } : null,
+            pgpalId ? { pgpalId } : null,
+            _id ? { _id } : null
+        ].filter(Boolean) // Remove null values
+    };
+
     try {
         if (redisClient.isReady) {
             const cached = await redisClient.get(cacheKey);
@@ -218,7 +228,7 @@ exports.getTenantHistory = async (req, res) => {
                 return res.status(200).send(JSON.parse(cached));
             }
         }
-        const tenant = await Tenant.find({ $or: [{ phone }, { pgpalId }, { _id }] });
+        const tenant = await Tenant.find(filter);
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
         const response = tenant[0].stayHistory;

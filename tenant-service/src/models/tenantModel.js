@@ -52,7 +52,20 @@ const tenantSchema = new Schema({
         bedId: { type: String },
         assignedAt: { type: Date, default: Date.now },
         noticePeriodInMonths: { type: Number, default: 1 },
-        isInNoticePeriod: { type: Boolean, default: false }
+        isInNoticePeriod: { type: Boolean, default: false },
+        location: {
+            type: {
+                type: String,
+                enum: ['Point'],
+                required: true,
+                default: 'Point'
+            },
+            coordinates: {
+                type: [Number],
+                required: true,
+                default: [0, 0]
+            }
+        }
     },
     status: {
         type: String,

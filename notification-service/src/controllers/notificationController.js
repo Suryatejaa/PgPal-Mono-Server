@@ -89,10 +89,24 @@ exports.markAsRead = async (req, res) => {
 
 exports.markAllAsRead = async (req, res) => {
     try {
-        const currentUser = JSON.parse(req.headers['x-user']);
+        const { tenantId, ownerId, propertyPpid, status, unread, audience } = req.query;
+        const filter = {};
 
-        const createdBy = req.params.createdBy;
-        const notifications = await Notification.updateMany({ createdBy: createdBy }, { isRead: true, status: 'read' });
+        // Role-based filtering
+        if (tenantId) {
+            filter.tenantId = tenantId;
+            filter.audience = { $in: ['tenant', 'all'] };
+        } else if (ownerId) {
+            filter.ownerId = ownerId;
+            filter.audience = { $in: ['owner', 'all'] };
+        }
+
+        if (propertyPpid) filter.propertyPpid = propertyPpid;
+        if (status) filter.status = status;
+        if (unread === 'true') filter.isRead = false;
+        if (audience) filter.audience = audience; // Optional override
+
+        const notifications = await Notification.updateMany(filter, { isRead: true, status: 'read' });
         if (!notifications) {
             return res.status(404).json({ error: 'No notifications found' });
         }
@@ -121,10 +135,21 @@ exports.deleteNotification = async (req, res) => {
 
 exports.deleteAllNotifications = async (req, res) => {
     try {
-        const currentUser = JSON.parse(req.headers['x-user']);
-        const createdBy = req.params.createdBy;
+        const { tenantId, ownerId, propertyPpid, status, unread } = req.query;
+        const filter = {};
 
-        const deleted = await Notification.deleteMany({ createdBy: createdBy });
+        // Role-based filtering
+        if (tenantId) {
+            filter.tenantId = tenantId;
+        } else if (ownerId) {
+            filter.ownerId = ownerId;
+        }
+
+        if (propertyPpid) filter.propertyPpid = propertyPpid;
+        if (status) filter.status = status;
+        if (unread === 'true') filter.isRead = false;
+        
+        const deleted = await Notification.deleteMany(filter);
 
         if (!deleted) {
             return res.status(404).json({ error: 'No notifications found' });

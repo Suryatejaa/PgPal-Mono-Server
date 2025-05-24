@@ -112,7 +112,11 @@ exports.addTenant = async (req, res) => {
                 advanceBalance: advance,
                 noticePeriodInMonths: noticePeriodInMonths,
                 isInNoticePeriod: false,
-                bedId
+                bedId,
+                location: {
+                    type: 'Point',
+                    coordinates: [property.location.coordinates[0], property.location.coordinates[1]]
+                }
             },
             createdBy: ownerId
         };
@@ -350,6 +354,42 @@ exports.notifyTenant = async (req, res) => {
         res.status(200).json({ message: `notified ${tenant.pgpalId} successfully` });
     } catch (err) {
         console.error('[notifyTenant] Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// Add this to your tenantController.js
+
+exports.updateTenantCurrentStayLocation = async (req, res) => {
+    try {
+        const { id } = req.params; // tenant _id as a URL param
+        let { lat, lng, latitude, longitude } = req.body;
+
+        // Accept both formats
+        if (typeof latitude === 'number' && typeof longitude === 'number') {
+            lat = latitude;
+            lng = longitude;
+        }
+
+        if (typeof lat !== 'number' || typeof lng !== 'number') {
+            return res.status(400).json({ error: 'Latitude and longitude must be numbers' });
+        }
+
+        const tenant = await Tenant.findById(id);
+        if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+        tenant.currentStay.location = {
+            type: 'Point',
+            coordinates: [lng, lat]
+        };
+
+        await tenant.save();
+
+        res.status(200).json({
+            message: 'Tenant currentStay location updated successfully',
+            location: tenant.currentStay.location
+        });
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 };

@@ -51,11 +51,14 @@ exports.selectMenu = async (req, res) => {
         const method = ['in-app'];
 
         const tenants = await getActiveTenantsForProperty(propertyPpid); // Implement this utility
+        console.log('Active Tenants:', tenants);
         const tenantIds = tenants.map(t => t.pgpalId);
+        console.log('Tenant IDs:', tenantIds);
         try {
             console.log('Adding notification job to the queue...');
 
             for (const tenantId of tenantIds) {
+                console.log(`Adding notification for tenant: ${tenantId}`);
                 await notificationQueue.add('notifications', {
                     tenantId,
                     propertyPpid,
@@ -204,7 +207,8 @@ exports.getTodayMenu = async (req, res) => {
     }
 
     if (role === 'tenant') {
-        const tenantConfirmation = await getTenantConfirmation(ppid, currentUser);
+        const tenant = await getTenantConfirmation(ppid, currentUser);
+        const tenantConfirmation = tenant[0]
         //console.log(tenantConfirmation);
         if (!tenantConfirmation) {
             return res.status(404).json({ error: 'Tenant not found' });

@@ -53,10 +53,16 @@ const propertySchema = new mongoose.Schema({
     },
     location: {
         type: {
-            latitude: { type: Number, required: true },
-            longitude: { type: Number, required: true }
+            type: String,
+            enum: ['Point'],
+            required: true,
+            default: 'Point'
+        },
+        coordinates: {
+            type: [Number], // [longitude, latitude]
+            required: true
         }
-    },
+      },
 
     totalRooms: { type: Number, required: true },
     totalBeds: { type: Number, required: true },
@@ -95,6 +101,7 @@ const propertySchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
+propertySchema.index({ location: '2dsphere' });
 
 propertySchema.pre('save', async function (next) {
     if (this.pgpalId) {

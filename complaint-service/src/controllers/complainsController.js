@@ -222,8 +222,10 @@ module.exports = {
                 return res.status(404).json({ error: 'Property not found' });
             }
 
-            // Check permissions
-            if (complaint.tenantId !== ppid && confirmOwner.ownerId !== id) {
+            // Permission: Only tenant (creator) or property owner can update
+            const isTenant = complaint.tenantId === ppid;
+            const isOwner = confirmOwner.ownerId === id;
+            if (!isTenant && !isOwner) {
                 return res.status(403).json({ error: 'Forbidden: You do not have permission to update this complaint' });
             }
 
@@ -232,21 +234,24 @@ module.exports = {
                 return res.status(403).json({ error: `Forbidden: You cannot update a complaint that is ${complaint.status}` });
             }
 
-            // Handle status updates
+            // Allow tenants to close their own complaint
+            if (req.body.status === 'Closed' && isTenant) {
+                req.body.closedAt = Date.now();
+                req.body.closedBy = ppid;
+            }
+
+            // Handle status updates (e.g., Resolved)
             if (req.body.status && req.body.status !== complaint.status) {
                 if (req.body.status === 'Resolved' && !req.body.notes) {
                     return res.status(400).json({ error: 'Notes are required when resolving a complaint' });
                 }
-
                 req.body.resolvedAt = req.body.status === 'Resolved' ? Date.now() : complaint.resolvedAt;
-                req.body.resolvedBy = req.body.status === 'Resolved' ? ppid : complaint.resolvedBy;
+                req.body.resolvedBy = req.body.status === 'Resolved' ? (isOwner ? id : ppid) : complaint.resolvedBy;
             }
 
             // Append new notes if provided
             if (req.body.notes) {
                 let noteToAdd;
-
-                // If notes is an object, use it directly
                 if (typeof req.body.notes === 'object' && req.body.notes.message && req.body.notes.by) {
                     noteToAdd = {
                         message: req.body.notes.message,
@@ -254,60 +259,50 @@ module.exports = {
                         at: new Date()
                     };
                 } else if (typeof req.body.notes === 'string') {
-                    // If notes is a string, construct the note object
                     noteToAdd = {
                         message: req.body.notes,
-                        by: ppid,
+                        by: isTenant ? ppid : id,
                         at: new Date()
                     };
                 } else {
                     return res.status(400).json({ error: 'Invalid notes format' });
                 }
-
                 await Complaint.updateOne(
                     { complaintId: req.params.id },
-                    {
-                        $push: {
-                            notes: noteToAdd
-                        }
-                    }
+                    { $push: { notes: noteToAdd } }
                 );
             }
 
-            // Update other fields
-            const { notes, ...otherFields } = req.body; // Exclude notes from the update
+            // Update other fields except notes
+            const { notes, ...otherFields } = req.body;
             const updatedComplaint = await Complaint.findOneAndUpdate(
                 { complaintId: req.params.id },
                 { $set: { ...otherFields, updatedAt: Date.now() } },
                 { new: true }
             );
-
             if (!updatedComplaint) return res.status(404).json({ error: 'Complaint not found' });
 
+            let message;
+            // Notification logic
+            const isUpdatedByTenant = isTenant && (req.body.status === 'Closed' || req.body.status === 'Resolved');
+            const isUpdatedByOwner = isOwner && (req.body.status === 'Resolved' || req.body.status === 'Rejected');
+            const isComplaintClosed = req.body.status === 'Closed';
+            const isNotesAdded = req.body.notes && !Array.isArray(req.body.notes);
+            const whatUpdated = isUpdatedByTenant ? 'closed' : isUpdatedByOwner ? 'resolved' : isComplaintClosed ? 'closed' : isNotesAdded ? 'updated with notes' : 'updated';
+            const complaintType = updatedComplaint?.complaintType
+
             const title = 'Complaint Status Updated';
-            const message = `Your complaint has been updated. Check the latest status for more details.`;
+            message = `Your complaint on ${complaintType} has been ${whatUpdated}. Check the latest status for more details.`;
             const type = 'complaint_update';
             const method = ['in-app', 'email'];
-
-            const isOwner = confirmOwner.ownerId === id;
-            const isTenant = complaint.tenantId === ppid;
-
             let notify = {};
             if (isOwner) {
-                notify = {
-                    tenantId: complaint.tenantId,
-                    audience: 'tenant'
-                };
+                notify = { tenantId: complaint.tenantId, audience: 'tenant' };
             } else if (isTenant) {
-                notify = {
-                    ownerId: confirmOwner.ownerId,
-                    audience: 'owner'
-                };
+                notify = { ownerId: confirmOwner.ownerId, audience: 'owner' };
             }
 
             try {
-                //console.log('Adding notification job to the queue...');
-
                 await notificationQueue.add('notifications', {
                     ...notify,
                     propertyPpid: complaint.propertyId,
@@ -321,18 +316,13 @@ module.exports = {
                     attempts: 3,
                     backoff: { type: 'exponential', delay: 3000 }
                 });
-
-                //console.log('Notification job added successfully');
-
             } catch (err) {
                 console.error('Failed to queue notification:', err.message);
             }
 
             await invalidateCacheByPattern(`*${complaint.propertyId}*`);
-
             res.status(200).json(updatedComplaint);
         } catch (error) {
-            //console.log(error.message);
             res.status(500).json({ error: 'Failed to update complaint', err: error });
         }
     },
@@ -352,8 +342,8 @@ module.exports = {
             const deletedComplaint = await Complaint.findOneAndDelete({ complaintId: req.params.id });
             if (!deletedComplaint) return res.status(404).json({ error: 'Complaint not found' });
 
-            const title = 'Complaint Removed';
-            const message = `Your complaint has been removed from the system. If this was unexpected, please contact support.`;
+            const title = 'Complaint Deleted';
+            const message = `Your complaint has been deleted from the system. If this was unexpected, please contact support.`;
             const type = 'alert';
             const method = ['in-app', 'email'];
 

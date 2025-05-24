@@ -8,11 +8,12 @@ const rulesController = require('../controllers/rulesController');
 
 const cacheMiddleware = require('../utils/cacheMiddleware')
 
+router.get('/search', cacheMiddleware, PropertyController.searchProperties);
+router.get('/properties/nearby', PropertyController.getNearbyProperties);
 
 router.post('/', PropertyController.addProperty);
 router.get('/', cacheMiddleware, PropertyController.getAllProperties);
 router.get('/own', cacheMiddleware, PropertyController.getProperties);
-router.get('/search', cacheMiddleware, PropertyController.searchProperties);
 router.get('/:id', cacheMiddleware, PropertyController.getPropertyById);
 router.get('/property/:id', cacheMiddleware, PropertyController.getPropertyForRoom);
 router.get('/property-ppid/:ppid', cacheMiddleware, PropertyController.getPropertyByPpid);
@@ -20,6 +21,7 @@ router.put('/:id', PropertyController.updateProperty);
 router.patch('/properties/:id/update-beds',PropertyController.updateTotalBeds)
 router.delete('/:id', PropertyController.deleteProperty);
 router.put('/properties/:id/location', PropertyController.updateLocation);
+
 
 router.get('/:id/reviews', cacheMiddleware, reviewController.getPropertyReviews);
 router.post('/:id/reviews', reviewController.addReview);

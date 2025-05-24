@@ -11,14 +11,15 @@ const cacheMiddleware = require('../utils/cacheMiddleware');
 
 router.post('/', TenantController.addTenant);
 router.put('/update', TenantController.updateTenant);
+router.put('/tenants/:id/currentstay/location', TenantController.updateTenantCurrentStayLocation);
 router.delete('/delete', TenantController.deleteTenant);
 
 router.get('/', cacheMiddleware, TenantGetController.getTenants);
+router.get('/tenant-history', cacheMiddleware, TenantGetController.getTenantHistory);
 router.get('/tenants', cacheMiddleware, TenantGetController.getTenantByQuery);
-router.get('/active-tenants/:propertyId', cacheMiddleware, TenantGetController.getActiveTenantsForProperty);
+router.get('/active-tenants/:pppId', cacheMiddleware, TenantGetController.getActiveTenantsForProperty);
 router.get('/tenants-int/:phnum', cacheMiddleware, TenantGetController.getTenantByPhNum);
 router.get('/tenant-currentStay', cacheMiddleware, TenantGetController.getTenantStayStatus);
-router.get('/tenant-history', cacheMiddleware, TenantGetController.getTenantHistory);
 router.get('/tenants/:pppId/:pprId', cacheMiddleware, TenantGetController.getTenantsByRoom);
 router.get('/profile', cacheMiddleware, TenantGetController.getTenantProfile);
 router.get('/myStay', cacheMiddleware, TenantGetController.getMyStay);
