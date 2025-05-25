@@ -8,6 +8,9 @@ const notificationQueue = require('../utils/notificationQueue.js');
 module.exports = {
     async addReview(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
+        if (!currentUser) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
         const id = currentUser.data.user._id;
         const ppid = currentUser.data.user.pgpalId;
 
@@ -77,6 +80,9 @@ module.exports = {
 
     async editReview(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
+        if (!currentUser) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
         const id = currentUser.data.user._id;
         const ppid = currentUser.data.user.pgpalId;
 
@@ -181,6 +187,9 @@ module.exports = {
 
     async deleteReview(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
+        if (!currentUser) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
         const id = currentUser.data.user._id;
         const ppid = currentUser.data.user.pgpalId;
 
@@ -229,6 +238,10 @@ module.exports = {
     },
 
     async getPropertyReviews(req, res) {
+        const currentUser = JSON.parse(req.headers['x-user']) || {};
+        if (!currentUser) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
 
         const cacheKey = '/api' + req.originalUrl; // Always add /api
         try {

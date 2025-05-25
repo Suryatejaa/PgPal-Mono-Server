@@ -5,7 +5,10 @@ const { getTenantConfirmation } = require('./internalApis');
 exports.sendNotification = async (req, res) => {
     try {
 
-        const currentUser = JSON.parse(req.headers['x-user']);
+        const currentUser = JSON.parse(req.headers['x-user']) || {};
+        if (!currentUser) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
         const { tenantId, title, message, type, method } = req.body;
 
         if (!tenantId || !title || !message) {
@@ -41,6 +44,16 @@ exports.sendNotification = async (req, res) => {
 };
 
 exports.getNotifications = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     try {
         const { tenantId, ownerId, propertyPpid, status, unread, audience } = req.query;
         const filter = {};
@@ -68,6 +81,16 @@ exports.getNotifications = async (req, res) => {
 };
 
 exports.markAsRead = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     try {
         const { id } = req.params;
 
@@ -88,6 +111,16 @@ exports.markAsRead = async (req, res) => {
 };
 
 exports.markAllAsRead = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     try {
         const { tenantId, ownerId, propertyPpid, status, unread, audience } = req.query;
         const filter = {};
@@ -118,6 +151,16 @@ exports.markAllAsRead = async (req, res) => {
 
 
 exports.deleteNotification = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     try {
         const { id } = req.params;
 
@@ -134,6 +177,16 @@ exports.deleteNotification = async (req, res) => {
 };
 
 exports.deleteAllNotifications = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     try {
         const { tenantId, ownerId, propertyPpid, status, unread } = req.query;
         const filter = {};
@@ -148,7 +201,7 @@ exports.deleteAllNotifications = async (req, res) => {
         if (propertyPpid) filter.propertyPpid = propertyPpid;
         if (status) filter.status = status;
         if (unread === 'true') filter.isRead = false;
-        
+
         const deleted = await Notification.deleteMany(filter);
 
         if (!deleted) {
@@ -163,7 +216,10 @@ exports.deleteAllNotifications = async (req, res) => {
 
 exports.sendBulkNotifications = async (req, res) => {
     try {
-        const currentUser = JSON.parse(req.headers['x-user']);
+        const currentUser = JSON.parse(req.headers['x-user']) || {};
+        if (!currentUser) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
         const createdBy = currentUser?.data?.user?.pgpalId || 'system';
 
         const { tenantIds, title, message, type, method } = req.body;

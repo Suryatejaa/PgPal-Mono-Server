@@ -10,7 +10,10 @@ const sendMail = require('../utils/sendMail');
 
 exports.addTenant = async (req, res) => {
     try {
-        const currentUser = JSON.parse(req.headers['x-user']);
+        const currentUser = JSON.parse(req.headers['x-user']) || {};
+        if (!currentUser) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
         const role = currentUser.data.user.role;
         const ownerId = currentUser.data.user._id;
         const ownerPpid = currentUser.data.user.pgpalId;
@@ -181,7 +184,16 @@ exports.addTenant = async (req, res) => {
 
 // ✅ Update tenant
 exports.updateTenant = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']);
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const role = currentUser.data.user.role;
     const id = currentUser.data.user._id;
     const ownerPpid = currentUser.data.user.pgpalId;
@@ -248,6 +260,16 @@ exports.updateTenant = async (req, res) => {
 
 // ✅ Delete tenant
 exports.deleteTenant = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const phone = req.query.phnum;
     const pgpalId = req.query.ppid;
 
@@ -361,6 +383,16 @@ exports.notifyTenant = async (req, res) => {
 // Add this to your tenantController.js
 
 exports.updateTenantCurrentStayLocation = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     try {
         const { id } = req.params; // tenant _id as a URL param
         let { lat, lng, latitude, longitude } = req.body;

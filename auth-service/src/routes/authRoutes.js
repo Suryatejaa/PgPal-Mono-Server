@@ -60,8 +60,8 @@ router.get(
         const { token, refreshToken } = req.user;
 
         // Set tokens in cookies
-        res.cookie('token', token, { httpOnly: true, sameSite: 'None', maxAge: 5 * 60 * 1000 }); // 5 minutes
-        res.cookie('refreshToken', refreshToken, { httpOnly: true, sameSite: 'None', maxAge: 7 * 24 * 60 * 60 * 1000 }); // 7 days
+        res.cookie('token', token, { httpOnly: true, secure: false, sameSite: 'lax', maxAge: 5 * 60 * 1000 }); // 5 minutes
+        res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: false, sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000 }); // 7 days
 
         res.status(200).json({
             message: 'Login successful',
@@ -75,8 +75,8 @@ router.post('/google/logout', async (req, res) => {
         const refreshToken = req.cookies.refreshToken;
 
         // Clear cookies
-        res.clearCookie('token', { httpOnly: true, sameSite: 'None' });
-        res.clearCookie('refreshToken', { httpOnly: true, sameSite: 'None' });
+        res.clearCookie('token', { httpOnly: true, sameSite: 'lax', secure: false, });
+        res.clearCookie('refreshToken', { httpOnly: true, sameSite: 'lax', secure: false, });
 
         // Remove refresh token from the database
         if (refreshToken) {

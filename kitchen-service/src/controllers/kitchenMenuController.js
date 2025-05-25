@@ -8,7 +8,16 @@ const notificationQueue = require('../utils/notificationQueue.js');
 
 
 exports.selectMenu = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']);
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const role = currentUser.data.user.role;
     const ppid = currentUser.data.user.pgpalId;
     if (role !== 'owner') {
@@ -29,7 +38,7 @@ exports.selectMenu = async (req, res) => {
         return res.status(403).json({ error: 'You are not the owner of this property' });
     }
 
-   
+
     try {
         // Set `selected` to false for all menus
         await WeeklyMenu.updateMany({ propertyPpid }, { $set: { selected: false } });
@@ -93,7 +102,16 @@ exports.selectMenu = async (req, res) => {
 
 
 exports.addWeeklyMenu = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']);
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const ppid = currentUser.data.user.pgpalId;
 
     if (currentUser.data.user.role !== 'owner') {
@@ -178,7 +196,16 @@ exports.addWeeklyMenu = async (req, res) => {
 };
 
 exports.getTodayMenu = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']);
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const ppid = currentUser.data.user.pgpalId;
     const role = currentUser.data.user.role;
     if (role !== 'tenant' && role !== 'owner') {
@@ -208,16 +235,13 @@ exports.getTodayMenu = async (req, res) => {
 
     if (role === 'tenant') {
         const tenant = await getTenantConfirmation(ppid, currentUser);
-        const tenantConfirmation = tenant[0]
-        //console.log(tenantConfirmation);
+        const tenantConfirmation = tenant[0];
+        // console.log(tenantConfirmation);
         if (!tenantConfirmation) {
             return res.status(404).json({ error: 'Tenant not found' });
         }
-        if (tenantConfirmation.status !== 'active') {
+        if (tenantConfirmation.status !== 'active' && !tenantConfirmation.In_Notice_Period) {
             return res.status(403).json({ error: 'Tenant is not active' });
-        }
-        if (propertyId !== tenantConfirmation.currentStay.propertyPpid) {
-            return res.status(403).json({ error: 'Tenant is not staying in this property' });
         }
     }
 
@@ -289,7 +313,16 @@ exports.getTodayMenu = async (req, res) => {
 };
 
 exports.getMenuList = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']);
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const ppid = currentUser.data.user.pgpalId;
     const role = currentUser.data.user.role;
     const cacheKey = '/api' + req.originalUrl; // Always add /api
@@ -342,7 +375,16 @@ exports.getMenuList = async (req, res) => {
 };
 
 exports.updateWeeklyMenu = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']);
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const ppid = currentUser.data.user.pgpalId;
 
     if (currentUser.data.user.role !== 'owner') {
@@ -419,7 +461,16 @@ exports.updateWeeklyMenu = async (req, res) => {
 };
 
 exports.deleteWeeklyMenu = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']);
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const ppid = currentUser.data.user.pgpalId;
 
     if (currentUser.data.user.role !== 'owner') {

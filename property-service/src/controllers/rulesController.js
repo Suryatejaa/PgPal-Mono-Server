@@ -10,8 +10,18 @@ const normalizeRule = (rule) => {
 };
 
 module.exports = {
+
     async addRule(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
         const id = currentUser.data.user._id;
         const role = currentUser.data.user.role;
         const ppid = currentUser.data.user.pgpalId;
@@ -94,6 +104,10 @@ module.exports = {
     },
 
     async getRules(req, res) {
+        const currentUser = JSON.parse(req.headers['x-user']) || {};
+        if (!currentUser) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
         const cacheKey = '/api' + req.originalUrl; // Always add /api
         try {
 
@@ -118,7 +132,16 @@ module.exports = {
     },
 
     async deleteRule(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
         const id = currentUser.data.user._id;
         const ppid = currentUser.data.user.pgpalId;
 

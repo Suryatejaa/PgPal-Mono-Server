@@ -2,7 +2,16 @@ const { getTenantDocs, getOwnProperty, getVacates, getComplaintStats, getRoomDoc
 const redisClient = require('../utils/redis.js'); // Adjust the path as needed
 
 exports.getOverview = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const { propertyPpid } = req.params;
     const role = currentUser.data.user.role;
     const id = currentUser.data.user._id;
@@ -55,7 +64,16 @@ exports.getOverview = async (req, res) => {
 
 exports.getCheckins = async (req, res) => {
     //console.log('first');
-    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const { propertyPpid } = req.params;
     const role = currentUser.data.user.role;
     const id = currentUser.data.user._id;
@@ -95,7 +113,16 @@ exports.getCheckins = async (req, res) => {
 
 
 exports.getVacates = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const { propertyPpid } = req.params;
     const role = currentUser.data.user.role;
     const id = currentUser.data.user._id;
@@ -138,7 +165,16 @@ exports.getVacates = async (req, res) => {
 
 exports.getComplaintStats = async (req, res) => {
     //console.log('first');
-    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const { propertyPpid } = req.params;
     const role = currentUser.data.user.role;
     const id = currentUser.data.user._id;

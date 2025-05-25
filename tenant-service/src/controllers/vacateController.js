@@ -7,7 +7,16 @@ const notificationQueue = require('../utils/notificationQueue.js');
 const { getOwnProperty } = require('./internalApis.js');
 
 exports.raiseVacate = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']);
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const role = currentUser.data.user.role;
 
     if (role !== 'tenant') return res.status(403).json({ error: 'Only tenants can raise vacat request' });
@@ -19,7 +28,9 @@ exports.raiseVacate = async (req, res) => {
 
     const reason = req.body.reason;
     const isImmediateVacate = req.body.isImmediateVacate;
-
+    if (!reason || typeof isImmediateVacate !== 'boolean') {
+        return res.status(400).json({ error: 'Both reason and isImmediateVacate are required and isImmediateVacate must be boolean.' });
+    }
 
     try {
         const tenant = await Tenant.find({ $or: [{ phone }, { pgpalId }, { _id }] });
@@ -80,7 +91,7 @@ exports.raiseVacate = async (req, res) => {
             deposit: currentStay.deposit,
             assignedAt: currentStay.assignedAt,
             noticePeriodInMonths: currentStay.noticePeriodInMonths,
-            isInNoticePeriod: currentStay.isInNoticePeriod,
+            isInNoticePeriod: isImmediateVacate ? false : true,
             location: currentStay.location,
         };
 
@@ -96,11 +107,11 @@ exports.raiseVacate = async (req, res) => {
                 deposit: null,
                 assignedAt: null,
                 noticePeriodInMonths: 0,
-                isInNoticePeriod: false,
+                isInNoticePeriod: isImmediateVacate ? false : true,
                 location: null,
             },
             stayHistory: [...profile.stayHistory, stayHistory],
-            isInNoticePeriod: true,
+            isInNoticePeriod: isImmediateVacate ? false : true,
             noticePeriodStartDate: new Date(),
             noticePeriodEndDate: vacateDate,
             updatedAt: new Date()
@@ -138,15 +149,15 @@ exports.raiseVacate = async (req, res) => {
 
         const propertyPpid = stayHistory.propertyId;
 
-        const property = await getOwnProperty(propertyPpid);
+        const property = await getOwnProperty(propertyPpid, currentUser, true);
 
         const title = "Vacate Request Raised";
-        const message = "A tenant has raised a request to vacate the property.";
+        const message = `Bed: ${vacate.bedId} has raised a request to vacate the property.`;
         const type = "reminder";
         const method = ["in-app", "email"];
 
         try {
-            //console.log('Adding notification job to the queue...');
+            console.log('Adding notification job to the queue...');
             if (property && property.ownerId) {
                 await notificationQueue.add('notifications', {
                     ownerId: property.ownerId,
@@ -178,7 +189,7 @@ exports.raiseVacate = async (req, res) => {
                 attempts: 3,
                 backoff: { type: 'exponential', delay: 3000 }
             });
-            //console.log('Notification job added successfully');
+            console.log('Notification job added successfully');
 
         } catch (err) {
             console.error('Failed to queue notification:', err.message);
@@ -202,7 +213,16 @@ exports.raiseVacate = async (req, res) => {
 };
 
 exports.withdrawVacate = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']);
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const role = currentUser.data.user.role;
 
     if (role !== 'tenant') return res.status(403).json({ error: 'Only tenants can withdraw vacate request' });
@@ -286,16 +306,15 @@ exports.withdrawVacate = async (req, res) => {
 
         const propertyPpid = backupStay.propertyPpid;
 
-        const property = await getOwnProperty(propertyPpid);
+        const property = await getOwnProperty(propertyPpid, currentUser, true);
 
         const title = "Vacate Request Withdrawn";
-        const message = "A tenant has withdrawn their vacate request.";
+        const message = `Bed: ${backupStay.bedId} has withdrawn their vacate request.`;
         const type = "info";
         const method = ["in-app"];
 
         try {
-            //console.log('Adding notification job to the queue...');
-            const property = await Property.findOne({ pgpalId: propertyPpid });
+            console.log('Adding notification job to the queue...');
             if (property && property.ownerId) {
                 await notificationQueue.add('notifications', {
                     ownerId: property.ownerId,
@@ -349,3 +368,33 @@ exports.withdrawVacate = async (req, res) => {
     }
 };
 
+exports.getVacateRequests = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const role = currentUser.data.user.role;
+
+    if (role !== 'tenant' && role !== 'owner') return res.status(403).json({ error: 'Only tenants and owners can view vacate requests' });
+
+    const tenantId = req.params.tenantId;
+    const propertyId = req.params.propertyId;
+    console.log(`Tenant Id: ${tenantId}, PropertyId: ${propertyId}`);
+    try {
+        const vacates = await Vacates.find({ tenantId: tenantId, propertyId: propertyId }).sort({ createdAt: -1 });
+        console.log(vacates);
+        if (!vacates || vacates.length === 0) {
+            return res.status(404).json({ error: 'No vacate requests found for this tenant' });
+        }
+
+        res.status(200).json(vacates);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};

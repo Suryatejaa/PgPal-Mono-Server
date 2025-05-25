@@ -6,7 +6,16 @@ const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
 
 exports.removeTenant = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']);
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const role = currentUser.data.user.role;
     const id = currentUser.data.user._id;
 
@@ -184,7 +193,16 @@ exports.removeTenant = async (req, res) => {
 };
 
 exports.retainTenant = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']);
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const role = currentUser.data.user.role;
     const id = currentUser.data.user._id;
     const vacateId = req.params.vacateId;
@@ -350,7 +368,16 @@ exports.getVacateHistory = async (req, res) => {
 };
 
 exports.getVacateHistotyByProperty = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']);
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const role = currentUser.data.user.role;
     const id = currentUser.data.user._id;
     const propertyId = req.params.pppid;

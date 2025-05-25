@@ -68,16 +68,16 @@ const loginUser = async (req, res) => {
         const refreshToken = user.generateRefreshToken();
         const cookieExpires = 3600000; // 1 hour in milliseconds
         res.cookie('token', token, {
-            httpOnly: false,
-            sameSite: 'None',
-            secure: 'lax',
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: false,
             maxAge: 15 * 60 * 1000,
             path: '/',
         }); // 5 mins
         res.cookie('refreshToken', refreshToken, {
-            httpOnly: false,
-            sameSite: 'None',
-            secure: 'lax',
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: false,
             maxAge: 7 * 24 * 60 * 60 * 1000,
             path: '/',
         }); // 7 days
@@ -119,8 +119,8 @@ const logoutUser = async (req, res) => {
 
         await User.findByIdAndUpdate(user._id, { refreshToken: null });
 
-        res.clearCookie('token', { httpOnly: true, sameSite: 'None', secure: 'Lax' });
-        res.clearCookie('refreshToken', { httpOnly: true, sameSite: 'None', secure: 'Lax' });
+        res.clearCookie('token', { httpOnly: true, sameSite: 'lax', secure: false });
+        res.clearCookie('refreshToken', { httpOnly: true, sameSite: 'lax', secure: false });
 
 
         res.status(200).json({ message: 'Logged out successfully' });
@@ -131,15 +131,8 @@ const logoutUser = async (req, res) => {
 
 const getUser = async (req, res) => {
     try {
-
-
-        const token = req.cookies.token;
-        if (!token) {
-            return res.status(401).json({ message: "Not authenticated" });
-        }
         const user = req.user;
-
-        res.send(user);
+        res.send({ user });
     } catch (error) {
         res.status(400).send({
             error: error.message,
@@ -513,8 +506,8 @@ const verifyOtp = async (req, res) => {
             console.error('Error saving refresh token to database:', error.message);
         }
 
-        res.cookie('token', token, { httpOnly: true, sameSite: 'None', maxAge: 15 * 60 * 1000, path: '/', secure: 'lax' }); // 5 mins
-        res.cookie('refreshToken', refreshToken, { httpOnly: true, sameSite: 'None', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/', secure: 'lax' }); // 7 days
+        res.cookie('token', token, { httpOnly: true, sameSite: 'lax', maxAge: 15 * 60 * 1000, path: '/', secure: false }); // 5 mins
+        res.cookie('refreshToken', refreshToken, { httpOnly: true, sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/', secure: false }); // 7 days
         res.setHeader('Authorization', `Bearer ${token}`);
         res.setHeader('Refresh-Token', refreshToken);
         setHeader(res, token);
@@ -568,12 +561,13 @@ const refreshToken = async (req, res) => {
 
         await User.findByIdAndUpdate(user._id, { refreshToken: newRefreshToken });
 
-        res.cookie('token', newToken, { httpOnly: true, sameSite: 'None', maxAge: 15 * 60 * 1000, path: '/', secure: 'lax' }); // 5 mins
-        res.cookie('refreshToken', newRefreshToken, { httpOnly: true, sameSite: 'None', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/', secure: 'lax' }); // 7 days
+        res.cookie('token', newToken, { httpOnly: true, sameSite: 'lax', maxAge: 15 * 60 * 1000, path: '/', secure: false }); // 5 mins
+        res.cookie('refreshToken', newRefreshToken, { httpOnly: true, sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/', secure: false }); // 7 days
         res.setHeader('Authorization', `Bearer ${newToken}`);
         res.setHeader('Refresh-Token', newRefreshToken);
         setHeader(res, newToken);
 
+        console.log("Token refreshed successfully");
         res.status(200).json({
             message: 'Token refreshed successfully',
             authToken: newToken,

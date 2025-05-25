@@ -6,6 +6,10 @@ const { getActiveTenantsForProperty } = require('./internalApis');
 
 module.exports = {
     async getAmenities(req, res) {
+        const currentUser = JSON.parse(req.headers['x-user']) || {};
+        if (!currentUser) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
         try {
             const property = await Property.findById(req.params.id);
             if (!property) {
@@ -33,6 +37,9 @@ module.exports = {
 
     async addAmenity(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
+        if (!currentUser) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
         const id = currentUser.data.user._id;
         const ppid = currentUser.data.user.pgpalId;
 
@@ -159,6 +166,9 @@ module.exports = {
 
     async deleteAmenity(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
+        if (!currentUser) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
         const id = currentUser.data.user._id;
         const ppid = currentUser.data.user.pgpalId;
 

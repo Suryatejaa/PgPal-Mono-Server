@@ -31,6 +31,7 @@ router.get('/notify-tenant', TenantController.notifyTenant);
 
 router.post('/vacate', VacateController.raiseVacate);
 router.post('/withdraw-vacate', VacateController.withdrawVacate);
+router.get('/vacate-request/:propertyId/:tenantId', cacheMiddleware, VacateController.getVacateRequests);
 
 router.post('/remove-tenant/:ppid', OwnerVacateController.removeTenant);
 router.post('/retain-tenant/:vacateId', OwnerVacateController.retainTenant);

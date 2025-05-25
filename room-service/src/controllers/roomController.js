@@ -37,7 +37,10 @@ exports.addRooms = async (req, res) => {
             return res.status(400).json({ error: 'Missing x-user header' });
         }
 
-        const currentUser = JSON.parse(req.headers['x-user']);
+        const currentUser = JSON.parse(req.headers['x-user']) || {};
+        if (!currentUser) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
         const id = currentUser.data.user._id;
         const role = currentUser.data.user.role;
         const ppid = currentUser.data.user.pgpalId;
@@ -210,7 +213,7 @@ exports.addRooms = async (req, res) => {
         const message = 'A new room has been successfully added to the property.';
         const typee = 'info';
         const method = ['in-app'];
-       
+
 
         await invalidateCacheByPattern(`*${propertyId}*`);
         await invalidateCacheByPattern(`*${propertyPpid}*`);
@@ -230,7 +233,16 @@ exports.addRooms = async (req, res) => {
 
 
 exports.updateRoom = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const id = currentUser.data.user._id;
     const role = currentUser.data.user.role;
     const ppid = currentUser.data.user.pgpalId;
@@ -254,7 +266,7 @@ exports.updateRoom = async (req, res) => {
 
         const room = await Room.findById(req.params.roomId);
         if (!room) return res.status(404).json({ error: 'Room not found' });
-        
+
         const propertyId = room.propertyId;
         const property = await getOwnProperty(propertyId, currentUser, false);
         const propertyPpid = property.pgpalId;
@@ -435,7 +447,16 @@ async function updateBedsLogic(room, { add, remove }) {
 }
 
 exports.updateBeds = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const id = currentUser.data.user._id;
     const role = currentUser.data.user.role;
 
@@ -614,7 +635,16 @@ exports.updateBeds = async (req, res) => {
 };
 
 exports.deleteRoom = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const id = currentUser.data.user._id;
     const role = currentUser.data.user.role;
     const ppid = currentUser.data.user.pgpalId;

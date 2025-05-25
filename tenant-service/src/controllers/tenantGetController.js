@@ -7,7 +7,10 @@ const refreshRentForBilling = require('../utils/refreshRent');
 // ✅ Get all tenants (owned or added by this PG owner)
 exports.getTenants = async (req, res) => {
     try {
-        const currentUser = JSON.parse(req.headers['x-user']);
+        const currentUser = JSON.parse(req.headers['x-user']) || {};
+        if (!currentUser) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
         const role = currentUser.data.user.role;
         const ownerid = currentUser.data.user._id;
 
@@ -30,13 +33,23 @@ exports.getTenants = async (req, res) => {
 
 // ✅ Get tenant by ID
 exports.getTenantByQuery = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const phone = req.query.phnum;
     const pgpalId = req.query.ppid; //tenantID
     const _id = req.query.id;
     const status = req.query.status;
     const propertyId = req.query.propertyId;
 
-    //console.log('called with ', phone || pgpalId || _id || status || propertyId);
+    console.log('called with ', phone || pgpalId || _id || status || propertyId);
 
     const query = {
         $or: [
@@ -154,6 +167,16 @@ exports.getTenantByPhNum = async (req, res) => {
 };
 
 exports.getTenantStayStatus = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const phone = req.query.phnum;
     const pgpalId = req.query.ppid; //tenantID
     const _id = req.query.id;
@@ -181,7 +204,16 @@ exports.getTenantStayStatus = async (req, res) => {
 };
 
 exports.getMyStay = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']);
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const role = currentUser.data.user.role;
     const pgpalId = currentUser.data.user.pgpalId;
     const _id = currentUser.data.user._id;
@@ -195,8 +227,22 @@ exports.getMyStay = async (req, res) => {
         //console.log('tenant:', tenant);
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
 
-        const response = { currentStay: tenant[0].currentStay };
-        //console.log('response:', response);
+        let response;
+        if (!tenant[0].isInNoticePeriod) {
+            response = { currentStay: tenant[0].currentStay };
+        } else {
+            const tenant = await Vacates.findOne({ tenantId: pgpalId, status: 'noticeperiod' });
+            if (!tenant) return res.status(404).json({ error: 'Tenant not in notice period' });
+            response = {
+                currentStay: {
+                    ...tenant.previousSnapshot,
+                    status: tenant.status,
+                    vacateDate: tenant.vacateDate,
+                    noticePeriodStartDate: tenant.noticePeriodStartDate,
+                    noticePeriodEndDate: tenant.noticePeriodEndDate
+                },
+            };
+        }
         await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
 
         res.status(200).json(response);
@@ -207,6 +253,16 @@ exports.getMyStay = async (req, res) => {
 };
 
 exports.getTenantHistory = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const phone = req.query.phnum;
     const pgpalId = req.query.ppid;
     const _id = req.query.id;
@@ -243,6 +299,16 @@ exports.getTenantHistory = async (req, res) => {
 
 
 exports.getTenantsByRoom = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
 
     const roomPpid = req.params.pprId; // Room PPID
     const propertyPpid = req.params.pppId;
@@ -270,7 +336,16 @@ exports.getTenantsByRoom = async (req, res) => {
 };
 
 exports.getTenantProfile = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']);
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const role = currentUser.data.user.role;
     const cacheKey = '/api' + req.originalUrl; // Always add /api
 

@@ -3,7 +3,16 @@ const { getTenantConfirmation } = require("./internalApis");
 
 // 1. Update rent details for a tenant
 exports.updateRent = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const { propertyPpid } = req.params;
     const role = currentUser.data.user.role;
     const id = currentUser.data.user._id;
@@ -46,6 +55,16 @@ exports.updateRent = async (req, res) => {
 
 // 2. Get rent status for a tenant
 exports.getRentStatus = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const { tenantId } = req.params;
     try {
         const tenant = await Tenant.findOne({ pgpalId: tenantId });
@@ -68,6 +87,16 @@ exports.getRentStatus = async (req, res) => {
 
 // 3. Get rent summary for property
 exports.getRentSummary = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const { propertyPpid } = req.params;
     try {
         const tenants = await Tenant.find({ 'currentStay.propertyPpid': propertyPpid, status: 'active' });
@@ -91,6 +120,16 @@ exports.getRentSummary = async (req, res) => {
 
 // 4. Get rent defaulters for property
 exports.getRentDefaulters = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const { propertyPpid } = req.params;
     try {
         const defaulters = await Tenant.find({

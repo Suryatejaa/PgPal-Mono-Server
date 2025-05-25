@@ -23,6 +23,16 @@ const getOwnProperty = async (propertyId, currentUser) => {
 };
 
 exports.getRoomsByPropertyId = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     try {
         const propertyId = req.params.id;
         const cacheKey = '/api' + req.originalUrl;
@@ -58,7 +68,16 @@ exports.getRoomsByPropertyId = async (req, res) => {
 };
 
 exports.getRoomById = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     //console.log(currentUser.data.user.pgpalId);
     const cacheKey = '/api' + req.originalUrl; // Always add /api
 
@@ -91,6 +110,16 @@ exports.getRoomById = async (req, res) => {
 
 
 exports.getPropertySummary = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const cacheKey = '/api' + req.originalUrl; // Always add /api
 
     try {
@@ -136,7 +165,16 @@ exports.getPropertySummary = async (req, res) => {
 };
 
 exports.getRoomAvailability = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const id = currentUser.data.user._id;
     const cacheKey = '/api' + req.originalUrl; // Always add /api
     try {
@@ -187,7 +225,16 @@ exports.getRoomAvailability = async (req, res) => {
 };
 
 exports.getRoomAvailabilityByType = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const id = currentUser.data.user._id;
 
     try {
@@ -238,6 +285,16 @@ exports.getRoomAvailabilityByType = async (req, res) => {
 };
 
 exports.getPropertySummaryByType = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     try {
         const cacheKey = '/api' + req.originalUrl; // Always add /api
         const propertyId = req.params.id;
@@ -301,6 +358,16 @@ exports.getPropertySummaryByType = async (req, res) => {
 
 //GET /rooms/search?floor=2&type=double&status=available
 exports.searchRooms = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     try {
         const { floor, type, status } = req.query;
         const query = {};
