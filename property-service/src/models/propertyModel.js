@@ -38,6 +38,20 @@ const propertySchema = new mongoose.Schema({
         enum: ['gents', 'ladies', 'colive'],
         required: true
     },
+    rentRange: {
+        type: {
+            min: { type: Number, required: true },
+            max: { type: Number, required: true }
+        },
+        required: true
+    },
+    depositRange: {
+        type: {
+            min: { type: Number, required: true },
+            max: { type: Number, required: true }
+        },
+        required: true
+    },
     address: {
         type: {
             plotNumber: { type: String, required: true },
@@ -62,13 +76,13 @@ const propertySchema = new mongoose.Schema({
             type: [Number], // [longitude, latitude]
             required: true
         }
-      },
+    },
 
     totalRooms: { type: Number, required: true },
     totalBeds: { type: Number, required: true },
     availableBeds: { type: Number, required: true },
     occupiedBeds: { type: Number, required: true },
-   
+
     amenities: [
         {
             type: String,
@@ -84,7 +98,7 @@ const propertySchema = new mongoose.Schema({
         description: { type: String }
     }],
 
-   
+
 
     // availability: {
     //     type: {
@@ -112,6 +126,6 @@ propertySchema.pre('save', async function (next) {
             uniqueId = await this.model('Property').findOne({ pgpalId: this.pgpalId });
         }
     }
-})
+});
 
 module.exports = mongoose.model('Property', propertySchema);
