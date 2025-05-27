@@ -109,7 +109,7 @@ module.exports = {
             });
 
             const title = 'New Complaint';
-            const message = description;
+            const message = `New complaint received: ${description} by ${tenantConfirmation.name} in room ${roomNo}. Please check the details in complaints section for more information.`;
             const type = 'complaint_update';
             const method = ["in-app", "email"];
 

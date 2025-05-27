@@ -63,7 +63,7 @@ module.exports = {
             const propertyPpid = property.pgpalId;
 
             const title = 'New Rule Added';
-            const message = 'A new rule has been added to the property. Make sure everyone is informed.';
+            const message = `Check out the new rule: '${rule}' of your PG.`;
             const type = 'info';
             const method = ['in-app'];
 
@@ -168,7 +168,7 @@ module.exports = {
             const propertyPpid = property.pgpalId;
 
             const title = 'Rule Removed';
-            const message = 'A property rule has been deleted.';
+            const message = `The rule '${rule.name}' is no more in your PG.`;
             const type = 'alert';
             const method = ['in-app'];
 
@@ -208,3 +208,4 @@ module.exports = {
     },
 
 };
+

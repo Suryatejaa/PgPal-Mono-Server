@@ -133,7 +133,7 @@ exports.addTenant = async (req, res) => {
         const propertyPpid = property.pgpalId;
 
         const title = "New Tenant Added";
-        const message = "A new tenant has been added to the system.";
+        const message = `You have been added to the ${property.name} and assigned to bed ${bedId}.`;
         const type = "info";
         const method = ["in-app", "email"];
 
@@ -287,7 +287,7 @@ exports.deleteTenant = async (req, res) => {
         const propertyPpid = property.pgpalId;
 
         const title = "Tenant Removed";
-        const message = "A tenant has been removed from the system.";
+        const message = `You have been removed/vacated from ${property.name}.`;
         const type = "alert";
         const method = ["in-app", "email"];
 

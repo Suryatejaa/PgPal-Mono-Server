@@ -2,6 +2,7 @@ const { default: mongoose } = require('mongoose');
 const Room = require('../models/roomModel');
 const axios = require('axios');
 const redisClient = require('../utils/redis');
+const moment = require('moment');
 
 const getOwnProperty = async (propertyId, currentUser) => {
 
@@ -541,3 +542,5 @@ exports.getBedDocs = async (req, res) => {
         res.status(400).json({ error: err.message });
     }
 };
+
+

@@ -330,7 +330,7 @@ exports.updateRoom = async (req, res) => {
         const occupiedBeds = room.beds.filter(bed => bed.status === 'occupied' && bed.tenantPpt);
 
         const title = 'Room Details Updated';
-        const message = 'Room information has been updated. Please verify the latest changes.';
+        const message = `Room ${room.roomNumber} information has been updated. Please verify the latest changes.`;
         const typee = 'alert';
         const method = ['in-app', 'email'];
 
@@ -588,7 +588,7 @@ exports.updateBeds = async (req, res) => {
         });
 
         const title = 'Room Details Updated';
-        const message = 'Room information has been updated. Please verify the latest changes.';
+        const message = `Room ${room.roomNumber} information has been updated. Please verify the latest changes.`;
         const typee = 'alert';
         const method = ['in-app', 'email'];
 
@@ -716,7 +716,7 @@ exports.deleteRoom = async (req, res) => {
         const propertyPpid = property.pgpalId;
 
         const title = 'Room Deleted';
-        const message = 'A room has been removed from the property listing.';
+        const message = `Room ${room.roomNumber} has been removed from the property listing.`;
         const type = 'alert';
         const method = ['in-app', 'email'];
 

@@ -1,9 +1,10 @@
 const Tenant = require('../models/tenantModel');
-const { getOwnProperty } = require("./internalApis");
+const { getOwnProperty, getUserByPhone } = require("./internalApis");
 const notificationQueue = require('../utils/notificationQueue.js');
 const redisClient = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
-
+const { sendMail, generateRentBillPDF } = require('../utils/sendMail');
+const fs = require('fs');
 
 
 // 1. Update rent details for a tenant
@@ -76,7 +77,7 @@ exports.updateRent = async (req, res) => {
         if (!updatedTenant) return res.status(404).json({ error: 'Failed to update tenant rent details' });
 
         const title = "Rent Information Updated";
-        const message = "The rent details for one or more tenants have been updated.";
+        const message = `The rent of ₹.${rentPaid} for your stay at ${property.name} of bed ${tenant.currentStay.bedId} has been updated.`;
         const type = "info";
         const method = ["in-app"];
 
@@ -112,7 +113,36 @@ exports.updateRent = async (req, res) => {
         await invalidateCacheByPattern(`*/tenants?ppid*`);
         await invalidateCacheByPattern(`*/tenants?*`);
 
-
+        const getUser = await getUserByPhone(tenant.phone, currentUser);
+        console.log(getUser);
+        const userEmail = getUser.email ? getUser.email : null;
+        if (userEmail) {
+            const pdfPath = await generateRentBillPDF(tenant, property, rentPaid, rentPaidDate);
+            await sendMail({
+                to: userEmail,
+                subject: `Bill for rent payment for your stay in ${property.name}`,
+                text: `Dear ${tenant.name},
+                \n\nYour rent payment of ₹${rentPaid} has been successfully recorded for your stay at ${property.name}.
+                \n\nDetails:
+                \n- Property: ${property.name}
+                \n- Bed ID: ${tenant.currentStay.bedId}
+                \n- Rent Paid: ₹${rentPaid}
+                \n- Paid Date: ${rentPaidDate ? new Date(rentPaidDate).toLocaleDateString() : new Date().toLocaleDateString()}
+                \n- Status: ${updatedTenant.currentStay.rentPaidStatus}
+                \n\nThank you for your timely payment.
+                \n\nBest regards,
+                \nPurple PG Team
+                \n\nPlease find attached your rent bill.'`,
+                attachments: [
+                    {
+                        filename: `Rent-bill-${tenant.pgpalId}.pdf`,
+                        path: pdfPath
+                    }
+                ]
+            });
+            // Optionally delete the file after sending
+            fs.unlink(pdfPath, () => { });
+        }
 
         res.status(200).json({ message: 'Rent updated successfully', tenant: updatedTenant });
 

@@ -5,8 +5,8 @@ const mongoose = require('mongoose');
 const redisClient = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
-const { getActiveTenantsForProperty } = require('./internalApis');
-
+const { getActiveTenantsForProperty, getStayRecordsFromTenantService } = require('./internalApis');
+const moment = require('moment');
 
 
 const increaseViewCount = async (id) => {
@@ -343,7 +343,7 @@ module.exports = {
             await invalidateCacheByPattern(`*${property._id}*`);
 
             const title = 'Property Details Updated';
-            const message = 'Property details have been updated. Please review the latest information.';
+            const message = `Property ${updatedProperty.name} details have been updated. Please review the latest information.`;
             const type = 'alert';
             const method = ['in-app', 'email'];
 
@@ -439,7 +439,7 @@ module.exports = {
     },
 
     async getNearbyProperties(req, res) {
-       
+
         try {
             const { latitude, longitude, maxDistance = 5000 } = req.query; // maxDistance in meters (default 5km)
             if (!latitude || !longitude) {
@@ -722,7 +722,7 @@ module.exports = {
                 return res.status(403).json({ error: 'Forbidden: You can only update your own properties' });
             }
 
-           const location = {
+            const location = {
                 type: "Point",
                 coordinates: [lng, lat]
             };
@@ -731,6 +731,32 @@ module.exports = {
                 { location },
                 { new: true }
             );
+
+            const propertyPpid = updatedProperty.pgpalId;
+            const title = 'Property Location Updated';
+            const message = `Property ${updatedProperty.name} location has been updated. You can navigate to it using maps`;
+            const type = 'alert';
+            const method = ['in-app', 'email'];
+
+            const tenants = await getActiveTenantsForProperty(propertyPpid); // Implement this utility
+            for (const tenant of tenants) {
+                await notificationQueue.add('notifications', {
+                    tenantId: tenant.pgpalId,
+                    propertyPpid,
+                    audience: 'tenant',
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                });
+            }
 
             await invalidateCacheByPattern(`*${property.pgpalId}*`);
 
@@ -742,5 +768,80 @@ module.exports = {
             res.status(500).json({ error: error.message });
         }
     },
+
+    async occupancyTrend(req, res) {
+        const currentUser = JSON.parse(req.headers['x-user']) || {};
+        if (!currentUser) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const id = currentUser.data.user._id;
+        const role = currentUser.data.user.role;
+
+        if (role !== 'owner') {
+            return res.status(403).json({ error: 'Forbidden: Only owners can view occupancy trends' });
+        }
+
+        try {
+            const property = await Property.findById(req.params.id);
+            if (!property) {
+                return res.status(404).json({ error: 'Property not found' });
+            }
+            if (property.ownerId !== id) {
+                return res.status(403).json({ error: 'Forbidden: You can only view your own properties' });
+            }
+
+            const getStayRecords = await getStayRecordsFromTenantService(property.pgpalId, currentUser);
+            if (!getStayRecords || getStayRecords.length === 0) {
+                return res.status(404).json({ error: 'No stay records found for this property' });
+            }
+
+            // Calculate trend for last 6 months
+            const months = 6;
+            const totalBeds = property.totalBeds || 1; // fallback to 1 to avoid division by zero
+            const trend = [];
+
+            for (let i = months - 1; i >= 0; i--) {
+                const start = moment().subtract(i, 'months').startOf('month');
+                const end = moment().subtract(i, 'months').endOf('month');
+
+                let count = 0;
+                getStayRecords.forEach(tenant => {
+                    // Check current stay (if present and overlaps this month)
+                    if (
+                        tenant.currentStay &&
+                        tenant.currentStay.propertyPpid === property.pgpalId &&
+                        (!tenant.currentStay.assignedAt || moment(tenant.currentStay.assignedAt).isBefore(end)) &&
+                        (tenant.status === 'active' || !tenant.currentStay.rentDueDate || moment(tenant.currentStay.rentDueDate).isAfter(start))
+                    ) {
+                        count++;
+                        return;
+                    }
+                    // Check stayHistory
+                    if (tenant.stayHistory && tenant.stayHistory.length) {
+                        for (const stay of tenant.stayHistory) {
+                            if (
+                                stay.propertyId === property.pgpalId &&
+                                moment(stay.from).isBefore(end) &&
+                                (!stay.to || moment(stay.to).isAfter(start))
+                            ) {
+                                count++;
+                                break;
+                            }
+                        }
+                    }
+                });
+
+                trend.push({
+                    month: start.format('MMM YYYY'),
+                    occupancy: Math.round((count / totalBeds) * 100)
+                });
+            }
+
+            res.status(200).json(trend);
+
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    }
 
 };

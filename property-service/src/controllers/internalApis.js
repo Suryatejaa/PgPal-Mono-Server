@@ -53,8 +53,24 @@ const sendNotification = async (currentUser, tenantId, title, message, type, met
     }
 };
 
+const getStayRecordsFromTenantService = async (pppId, currentUser) => {
+    try {
+        const response = await axios.get(`http://tenant-service:4004/api/tenant-service/stay-records/${pppId}`, {
+            headers: {
+                'x-user': JSON.stringify(currentUser),
+                'x-internal-service': true
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error('[getStayRecords] Error:', error.message);
+        return null;
+    }
+};
+
 module.exports = {
     getTenantConfirmation,
     sendNotification,
     getActiveTenantsForProperty,
+    getStayRecordsFromTenantService
 };

@@ -38,6 +38,7 @@ const getUserByPhone = async (phone, currentUser) => {
     }
 };
 
+
 const getRoomByNumber = async (propertyId, roomNumber, currentUser) => {
     try {
         const response = await axios.get(

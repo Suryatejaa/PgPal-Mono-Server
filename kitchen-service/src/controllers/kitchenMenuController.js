@@ -55,7 +55,7 @@ exports.selectMenu = async (req, res) => {
         }
 
         const title = 'Menu Selected for the Week';
-        const message = `The weekly menu has been finalized. Get ready to serve what's cooking!`;
+        const message = `The weekly menu has been finalized!`;
         const type = 'reminder';
         const method = ['in-app'];
 
@@ -418,7 +418,7 @@ exports.updateWeeklyMenu = async (req, res) => {
         const savedMenu = await existingMenu.save();
 
         const title = 'Weekly Menu Updated';
-        const message = `The kitchen's weekly menu has been updated. Review the changes to stay in sync.`;
+        const message = `The kitchen's weekly menu has been updated.`;
         const type = 'alert';
         const method = ['in-app'];
 

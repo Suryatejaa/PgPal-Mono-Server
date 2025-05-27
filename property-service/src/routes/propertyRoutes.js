@@ -6,7 +6,7 @@ const amenitiesController = require('../controllers/amenitiesController');
 const imagesController = require('../controllers/imagesController');
 const rulesController = require('../controllers/rulesController');
 
-const cacheMiddleware = require('../utils/cacheMiddleware')
+const cacheMiddleware = require('../utils/cacheMiddleware');
 
 router.get('/search', cacheMiddleware, PropertyController.searchProperties);
 router.get('/properties/nearby', PropertyController.getNearbyProperties);
@@ -18,7 +18,7 @@ router.get('/:id', cacheMiddleware, PropertyController.getPropertyById);
 router.get('/property/:id', cacheMiddleware, PropertyController.getPropertyForRoom);
 router.get('/property-ppid/:ppid', cacheMiddleware, PropertyController.getPropertyByPpid);
 router.put('/:id', PropertyController.updateProperty);
-router.patch('/properties/:id/update-beds',PropertyController.updateTotalBeds)
+router.patch('/properties/:id/update-beds', PropertyController.updateTotalBeds);
 router.delete('/:id', PropertyController.deleteProperty);
 router.put('/properties/:id/location', PropertyController.updateLocation);
 
@@ -40,10 +40,11 @@ router.get('/:id/owner', cacheMiddleware, PropertyController.getOwnerInfo);
 //yet to implement
 router.post('/:id/images', imagesController.uploadImages);
 router.delete('/:id/images/:imageId', imagesController.deleteImage);
-router.get('/:id/images', cacheMiddleware, imagesController.getImages); 
-router.put('/:id/images/:imageId', imagesController.updateImage); 
+router.get('/:id/images', cacheMiddleware, imagesController.getImages);
+router.put('/:id/images/:imageId', imagesController.updateImage);
 
 router.get('/:id/availability', cacheMiddleware, PropertyController.getAvailability);
 router.put('/:id/availability', PropertyController.updateAvailability);
+router.get('/:id/occupancy-trend', cacheMiddleware, PropertyController.occupancyTrend);
 
 module.exports = router;

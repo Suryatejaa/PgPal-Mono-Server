@@ -474,5 +474,47 @@ exports.getVacates = async (req, res) => {
         res.status(400).json({ error: err.message });
     }
 
-}
+};
 
+exports.getTenantsStayRecords = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const propertyPpid = req.query.ppid; //tenantID
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
+
+    try {
+        if (redisClient.isReady) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                //console.log('Returning cached username availability');
+                return res.status(200).send(JSON.parse(cached));
+            }
+        }
+        const tenants = await Tenant.find({
+            $or: [
+                { "currentStay.propertyPpid": propertyPpid },
+                { "stayHistory.propertyId": propertyPpid }
+            ]
+        });
+        if (!tenants || tenants.length === 0) return res.status(404).json({ error: 'No tenants found' });
+
+        const response = tenants.map(tenant => ({
+            pgpalId: tenant.pgpalId,
+            stayHistory: tenant.stayHistory
+        }));
+        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+        res.status(200).json(response);
+    }
+    catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+};

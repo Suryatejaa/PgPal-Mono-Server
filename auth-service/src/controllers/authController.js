@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const redisClient = require('../utils/redis.js'); // Adjust the path as needed
 const { generatePPT } = require('../utils/idGenerator.js');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
-
+const notificationQueue = require('../utils/notificationQueue.js');
 
 
 const setHeader = (res, token) => {
@@ -100,6 +100,49 @@ const loginUser = async (req, res) => {
         });
 
         await User.findByIdAndUpdate(user._id, { refreshToken: refreshToken });
+        try {
+            const title = 'New login detected';
+            const message = `A new login was detected for your account. If this was not you, please secure your account.`;
+            const type = 'alert';
+            const method = ['in-app', 'email'];
+
+            await notificationQueue.add('notifications', {
+                tenantId: user.pgpalId,
+                audience: 'tenant',
+                title,
+                message,
+                type,
+                method,
+                createdBy: 'system'
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 3000
+                }
+            });
+
+            await notificationQueue.add('notifications', {
+                ownerId: user.pgpalId,
+                audience: 'owner',
+                title,
+                message,
+                type,
+                method,
+                createdBy: 'system'
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 3000
+                }
+            });
+
+        } catch (error) {
+            console.error('Error sending notification:', error.message);
+        }
+
+
     } catch (error) {
         console.error(error);
         res.status(400).json({

@@ -36,7 +36,7 @@ module.exports = {
             const propertyPpid = property.pgpalId;
 
             const title = 'New Review Added';
-            const message = 'A new review has been submitted for your property.';
+            const message = `${currentUser.data.user.username} has commented on ${property.name}: "${comment}" with a rating of ${rating}.`;
             const type = 'info';
             const method = ['in-app'];
 
@@ -120,7 +120,7 @@ module.exports = {
             const propertyPpid = property.pgpalId;
 
             const title = 'Review Updated';
-            const message = 'A review has been modified for one of your properties.';
+            const message = `${review.updatedByName} has updated their review for ${property.name}: "${comment}" with a rating of ${rating}.`;
             const type = 'info';
             const method = ['in-app'];
 
@@ -218,11 +218,6 @@ module.exports = {
             }
 
             const propertyPpid = property.pgpalId;
-
-            const title = 'Review Deleted';
-            const message = 'A review has been removed from your property listing.';
-            const type = 'alert';
-            const method = ['in-app'];
 
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);

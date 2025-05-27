@@ -142,7 +142,7 @@ exports.removeTenant = async (req, res) => {
 
         const propertyPpid = property.pgpalId;
         const title = "Tenant Removed by Owner";
-        const message = "A tenant has been forcefully removed by the owner.";
+        const message = `You have been removed by the owner from ${property.name}.`;
         const type = "alert";
         const method = ["in-app", "email", "sms"];
 
@@ -284,7 +284,7 @@ exports.retainTenant = async (req, res) => {
         const propertyPpid = property.pgpalId;
 
         const title = "Tenant Retained";
-        const message = "The vacate request has been cancelled by the owner. The tenant will continue to stay.";
+        const message = `You have been retained in ${property.name} by owner.`;
         const type = "info";
         const method = ["in-app", "email"];
 

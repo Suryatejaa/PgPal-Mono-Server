@@ -120,7 +120,7 @@ module.exports = {
             );
 
             const title = 'Amenities Added';
-            const message = `New amenities have been added to your property: ${newAmenities.join(', ')}`;
+            const message = `New amenities have been added to your PG: ${newAmenities.join(', ')}`;
             const type = 'info';
             const method = ['in-app'];
 
@@ -210,7 +210,7 @@ module.exports = {
             );
 
             const title = 'Amenities Removed';
-            const message = `Amenities have been removed from your property: ${capitalizedAmenities.join(', ')}`;
+            const message = `Amenities have been removed from your PG: ${capitalizedAmenities.join(', ')}`;
             const type = 'alert';
             const method = ['in-app'];
 
