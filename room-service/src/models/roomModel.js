@@ -11,7 +11,7 @@ const RoomSchema = new mongoose.Schema({
     beds: [
         {
             bedId: { type: String, required: true },
-            status: { type: String, enum: ['vacant', 'occupied'], required: true },
+            status: { type: String, enum: ['vacant', 'occupied','noticeperiod'], required: true },
             tenantNo: { type: String, default: null },
             tenantPpt: { type: String, default: null },
         }

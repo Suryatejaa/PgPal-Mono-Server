@@ -29,9 +29,9 @@ exports.assignBed = async (req, res) => {
         return res.status(400).json({ error: 'Room ID, Bed ID, and Tenant No are required' });
     }
     try {
-        //console.log('roomid: ',roomId)
+        console.log('roomid: ',roomId)
         const room = await Room.findOne({ pgpalId: roomId });
-        //console.log('room: ',room);
+        console.log('room: ',room);
         const propertyId = room.propertyId;
         const property = await getOwnProperty(propertyId, currentUser, false);
         if (!property) {

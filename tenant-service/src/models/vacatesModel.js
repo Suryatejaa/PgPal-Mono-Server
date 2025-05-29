@@ -18,6 +18,16 @@ const vacateScehma = new Schema({
         type: String,
         required: true,
     },
+    phone: {
+        type: String,
+        required: true,
+        unique: true,
+    },
+    aadhar: {
+        type: String,
+        required: true,
+        unique: true,
+    },
     bedId: {
         type: String,
         required: true,
@@ -53,8 +63,12 @@ const vacateScehma = new Schema({
     },
     status: {
         type: String,
-        enum: ['completed', 'withdrawn', 'noticeperiod'],
+        enum: ['completed', 'withdrawn', 'noticeperiod', 'pending_owner_approval', 'rejected'],
         default: 'noticeperiod'
+    },
+    withdrawWindow: {
+        type: Date,
+        default: null
     },
     reason: {
         type: String,
@@ -67,11 +81,28 @@ const vacateScehma = new Schema({
         type: Boolean,
         default: false
     },
-
+    tenantDepositInfo: {
+        type: String,
+        default: null
+    },
+    ownerDepositInfo: {
+        type: String,
+        default: null
+    },
     previousSnapshot: {
         type: Object,
         default: null
     },
+    approvedByOwnerAt: {
+        type: Date,
+        default: null
+    },
+    approvedBy: {
+        type: String,
+        default: null
+    },
+    rejectedByOwnerAt: { type: Date, default: null },
+    rejectedBy: { type: String, default: null },
     updatedAt: {
         type: Date,
         default: Date.now

@@ -4,7 +4,7 @@ services:
     ports:
       - "4001:4001"
     environment:
-    - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_auth_service
+    - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_auth_service?retryWrites=true&w=majority
     - JWT_SECRET=your_jwt_secret
     - REFRESH_TOKEN_SECRET=your_refresh_token_secret
     - PORT=4001
@@ -25,7 +25,7 @@ services:
     ports:
       - "4002:4002"
     environment:
-      - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_property_service
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_property_service?retryWrites=true&w=majority 
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4002
       - REDIS_URL=redis://redis:6379
@@ -39,7 +39,7 @@ services:
     ports:
       - "4003:4003"
     environment:
-      - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_room_service
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_room_service?retryWrites=true&w=majority
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4003
@@ -53,7 +53,7 @@ services:
     ports:
       - "4004:4004"
     environment:
-      - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_tenant_service
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_tenant_service?retryWrites=true&w=majority
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4004
@@ -68,7 +68,7 @@ services:
     ports:
       - "4010:4010"
     environment:
-      - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_payment_service
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_payment_service?retryWrites=true&w=majority
       - REDIS_URL=redis://redis:6379
     depends_on:
       - mongo
@@ -80,7 +80,7 @@ services:
     ports:
       - "4006:4006"
     environment:
-      - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_complaints_service
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_complaints_service?retryWrites=true&w=majority
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4006
       - EMAIL=echoliftagency@gmail.com
@@ -96,7 +96,7 @@ services:
     ports:
       - "4007:4007"
     environment:
-      - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_kitchen_service
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_kitchen_service?retryWrites=true&w=majority
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4007
@@ -109,7 +109,7 @@ services:
     ports:
       - "4008:4008"
     environment:
-      - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_dashboard_service
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_dashboard_service?retryWrites=true&w=majority 
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4008
@@ -123,7 +123,7 @@ services:
     ports:
       - "4009:4009"
     environment:
-      - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_notification_service
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_notification_service?retryWrites=true&w=majority
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4009
@@ -139,7 +139,7 @@ services:
       - mongo
       - redis
     environment:
-      - MONGO_URI=mongodb://host.docker.internal:27017/pgpaal_notification_service
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_notification_service?retryWrites=true&w=majority
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4009
@@ -156,6 +156,7 @@ services:
     container_name: mongodb
     ports:
       - "27017:27017"
+    command: ["--replSet", "rs0"]
     volumes:
     - ./mongo-data:/data/db
 

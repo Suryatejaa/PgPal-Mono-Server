@@ -1,193 +1,236 @@
-const { clearBed, assignBed, getOwnProperty } = require('./internalApis'); // Assuming you have a function to generate PPT IDs
+//ownerVacateController.js
+
+const { clearBed, assignBed, getOwnProperty, changeBedStatus } = require('./internalApis');
 const Vacates = require('../models/vacatesModel');
 const Tenant = require('../models/tenantModel');
 const redisClient = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
+const {
+    getTenantProfile,
+    validateTenantRemovalEligibility,
+    validatePropertyOwnership,
+    calculateVacateDate,
+    createStayHistoryEntry,
+    createCurrentStaySnapshot
+} = require('./vacateUtilFunctions.js');
+
+const {
+    notifyVacateApproved,
+    notifyVacateRejected,
+    notifyVacateRemoved,
+    notifyVacateWithdrawnOrRetained
+} = require('../utils/vacateNotifications');
+
 
 exports.removeTenant = async (req, res) => {
     const xUserHeader = req.headers['x-user'];
     if (!xUserHeader) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
+
     let currentUser;
     try {
         currentUser = JSON.parse(xUserHeader);
     } catch (e) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
+
     const role = currentUser.data.user.role;
-    const id = currentUser.data.user._id;
+    if (role !== 'owner') {
+        return res.status(403).json({ error: 'Only owners can remove tenants' });
+    }
 
-    const pgpalId = req.params.ppid;
-    const reason = req.body.reason;
-    const isImmediateVacate = req.body.isImmediateVacate;
-    const isDepositRefunded = req.body.isDepositRefunded;
-    const isVacatedAlready = req.body.isVacatedAlreay;
+    const { pgpalId, phone, _id, username } = currentUser.data.user;
+    const { ppid } = req.params;
+    const { reason, isImmediateVacate, isDepositRefunded, isVacatedAlready } = req.body;
 
-    if (role !== 'owner') return res.status(403).json({ error: 'Only owners can remove tenants' });
-    if (!id) return res.status(401).json({ error: 'Unauthorized: Missing userId' });
-    if (!pgpalId) return res.status(400).json({ error: 'Tenant PPID is required' });
+    // Input validation
+    if (!ppid) {
+        return res.status(400).json({ error: 'Tenant PPID is required' });
+    }
+
+    if (!reason || typeof isImmediateVacate !== 'boolean') {
+        return res.status(400).json({
+            error: 'Both reason and isImmediateVacate are required and isImmediateVacate must be boolean.'
+        });
+    }
 
     try {
-        //console.log(pgpalId);
-        const tenant = await Tenant.findOne({ pgpalId: { $regex: `^${pgpalId}$`, $options: 'i' } });
-        //console.log("Remove tenant: ", pgpalId, tenant);
-        const profile = tenant;
+        // Get tenant profile
+        const tenant = await getTenantProfile(ppid);
 
-        if (!profile) return res.status(404).json({ error: 'Tenant not found' });
-        if (profile.status === 'inactive') return res.status(400).json({ error: 'Tenant is already inactive' });
-        if (profile.currentStay.isInNoticePeriod) return res.status(400).json({ error: 'Tenant is already in notice period' });
+        // Validate eligibility
+        validateTenantRemovalEligibility(tenant);
 
-        const property = await getOwnProperty(profile.currentStay.propertyPpid, currentUser, ppid = true);
-        if (!property) return res.status(404).json({ error: 'Property not found' });
-        if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
+        // Validate property ownership
+        const property = await validatePropertyOwnership(
+            tenant.currentStay.propertyPpid,
+            currentUser.data.user._id,
+            currentUser
+        );
 
+        const currentStay = tenant.currentStay;
+        const deposit = currentStay.deposit || 0;
 
-        const currentStay = profile.currentStay;
-        const deposit = currentStay.deposit;
+        // Calculate vacate date
+        const vacateDate = calculateVacateDate(isImmediateVacate, currentStay.noticePeriodInMonths);
 
-        let endMessage;
-        if (isImmediateVacate && deposit && !isDepositRefunded) {
-            endMessage = `Since its an immediate vacate, tenant do not get INR:${deposit} deposit back`;
-        } else if (isImmediateVacate && isDepositRefunded) {
-            endMessage = `Deposit INR:${deposit} is settled to tenant`;
-        } else if (!isImmediateVacate && deposit && !isDepositRefunded) {
-            endMessage = `Tenant has to vacate after notice period and deposit INR:${deposit} needs to be settled`;
-        } else if (!isImmediateVacate && isDepositRefunded) {
-            endMessage = `Deposit INR:${deposit} is settled to tenant`;
-        }
+        // Create snapshots
+        const stayHistoryEntry = createStayHistoryEntry(currentStay, vacateDate);
+        const currentStaySnapshot = createCurrentStaySnapshot(currentStay);
 
-        const isInNoticePeriod = isImmediateVacate || isVacatedAlready ? false : true;
-        const noticePeriodStartDate = isInNoticePeriod ? new Date() : null;
-        const noticePeriodEndDate = isInNoticePeriod ? new Date(Date.now() + currentStay.noticePeriodInMonths * 30 * 24 * 60 * 60 * 1000) : null;
-        const vacateDate = isImmediateVacate ? new Date() : new Date(Date.now() + currentStay.noticePeriodInMonths * 30 * 24 * 60 * 60 * 1000);
-
-        const stayHistory = {
-            propertyId: currentStay.propertyPpid,
-            roomId: currentStay.roomPpid,
-            bedId: currentStay.bedId,
-            from: currentStay.assignedAt,
-            to: vacateDate
-        };
-        const currentStaySnapShot = {
-            propertyId: currentStay.propertyPpid,
-            propertyName: property.name,
-            roomId: currentStay.roomPpid,
-            bedId: currentStay.bedId,
-            rent: currentStay.rent,
-            rentPaid: currentStay.rentPaid,
-            rentDue: currentStay.rentDue,
-            rentPaidDate: currentStay.rentPaidDate,
-            rentDueDate: currentStay.rentDueDate,
-            rentPaidStatus: currentStay.rentPaidStatus,
-            rentPaidMethod: currentStay.rentPaidMethod,
-            rentPaidTransactionId: currentStay.rentPaidTransactionId,
-            nextRentDueDate: currentStay.nextRentDueDate,
-            deposit: currentStay.deposit,
-            advanceBalance: currentStay.advance,
-            assignedAt: currentStay.assignedAt,
-            noticePeriodInMonths: currentStay.noticePeriodInMonths,
-            isInNoticePeriod: currentStay.isInNoticePeriod,
-            location: currentStay.location,
-        };
-
-        const updateProfile = {
-            status: 'inactive',
-            currentStay: {
-                propertyPpid: null,
-                propertyName: null,
-                roomPpid: null,
-                bedId: null,
-                rent: null,
-                deposit: null,
-                assignedAt: null,
-                noticePeriodInMonths: 0,
-                isInNoticePeriod: false
-            },
-            stayHistory: [...profile.stayHistory, stayHistory],
-            isInNoticePeriod: isInNoticePeriod,
-            noticePeriodStartDate: noticePeriodStartDate,
-            noticePeriodEndDate: vacateDate,
-            updatedAt: new Date()
-        };
-
-        const clearBedResponse = await clearBed(currentStay.roomPpid, currentStay.bedId, currentUser);
-        if (!clearBedResponse) return res.status(400).json({ error: 'Failed to clear bed' });
-
-        const updatedTenant = await Tenant.findByIdAndUpdate(profile._id, updateProfile, { new: true });
-        if (!updatedTenant) return res.status(404).json({ error: 'Tenant not found' });
-
-        const vacate = {
-            name: updatedTenant.name,
-            tenantId: updatedTenant.pgpalId,
-            propertyId: stayHistory.propertyId,
-            propertyName: stayHistory.propertyName,
-            roomId: stayHistory.roomId,
-            bedId: stayHistory.bedId,
-            isImmediateVacate: isImmediateVacate,
-            isDepositRefunded: isDepositRefunded,
-            vacateDate: vacateDate,
-            noticePeriodStartDate: noticePeriodStartDate,
-            noticePeriodEndDate: noticePeriodEndDate,
-            reason: reason,
-            status: isImmediateVacate ? 'completed' : 'noticeperiod',
-            createdBy: id,
-            removedByOwner: true,
-            previousSnapshot: currentStaySnapShot
-        };
-
-        const vacateRequest = await Vacates.create(vacate);
-        if (!vacateRequest) return res.status(404).json({ error: 'Vacate request not created' });
-
-        const propertyPpid = property.pgpalId;
-        const title = "Tenant Removed by Owner";
-        const message = `You have been removed by the owner from ${property.name}.`;
-        const type = "alert";
-        const method = ["in-app", "email", "sms"];
+        // Prepare tenant update (using MongoDB transaction for consistency)
+        const session = await Tenant.startSession();
 
         try {
-            //console.log('Adding notification job to the queue...');
+            await session.withTransaction(async () => {
 
-            await notificationQueue.add('notifications', {
-                tenantId: pgpalId,
-                propertyPpid: propertyPpid,
-                audience: 'tenant',
-                title,
-                message,
-                type,
-                method,
-                meta: { vacateId: vacateRequest._id },
-                createdBy: currentUser?.data?.user?.pgpalId || 'system'
-            }, {
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 3000
+                // Update tenant status
+                const tenantUpdate = {
+                    isInNoticePeriod: !isImmediateVacate && !isVacatedAlready,
+                    noticePeriodStartDate: !isImmediateVacate && !isVacatedAlready ? new Date() : null,
+                    noticePeriodEndDate: !isImmediateVacate && !isVacatedAlready ? vacateDate : null,
+                    updatedAt: new Date(),
+                    $push: { stayHistory: stayHistoryEntry },
+                };
+
+                // For immediate vacate, set status to inactive and clear currentStay
+                if (isImmediateVacate || isVacatedAlready) {
+                    tenantUpdate.status = 'inactive';
+                    tenantUpdate.currentStay = {
+                        propertyPpid: null,
+                        propertyName: null,
+                        roomPpid: null,
+                        bedId: null,
+                        rent: null,
+                        deposit: null,
+                        assignedAt: null,
+                        noticePeriodInMonths: 0,
+                        isInNoticePeriod: false,
+                        location: null,
+                    };
+                    tenantUpdate.isInNoticePeriod = false;
+                } else {
+                    tenantUpdate['currentStay.isInNoticePeriod'] = true;
                 }
+
+                const updatedTenant = await Tenant.findByIdAndUpdate(
+                    tenant._id,
+                    tenantUpdate,
+                    { new: true, session }
+                );
+
+                if (!updatedTenant) {
+                    throw new Error('Failed to update tenant');
+                }
+
+                let depositMessageForTenant = deposit > 0 && !isDepositRefunded
+                    ? `INR ${deposit} deposit will be ${isImmediateVacate ? 'forfeited' : 'returned after vacate date'}`
+                    : 'No deposit to return';
+
+                if ((isVacatedAlready || isImmediateVacate) && !isDepositRefunded && (deposit > currentStay.rentDue)) {
+                    depositMessageForTenant = `INR ${deposit - currentStay.rentDue} deposit will be returned, please contact owner for details`;
+                }
+
+                let depositMessageForOwner = deposit > 0 && !isDepositRefunded
+                    ? `INR ${deposit} deposit ${isImmediateVacate ? 'can be forfeited' : 'should be returned after vacate date'}`
+                    : 'No deposit to return';
+
+                if ((isVacatedAlready || isImmediateVacate) && !isDepositRefunded && (deposit > currentStay.rentDue)) {
+                    depositMessageForOwner = `INR ${deposit - currentStay.rentDue} deposit should be returned to tenant, please contact tenant for details`;
+                }
+
+                // Create vacate request
+                const vacateData = {
+                    name: tenant.name,
+                    tenantId: tenant.pgpalId,
+                    phone: tenant.phone,
+                    aadhar: tenant.aadhar,
+                    propertyId: currentStay.propertyPpid,
+                    propertyName: property.name,
+                    roomId: currentStay.roomPpid,
+                    bedId: currentStay.bedId,
+                    isImmediateVacate,
+                    vacateDate,
+                    noticePeriodStartDate: !isImmediateVacate && !isVacatedAlready ? new Date() : null,
+                    noticePeriodEndDate: vacateDate,
+                    reason,
+                    tenantDepositInfo: depositMessageForTenant,
+                    ownerDepositInfo: depositMessageForOwner,
+                    status: isImmediateVacate ? 'completed' : 'noticeperiod',
+                    createdBy: username,
+                    removedByOwner: true,
+                    previousSnapshot: currentStaySnapshot,
+                    vacateRaisedAt: new Date(),
+                    withdrawWindow: isImmediateVacate ? new Date(Date.now() + 24 * 60 * 60 * 1000) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                };
+
+                const vacateRequest = await Vacates.create([vacateData], { session });
+                if (!vacateRequest || vacateRequest.length === 0) {
+                    throw new Error('Failed to create vacate request');
+                }
+
+                // Handle bed status changes
+                if (isImmediateVacate || isVacatedAlready) {
+                    // Clear bed immediately
+                    const clearBedResponse = await clearBed(
+                        currentStay.roomPpid,
+                        currentStay.bedId,
+                        currentUser
+                    );
+                    if (!clearBedResponse) {
+                        throw new Error('Failed to clear bed');
+                    }
+                } else {
+                    // Set bed to notice period
+                    const changeBedResponse = await changeBedStatus(
+                        currentStay.roomPpid,
+                        currentStay.bedId,
+                        'noticeperiod',
+                        currentUser
+                    );
+                    if (!changeBedResponse) {
+                        throw new Error('Failed to change bed status to notice period');
+                    }
+                }
+
+                return { updatedTenant, vacateRequest: vacateRequest[0] };
             });
 
-            //console.log('Notification job added successfully');
-
-        } catch (err) {
-            console.error('Failed to queue notification:', err.message);
+        } finally {
+            await session.endSession();
         }
 
+        // Send notifications
+        const vacateRequest = await Vacates.findOne({ tenantId: tenant.pgpalId }).sort({ createdAt: -1 });
+        await notifyVacateRemoved(vacateRequest, currentUser, property);
 
-        await invalidateCacheByPattern(`*${propertyPpid}*`);
-        await invalidateCacheByPattern(`*${property._id}*`);
+        // Clear cache
+        await invalidateCacheByPattern(`*${currentStay.propertyPpid}*`);
+        if (property?._id) {
+            await invalidateCacheByPattern(`*${property._id}*`);
+        }
 
+        // Prepare response messages
+        const withdrawWindow = isImmediateVacate ? '24 hours' : '7 days';
+        const depositMessage = deposit > 0 && !isDepositRefunded
+            ? `INR ${deposit} deposit will be ${isImmediateVacate ? 'forfeited' : 'returned after vacate date'}`
+            : 'No deposit to return';
 
         res.status(201).json({
             message: 'Tenant removed successfully',
-            Comments: {
-                message: 'Vacate request created successfully',
-                Notes: endMessage,
-            },
-            vacateRequest: vacateRequest
+            vacateRequest,
+            details: {
+                vacateDate: vacateDate.toDateString(),
+                withdrawWindow: `Request can be withdrawn within ${withdrawWindow}`,
+                depositInfo: depositMessage,
+                status: isImmediateVacate ? 'Immediate removal - effective now' : 'Notice period started'
+            }
         });
-    }
-    catch (err) {
+
+    } catch (err) {
+        console.error('Error in removeTenant:', err);
         res.status(400).json({ error: err.message });
     }
 };
@@ -197,214 +240,378 @@ exports.retainTenant = async (req, res) => {
     if (!xUserHeader) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
+
     let currentUser;
     try {
         currentUser = JSON.parse(xUserHeader);
     } catch (e) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
+
     const role = currentUser.data.user.role;
-    const id = currentUser.data.user._id;
-    const vacateId = req.params.vacateId;
+    if (role !== 'owner') {
+        return res.status(403).json({ error: 'Only owners can retain tenants' });
+    }
 
-    if (role !== 'owner') return res.status(403).json({ error: 'Only owners can retain tenants' });
-    if (!id) return res.status(401).json({ error: 'Unauthorized: Missing userId' });
-    if (!vacateId) return res.status(400).json({ error: 'Vacate ID is required' });
-
-
+    const { _id: userId } = currentUser.data.user;
+    const { vacateId } = req.params;
 
     try {
-        // const tenant = await Tenant.findOne({ pgpalId: { $regex: `^${pgpalId}$`, $options: 'i' } });
-        const vacate = await Vacates.findById(vacateId);
-        if (!vacate) return res.status(404).json({ error: 'Vacate request not found' });
-        const pgpalId = vacate.tenantId;
-        const tenant = await Tenant.findOne({ pgpalId: vacate.tenantId });
-        if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
-        const profile = tenant;
-        if (profile.status === 'active') return res.status(400).json({ error: 'Tenant is already active' });
-
-        if (!vacate.removedByOwner) return res.status(400).json({ error: 'This request raised by tenant, please ask tenant to withdraw request' });
-
-        const property = await getOwnProperty(profile.stayHistory[0].propertyId, currentUser, ppid = true);
-        if (!property) return res.status(404).json({ error: 'Property not found' });
-        if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
-
-
-        const previousSnapshot = vacate.previousSnapshot;
-        const backupStay = {
-
-            propertyPpid: previousSnapshot.propertyId,
-            propertyName: previousSnapshot.propertyName,
-            roomPpid: previousSnapshot.roomId,
-            bedId: previousSnapshot.bedId,
-            rent: previousSnapshot.rent,
-            rentPaid: previousSnapshot.rentPaid,
-            rentDue: previousSnapshot.rentDue,
-            rentPaidDate: previousSnapshot.rentPaidDate,
-            rentDueDate: previousSnapshot.rentDueDate,
-            rentPaidStatus: previousSnapshot.rentPaidStatus,
-            rentPaidMethod: previousSnapshot.rentPaidMethod,
-            rentPaidTransactionId: previousSnapshot.rentPaidTransactionId,
-            nextRentDueDate: previousSnapshot.nextRentDueDate,
-            deposit: previousSnapshot.deposit,
-            assignedAt: previousSnapshot.assignedAt,
-            noticePeriodInMonths: previousSnapshot.noticePeriodInMonths,
-            isInNoticePeriod: false,
-            updatedAt: new Date(),
-            location: previousSnapshot.location
-        };
-        const updateProfile = {
-            status: 'active',
-            currentStay: backupStay,
-            isInNoticePeriod: false,
-            noticePeriodStartDate: null,
-            noticePeriodEndDate: null,
-            updatedAt: new Date()
-        };
-
-        if (profile.stayHistory.length > 0) {
-            const last = profile.stayHistory[profile.stayHistory.length - 1];
-            if (last.to && new Date(last.to).getTime() === new Date(vacate.vacateDate).getTime()) {
-                profile.stayHistory.pop();
-            }
+        // Input validation
+        if (!vacateId) {
+            return res.status(400).json({ error: 'Vacate ID is required' });
         }
 
-        updateProfile.stayHistory = [...profile.stayHistory];
+        // Get active vacate request
+        const vacate = await Vacates.findById(vacateId);
+        if (!vacate) {
+            return res.status(404).json({ error: 'Vacate request not found' });
+        }
 
+        if (!vacate.removedByOwner) {
+            return res.status(400).json({
+                error: 'This request was raised by tenant, please ask tenant to withdraw request'
+            });
+        }
 
-        const assignBedResponse = await assignBed(previousSnapshot.roomId, previousSnapshot.bedId, profile.phone, previousSnapshot.rent, vacate.tenantId, currentUser);
-        if (!assignBedResponse) return res.status(400).json({ error: 'Failed to assign bed' });
+        // Get tenant profile
+        const tenant = await getTenantProfile(vacate.tenantId);
 
-        const updatedTenant = await Tenant.findByIdAndUpdate(tenant._id, updateProfile, { new: true });
-        if (!updatedTenant) return res.status(404).json({ error: 'Tenant not found' });
+        if (!tenant.isInNoticePeriod) {
+            return res.status(400).json({ error: 'Tenant is not in notice period' });
+        }
 
-        const updatedVacate = await Vacates.findByIdAndDelete(vacate._id, { new: true });
-        if (!updatedVacate) return res.status(404).json({ error: 'Vacate request not found' });
+        // Validate property ownership
+        const property = await validatePropertyOwnership(vacate.propertyId, userId, currentUser);
 
-        const propertyPpid = property.pgpalId;
+        // 1. Check vacateRaisedAt is within 7 days
+        const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+        const now = Date.now();
+        if (now - new Date(vacate.vacateRaisedAt).getTime() > oneWeekMs) {
+            return res.status(400).json({ error: 'Withdraw window expired (more than one week).' });
+        }
 
-        const title = "Tenant Retained";
-        const message = `You have been retained in ${property.name} by owner.`;
-        const type = "info";
-        const method = ["in-app", "email"];
+        // 2. Check tenant is in notice period
+        if (!tenant.isInNoticePeriod) {
+            return res.status(400).json({ error: 'Tenant is not in notice period.' });
+        }
+
+        // 3. Check bed is not occupied by another tenant
+        const bedOccupied = await Tenant.findOne({
+            'currentStay.roomPpid': vacate.roomId,
+            'currentStay.bedId': vacate.bedId,
+            pgpalId: { $ne: vacate.tenantId },
+            status: 'active'
+        });
+        if (bedOccupied) {
+            return res.status(400).json({ error: 'Bed is already occupied by another tenant.' });
+        }
+
+        // Use transaction for data consistency
+        const session = await Tenant.startSession();
 
         try {
-            //console.log('Adding notification job to the queue...');
+            await session.withTransaction(async () => {
+                const previousSnapshot = vacate.previousSnapshot;
+                // console.log('Previous Snapshot:', previousSnapshot);
 
-            await notificationQueue.add('notifications', {
-                tenantId: pgpalId,
-                propertyPpid: propertyPpid,
-                audience: 'tenant',
-                title,
-                message,
-                type,
-                method,
-                meta: { vacateId: vacateId },
-                createdBy: currentUser?.data?.user?.pgpalId || 'system'
-            }, {
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 3000
+                // Restore tenant to active status
+                const restoredCurrentStay = {
+                    propertyPpid: previousSnapshot.propertyPpid,
+                    propertyName: previousSnapshot.propertyName,
+                    roomPpid: previousSnapshot.roomPpid,
+                    bedId: previousSnapshot.bedId,
+                    rent: previousSnapshot.rent,
+                    rentPaid: previousSnapshot.rentPaid,
+                    rentDue: previousSnapshot.rentDue,
+                    rentPaidDate: previousSnapshot.rentPaidDate,
+                    rentDueDate: previousSnapshot.rentDueDate,
+                    rentPaidStatus: previousSnapshot.rentPaidStatus,
+                    rentPaidMethod: previousSnapshot.rentPaidMethod,
+                    rentPaidTransactionId: previousSnapshot.rentPaidTransactionId,
+                    nextRentDueDate: previousSnapshot.nextRentDueDate,
+                    deposit: previousSnapshot.deposit,
+                    assignedAt: previousSnapshot.assignedAt,
+                    noticePeriodInMonths: previousSnapshot.noticePeriodInMonths,
+                    isInNoticePeriod: false,
+                    location: previousSnapshot.location
+                };
+
+                // Remove the latest stay history entry (the vacate entry)
+                const updatedStayHistory = tenant.stayHistory.filter(stay =>
+                    !(stay.to && new Date(stay.to).getTime() === new Date(vacate.vacateDate).getTime())
+                );
+
+                const tenantUpdate = {
+                    status: 'active',
+                    currentStay: restoredCurrentStay,
+                    isInNoticePeriod: false,
+                    noticePeriodStartDate: null,
+                    noticePeriodEndDate: null,
+                    stayHistory: updatedStayHistory,
+                    updatedAt: new Date(),
+                };
+
+                // Update tenant
+                const updatedTenant = await Tenant.findByIdAndUpdate(
+                    tenant._id,
+                    tenantUpdate,
+                    { new: true, session }
+                );
+
+                if (!updatedTenant) {
+                    throw new Error('Failed to update tenant');
                 }
-            });
-            //console.log('Notification job added successfully');
 
-        } catch (err) {
-            console.error('Failed to queue notification:', err.message);
+                // Reassign bed
+                const assignBedResponse = await assignBed(
+                    previousSnapshot.roomPpid,
+                    previousSnapshot.bedId,
+                    tenant.phone,
+                    previousSnapshot.rent,
+                    tenant.pgpalId,
+                    currentUser
+                );
+
+                console.log(previousSnapshot.roomPpid, previousSnapshot.bedId, tenant.phone, previousSnapshot.rent, tenant.pgpalId);
+
+                if (!assignBedResponse) {
+                    throw new Error('Failed to reassign bed');
+                }
+
+                // Mark vacate request as withdrawn (don't delete, keep for audit)
+                const updatedVacate = await Vacates.findByIdAndUpdate(
+                    vacate._id,
+                    {
+                        status: 'withdrawn',
+                        withdrawnAt: new Date(),
+                        withdrawnBy: currentUser.data.user.username,
+                        tenantDepositInfo: `Tenant retained. Bed: ${vacate.bedId} is now active.`,
+                        ownerDepositInfo: `Tenant retained. Bed: ${vacate.bedId} is now active.`,
+                    },
+                    { new: true, session }
+                );
+
+                if (!updatedVacate) {
+                    throw new Error('Failed to update vacate request');
+                }
+
+                return { updatedTenant, updatedVacate };
+            });
+
+        } finally {
+            await session.endSession();
         }
 
+        // Send notifications
+        await notifyVacateWithdrawnOrRetained('retained', vacate, currentUser, property);
 
-        await invalidateCacheByPattern(`*${propertyPpid}*`);
-        await invalidateCacheByPattern(`*${property._id}*`);
-        await invalidateCacheByPattern(`*${property._id}*`);
-
+        // Clear cache
+        await invalidateCacheByPattern(`*${vacate.propertyId}*`);
+        if (property?._id) {
+            await invalidateCacheByPattern(`*${property._id}*`);
+        }
 
         res.status(200).json({
             message: 'Tenant retained successfully',
-            vacateRequest: updatedVacate
-        });
-    }
-    catch (err) {
-        res.status(400).json({ error: err.message });
-    }
-};
-
-exports.getVacateHistory = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']);
-    const role = currentUser.data.user.role;
-    const id = currentUser.data.user._id;
-    const pgpalId = req.params.pppid;
-
-    if (role !== 'owner') return res.status(403).json({ error: 'Only owners can get vacate history' });
-    if (!id) return res.status(401).json({ error: 'Unauthorized: Missing userId' });
-    if (!pgpalId) return res.status(400).json({ error: 'Tenant PPID is required' });
-
-    try {
-        const cacheKey = '/api' + req.originalUrl; // Always add /api
-
-        const property = await getOwnProperty(pgpalId, currentUser, ppid = true);
-        if (!property) return res.status(404).json({ error: 'Property not found' });
-        if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
-
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
-            if (cached) {
-                //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
+            details: {
+                status: 'Tenant stay has been restored to active',
+                bedId: vacate.bedId,
+                retainedAt: new Date().toISOString()
             }
-        }
+        });
 
-        const vacateHistory = await Vacates.find({ propertyId: pgpalId });
-        if (!vacateHistory || vacateHistory.length === 0) return res.status(404).json({ error: 'Vacate history not found' });
-
-        await redisClient.set(cacheKey, JSON.stringify(vacateHistory), { EX: 300 });
-
-        res.status(200).json(vacateHistory);
-    }
-    catch (err) {
+    } catch (err) {
+        console.error('Error in retainTenant:', err);
         res.status(400).json({ error: err.message });
     }
 };
 
-exports.getVacateHistotyByProperty = async (req, res) => {
+exports.getVacateHistoryByProperty = async (req, res) => {
     const xUserHeader = req.headers['x-user'];
     if (!xUserHeader) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
+
     let currentUser;
     try {
         currentUser = JSON.parse(xUserHeader);
     } catch (e) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
-    const role = currentUser.data.user.role;
-    const id = currentUser.data.user._id;
-    const propertyId = req.params.pppid;
-    const cacheKey = '/api' + req.originalUrl; // Always add /api
 
-    if (role !== 'owner') return res.status(403).json({ error: 'Only owners can get vacate history' });
-    if (!id) return res.status(401).json({ error: 'Unauthorized: Missing userId' });
-    if (!propertyId) return res.status(400).json({ error: 'Property ID is required' });
+    const role = currentUser.data.user.role;
+    if (role !== 'owner') {
+        return res.status(403).json({ error: 'Only owners can view vacate history' });
+    }
+
+    const { pppid: propertyId } = req.params;
 
     try {
+        const query = {};
+        if (propertyId) query.propertyId = propertyId;
 
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
-            if (cached) {
-                //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
-            }
+        const vacates = await Vacates.find(query)
+            .sort({ createdAt: -1 });
+
+        if (!vacates || vacates.length === 0) {
+            return res.status(404).json({
+                error: 'No vacate history found',
+                query: { propertyId }
+            });
         }
 
-        const vacateHistory = await Vacates.find({ propertyId: propertyId });
-        if (!vacateHistory || vacateHistory.length === 0) return res.status(404).json({ error: 'Vacate history not found' });
+        res.status(200).json({
+            count: vacates.length,
+            vacateHistory: vacates
+        });
 
-        await redisClient.set(cacheKey, JSON.stringify(vacateHistory), { EX: 300 });
-
-        res.status(200).json(vacateHistory);
+    } catch (err) {
+        console.error('Error in getVacateHistory:', err);
+        res.status(500).json({ error: err.message });
     }
-    catch (err) {
-        res.status(400).json({ error: err.message });
+};
+
+// In ownerVacateController.js
+exports.approveImmediateVacate = async (req, res) => {
+    const { vacateId } = req.params;
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) return res.status(401).json({ error: 'Unauthorized' });
+
+    let currentUser;
+    try { currentUser = JSON.parse(xUserHeader); } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (currentUser.data.user.role !== 'owner') {
+        return res.status(403).json({ error: 'Only owners can approve vacate' });
+    }
+
+    const session = await Tenant.startSession();
+    try {
+        await session.withTransaction(async () => {
+            // 1. Find the vacate request
+            const vacate = await Vacates.findById(vacateId).session(session);
+            if (!vacate || vacate.status !== 'pending_owner_approval') {
+                throw new Error('No pending approval for this vacate request');
+            }
+
+            // 2. Find the tenant
+            const tenant = await Tenant.findOne({ pgpalId: vacate.tenantId }).session(session);
+            if (!tenant) throw new Error('Tenant not found');
+
+            // 3. Update tenant: set inactive, clear currentStay, etc.
+            const tenantUpdate = {
+                status: 'inactive',
+                currentStay: {
+                    propertyPpid: null,
+                    propertyName: null,
+                    roomPpid: null,
+                    bedId: null,
+                    rent: null,
+                    deposit: null,
+                    assignedAt: null,
+                    noticePeriodInMonths: 0,
+                    isInNoticePeriod: false,
+                    location: null,
+                },
+                isInNoticePeriod: false,
+                noticePeriodStartDate: null,
+                noticePeriodEndDate: null,
+                updatedAt: new Date(),
+                $push: {
+                    stayHistory: {
+                        propertyId: vacate.propertyId,
+                        propertyName: vacate.propertyName,
+                        roomId: vacate.roomId,
+                        bedId: vacate.bedId,
+                        rent: vacate.previousSnapshot?.rent,
+                        deposit: vacate.previousSnapshot?.deposit,
+                        from: vacate.previousSnapshot?.assignedAt,
+                        to: vacate.vacateDate,
+                        createdAt: new Date()
+                    }
+                }
+            };
+            const updatedTenant = await Tenant.findByIdAndUpdate(
+                tenant._id,
+                tenantUpdate,
+                { new: true, session }
+            );
+            if (!updatedTenant) throw new Error('Failed to update tenant');
+
+            // 4. Clear the bed
+            const clearBedResponse = await clearBed(
+                vacate.roomId,
+                vacate.bedId,
+                currentUser
+            );
+            if (!clearBedResponse) throw new Error('Failed to clear bed');
+
+            // 5. Update vacate request status
+            vacate.status = 'completed';
+            vacate.approvedByOwnerAt = new Date();
+            await vacate.save({ session });
+
+            const userId = currentUser.data.user._id;
+            const property = await validatePropertyOwnership(vacate.propertyId, userId, currentUser);
+
+            //invalidate cache
+            await invalidateCacheByPattern(`*${vacate.propertyId}*`);
+
+            await notifyVacateApproved(vacate, currentUser, property);
+        });
+
+
+        res.status(200).json({ message: 'Vacate approved and processed.' });
+    } catch (err) {
+        console.error('Error in approveImmediateVacate:', err);
+        res.status(500).json({ error: err.message });
+    } finally {
+        await session.endSession();
+    }
+};
+
+exports.rejectImmediateVacate = async (req, res) => {
+    const { vacateId } = req.params;
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) return res.status(401).json({ error: 'Unauthorized' });
+
+    let currentUser;
+    try { currentUser = JSON.parse(xUserHeader); } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (currentUser.data.user.role !== 'owner') {
+        return res.status(403).json({ error: 'Only owners can reject vacate' });
+    }
+
+    const session = await Tenant.startSession();
+    try {
+        await session.withTransaction(async () => {
+            const vacate = await Vacates.findById(vacateId).session(session);
+            if (!vacate || vacate.status !== 'pending_owner_approval') {
+                throw new Error('No pending approval for this vacate request');
+            }
+
+            vacate.status = 'rejected';
+            vacate.rejectedByOwnerAt = new Date();
+            vacate.rejectedBy = currentUser.data.user.username;
+            await vacate.save({ session });
+
+            const userId = currentUser.data.user._id;
+            const property = await validatePropertyOwnership(vacate.propertyId, userId, currentUser);
+
+            // Invalidate cache
+            await invalidateCacheByPattern(`*${vacate.propertyId}*`);
+            
+
+            await notifyVacateRejected(vacate, currentUser, property);
+        });
+
+        res.status(200).json({ message: 'Vacate request rejected.' });
+    } catch (err) {
+        console.error('Error in rejectImmediateVacate:', err);
+        res.status(500).json({ error: err.message });
+    } finally {
+        await session.endSession();
     }
 };

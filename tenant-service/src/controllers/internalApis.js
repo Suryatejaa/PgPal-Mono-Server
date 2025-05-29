@@ -38,6 +38,24 @@ const getUserByPhone = async (phone, currentUser) => {
     }
 };
 
+const changeBedStatus = async (roomId, bedId, status, currentUser) => {
+    try {
+        const response = await axios.put(
+            `http://room-service:4003/api/room-service/rooms/${roomId}/beds/${bedId}/status`,
+            { status },
+            {
+                headers: {
+                    'x-user': JSON.stringify(currentUser),
+                    'x-internal-service': true
+                }
+            }
+        );
+        return response.data;
+    } catch (error) {
+        console.error('[changeBedStatus] Error:', error.message);
+        return null;
+    }
+};  
 
 const getRoomByNumber = async (propertyId, roomNumber, currentUser) => {
     try {
@@ -149,5 +167,6 @@ module.exports = {
     getUserByPpid,
     assignBed,
     clearBed,
-    sendNotification
+    sendNotification,
+    changeBedStatus
 };

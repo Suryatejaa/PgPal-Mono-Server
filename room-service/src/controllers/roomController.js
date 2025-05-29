@@ -634,6 +634,42 @@ exports.updateBeds = async (req, res) => {
     }
 };
 
+// PATCH /api/room-service/rooms/:roomId/beds/:bedObjectId/status
+exports.changeBedStatus = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const internalService = req.headers['x-internal-service'];
+    if (!internalService) {
+        return res.status(403).json({ error: 'Forbidden: Only internal service can change bed status' });
+    }
+
+    const { roomId, bedId } = req.params;
+    const { status } = req.body;
+
+    if (!['vacant', 'occupied', 'noticeperiod'].includes(status)) {
+        return res.status(400).json({ error: 'Invalid status value' });
+    }
+
+    try {
+        const room = await Room.findOne({pgpalId: roomId});
+        if (!room) return res.status(404).json({ error: 'Room not found' });
+
+        const bed = room.beds.find(b => b.bedId === bedId);
+        if (!bed) return res.status(404).json({ error: 'Bed not found' });
+
+       await Room.updateOne(
+            { pgpalId: roomId, 'beds.bedId': bedId },
+            { $set: { 'beds.$.status': status } }
+        );
+
+        res.status(200).json({ message: 'Bed status updated', bed });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 exports.deleteRoom = async (req, res) => {
     const xUserHeader = req.headers['x-user'];
     if (!xUserHeader) {
@@ -758,3 +794,45 @@ exports.deleteRoom = async (req, res) => {
     }
 };
 
+exports.emptyAllRooms = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const role = currentUser.data.user.role;
+    if (role !== 'admin') {
+        return res.status(403).json({ error: 'Only admin can empty all rooms' });
+    }
+    if (!req.params.id) {
+        return res.status(400).json({ error: 'Property ID is required' });
+    }
+    const propertyId = req.params.id;
+    try {
+        const rooms = await Room.find({ propertyId });
+        for (const room of rooms) {
+            room.beds = room.beds.map(bed => ({
+                ...bed,
+                status: 'vacant',
+                tenantNo: null,
+                tenantPpt: null
+            }));
+            room.status = 'vacant';
+            await room.save();
+        }
+
+        invalidateCacheByPattern(`*${propertyId}*`);
+        invalidateCacheByPattern(`*${currentUser.data.user.pgpalId}*`);
+        invalidateCacheByPattern(`*${propertyId}*`);
+
+        res.status(200).json({ message: 'All rooms have been emptied (all beds set to vacant).' });
+    } catch (error) {
+        console.error('[emptyAllRooms] Error:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+};

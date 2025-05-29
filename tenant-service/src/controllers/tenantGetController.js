@@ -3,6 +3,7 @@ const Vacates = require('../models/vacatesModel');
 const { getOwnProperty } = require('./internalApis'); // Assuming you have a function to generate PPT IDs
 const redisClient = require('../utils/redis');
 const refreshRentForBilling = require('../utils/refreshRent');
+const { x } = require('pdfkit');
 
 // ✅ Get all tenants (owned or added by this PG owner)
 exports.getTenants = async (req, res) => {
@@ -214,24 +215,29 @@ exports.getMyStay = async (req, res) => {
     } catch (e) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
+
+    // console.log('Current User: ',currentUser.data.user);
+
     const role = currentUser.data.user.role;
     const pgpalId = currentUser.data.user.pgpalId;
     const _id = currentUser.data.user._id;
     const cacheKey = '/api' + req.originalUrl; // Always add /api
+
     if (role !== 'tenant') return res.status(403).json({ error: 'Forbidden, Access denied' });
 
     //console.log('currentUser:', currentUser);
     try {
 
         const tenant = await Tenant.find({ $or: [{ phone: currentUser.data.user.phoneNumber }, { pgpalId }, { _id }] });
-        //console.log('tenant:', tenant);
-        if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+        // console.log('tenant:', tenant);
+        if (tenant.length <= 0) return res.status(404).json({ error: 'Tenant not found' });
 
         let response;
         if (!tenant[0].isInNoticePeriod) {
             response = { currentStay: tenant[0].currentStay };
         } else {
             const tenant = await Vacates.findOne({ tenantId: pgpalId, status: 'noticeperiod' });
+            // console.log(tenant);
             if (!tenant) return res.status(404).json({ error: 'Tenant not in notice period' });
             response = {
                 currentStay: {
