@@ -85,6 +85,11 @@ const worker = new Worker('notifications', async job => {
 
         await Notification.insertMany(notifications);
         console.log(`[✅] Sent ${notifications.length} notifications`);
+
+        for (const notif of notifications) {
+            await connection.publish('notifications', JSON.stringify(notif));
+        }
+
     } catch (err) {
         console.error(`Job ${job.id} failed with error:`, err);
         throw err;
@@ -98,3 +103,4 @@ const worker = new Worker('notifications', async job => {
 
 worker.on('completed', job => console.log(`Job ${job.id} completed`));
 worker.on('failed', (job, err) => console.error(`Job ${job.id} failed`, err));
+

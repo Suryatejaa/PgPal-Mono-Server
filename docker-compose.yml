@@ -144,6 +144,17 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4009
 
+  websocket-gateway:
+    build: 
+      context:./gateway
+    command: node websocketGateway.js
+    ports:
+      - "4011:4011"
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+
   gateway:
     build: ./gateway
     ports:
