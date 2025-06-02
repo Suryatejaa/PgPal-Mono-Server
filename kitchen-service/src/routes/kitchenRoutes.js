@@ -15,6 +15,6 @@ router.get('/:id/menu-today',cacheMiddleware, kitchenMenuController.getTodayMenu
 // Send meal confirmation notifications
 router.post('/meal/notifications', foodAttendanceController.sendMealConfirmationNotifications);
 router.put('/meal/attendance', foodAttendanceController.confirmMealAttendance);
-router.get('/meal/attendance', foodAttendanceController.getMealAttendance);
+router.get('/meal/attendance', cacheMiddleware, foodAttendanceController.getMealAttendance);
 
 module.exports = router;

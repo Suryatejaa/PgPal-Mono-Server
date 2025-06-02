@@ -1,6 +1,9 @@
 const FoodAttendance = require('../models/foodAttendanceSchema');
 const { getActiveTenantsForProperty } = require('./internalApis');
 const notificationQueue = require('../utils/notificationQueue');
+const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
+const redisClient = require('../utils/redis');
+
 
 exports.sendMealConfirmationNotifications = async (req, res) => {
     const { propertyPpid, meal } = req.body;
@@ -37,7 +40,7 @@ exports.sendMealConfirmationNotifications = async (req, res) => {
                 audience: 'tenant',
                 title: `Confirm your attendance for ${meal} for ${date}`,
                 message: `Please confirm if you will attend today's ${meal}.`,
-                type: 'reminder',
+                type: 'meal-attendance-reminder',
                 method: ['in-app'],
                 createdBy: 'system'
             }, {
@@ -48,6 +51,8 @@ exports.sendMealConfirmationNotifications = async (req, res) => {
                 }
             });
         }
+
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(200).json({ message: `Notifications sent for ${meal} for ${date}` });
     } catch (error) {
@@ -77,7 +82,7 @@ exports.confirmMealAttendance = async (req, res) => {
         return res.status(400).json({ error: 'Meal type and date are required' });
     }
 
-    
+
 
     try {
         const attendance = await FoodAttendance.findOneAndUpdate(
@@ -89,6 +94,8 @@ exports.confirmMealAttendance = async (req, res) => {
         if (!attendance) {
             return res.status(404).json({ error: 'Attendance record not found' });
         }
+
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(200).json({ message: 'Attendance confirmed', attendance });
     } catch (error) {
@@ -104,13 +111,21 @@ exports.getMealAttendance = async (req, res) => {
         return res.status(400).json({ error: 'Property ID, meal type, and date are required' });
     }
 
+    const cacheKey = '/api' + req.originalUrl; // Always add /api
+
+
     try {
         const attendance = await FoodAttendance.find({ propertyPpid, meal, date, confirmed: true });
 
-        res.status(200).json({
+        const response = {
             message: `Confirmed attendance for ${meal} on ${date}`,
             attendance
-        });
+        };
+
+        await redisClient.set(cacheKey, JSON.stringify(
+            response), { EX: 300 });
+
+        res.status(200).json(response);
     } catch (error) {
         console.error('Error fetching meal attendance:', error.message);
         res.status(500).json({ error: error.message });
