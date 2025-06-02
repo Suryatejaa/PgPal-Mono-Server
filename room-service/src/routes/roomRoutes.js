@@ -4,11 +4,13 @@ const roomController = require('../controllers/roomController');
 const roomGetController = require('../controllers/roomGetController');
 const bedController = require('../controllers/bedsController');
 const cacheMiddleware = require('../utils/cacheMiddleware');
+const bulkCreationController = require('../controllers/bulkCreation');
 
 
 router.post('/rooms/emptyAll/:id', roomController.emptyAllRooms);
 // Room CRUD operations
 router.post('/rooms', roomController.addRooms);
+router.post('/rooms/bulk-create', bulkCreationController.bulkCreateRoomsAndBeds);
 router.put('/rooms/:roomId', roomController.updateRoom);
 router.put('/rooms/:roomId/beds', roomController.updateBeds);
 router.delete('/rooms/:roomId', roomController.deleteRoom);

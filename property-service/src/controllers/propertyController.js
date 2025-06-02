@@ -45,12 +45,23 @@ module.exports = {
         }
 
         try {
-            const { name, address, totalBeds, contact, totalRooms, pgGenderType, occupiedBeds } = req.body;
+            const { name, address, totalBeds, contact, totalRooms, rentRange, depositRange, pgGenderType, occupiedBeds, location } = req.body;
             const availableBeds = totalBeds - occupiedBeds;
             if (availableBeds < 0) {
                 return res.status(400).json({ error: 'Occupied beds cannot exceed total beds' });
             }
             //console.log('checkpoint 2');
+            console.log(location)
+            let lng = Number(location?.coordinates?.[0]);
+            let lat = Number(location?.coordinates?.[1]);
+            console.log(lng, lat);
+
+            if (
+                typeof lng !== 'number' || isNaN(lng) ||
+                typeof lat !== 'number' || isNaN(lat)
+            ) {
+                return res.status(400).json({ error: 'Invalid or missing location coordinates' });
+            }
 
             const property = await Property.create({
                 name,
@@ -61,9 +72,21 @@ module.exports = {
                 occupiedBeds,
                 pgGenderType,
                 availableBeds,
+                rentRange: {
+                    min: rentRange.min,
+                    max: rentRange.max
+                },
+                depositRange: {
+                    min: depositRange.min,
+                    max: depositRange.max
+                },
                 ownerContact: {
                     phone,
                     email
+                },
+                location: {
+                    type: "Point",
+                    coordinates: [lng, lat]
                 },
                 contact,
                 createdBy: id

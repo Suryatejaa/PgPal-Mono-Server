@@ -146,8 +146,10 @@ services:
 
   websocket-gateway:
     build: 
-      context:./gateway
-    command: node websocketGateway.js
+      context: ./gateway
+      dockerfile: dockerfile.websocket
+    working_dir: /app
+    command: node webSocketGateway.js
     ports:
       - "4011:4011"
     environment:

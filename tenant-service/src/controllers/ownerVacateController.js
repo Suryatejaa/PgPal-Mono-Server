@@ -56,9 +56,20 @@ exports.removeTenant = async (req, res) => {
         });
     }
 
+
     try {
         // Get tenant profile
         const tenant = await getTenantProfile(ppid);
+
+        const existingImmediateVacate = await Vacates.findOne({
+            tenantId: tenant.pgpalId,
+            status: 'pending_owner_approval'
+        });
+        if (existingImmediateVacate) {
+            return res.status(400).json({
+                error: 'Tenant has already raised an immediate vacate request. Please approve or reject that request instead of removing the tenant.'
+            });
+        }
 
         // Validate eligibility
         validateTenantRemovalEligibility(tenant);
@@ -602,7 +613,7 @@ exports.rejectImmediateVacate = async (req, res) => {
 
             // Invalidate cache
             await invalidateCacheByPattern(`*${vacate.propertyId}*`);
-            
+
 
             await notifyVacateRejected(vacate, currentUser, property);
         });

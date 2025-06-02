@@ -181,6 +181,181 @@ exports.addTenant = async (req, res) => {
     }
 };
 
+exports.bulkAddTenants = async (req, res) => {
+    try {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const currentUser = JSON.parse(xUserHeader);
+        const role = currentUser.data.user.role;
+        const ownerId = currentUser.data.user._id;
+
+        if (role !== 'owner') {
+            return res.status(403).json({ error: 'Only owners can add tenants' });
+        }
+
+        const tenants = req.body.tenants;
+        if (!Array.isArray(tenants) || tenants.length === 0) {
+            return res.status(400).json({ error: 'Tenants array is required' });
+        }
+
+        console.log('Bulk tenant creation initiated:', tenants);
+
+        const results = [];
+        for (const tenantInput of tenants) {
+            try {
+                const {
+                    name, email, phone, gender, address, aadhar, propertyId, roomNumber, bedId,
+                    rentPaid, rentPaidDate, rentDueDate, rentPaidMethod, deposit, noticePeriodInMonths
+                } = tenantInput;
+
+                if (!name || !phone || !propertyId || !roomNumber || !bedId || !aadhar || deposit === undefined || noticePeriodInMonths === undefined || (rentPaid !== 0 && !rentPaidMethod)) {
+                    results.push({ bedId, error: 'Missing required fields' });
+                    continue;
+                }
+
+                const property = await getOwnProperty(propertyId, currentUser, false);
+                if (!property || property.ownerId !== ownerId) {
+                    results.push({ bedId, error: 'You do not own this property' });
+                    continue;
+                }
+                const propertyPPP = property.pgpalId;
+                const propertyName = property.name;
+
+                const room = await getRoomByNumber(propertyId, roomNumber, currentUser);
+                if (!room) {
+                    results.push({ bedId, error: 'Room not found' });
+                    continue;
+                }
+                const roomPPR = room.pgpalId;
+
+                const existing = await Tenant.findOne({ $or: [{ phone }, { aadhar }] });
+                if (existing?.status === 'active' && existing?.phone === phone.toString()) {
+                    results.push({ bedId, error: 'Tenant with this phone already exists' });
+                    continue;
+                }
+                if (existing?.status === 'active' && existing?.aadhar === aadhar.toString()) {
+                    results.push({ bedId, error: 'Tenant with this aadhar already exists' });
+                    continue;
+                }
+
+                const bed = room.beds.find(b => b.bedId === bedId);
+                if (!bed || bed.status === 'occupied') {
+                    results.push({ bedId, error: 'Bed not available' });
+                    continue;
+                }
+
+                let tenantPpt;
+                const existingUser = await getUserByPhone(phone, currentUser);
+                if (!existingUser) {
+                    let newppt = generatePPT();
+                    let existingPpt = await getUserByPpid(newppt, currentUser);
+                    while (existingPpt) {
+                        newppt = generatePPT();
+                        existingPpt = await getUserByPpid(newppt, currentUser);
+                    }
+                    tenantPpt = newppt;
+                } else {
+                    tenantPpt = existingUser.pgpalId;
+                }
+
+                const rent = room.rentPerBed;
+                const assigned = await assignBed(roomPPR, bedId, phone, rent, tenantPpt, currentUser);
+                if (assigned?.status !== 200) {
+                    results.push({ bedId, error: 'Failed to assign bed' });
+                    continue;
+                }
+                const newDue = Math.max(rent - rentPaid, 0);
+                const advance = newDue < 0 ? Math.abs(newDue) : 0;
+                const rentDue = newDue > 0 ? newDue : 0;
+                const status = rentDue > 0 ? 'unpaid' : 'paid';
+
+                const tenantData = {
+                    name,
+                    phone,
+                    gender,
+                    address,
+                    pgpalId: tenantPpt,
+                    aadhar,
+                    status: 'active',
+                    currentStay: {
+                        propertyPpid: propertyPPP,
+                        propertyName: propertyName,
+                        roomPpid: roomPPR,
+                        rent: room.rentPerBed,
+                        rentPaid: rentPaid,
+                        rentDue: rentDue,
+                        rentPaidDate: rentPaidDate ? rentPaidDate : rentPaid > 0 ? new Date() : null,
+                        rentDueDate: rentDueDate ? rentDueDate : room.rentPerBed - rentPaid > 0 ? new Date(new Date().setDate(new Date().getDate() + 7)) : new Date(new Date().setMonth(new Date().getMonth() + 1)),
+                        rentPaidStatus: status,
+                        rentPaidMethod: rentPaidMethod,
+                        rentPaidTransactionId: null,
+                        nextRentDueDate: new Date(new Date().setMonth(new Date().getMonth() + 1)),
+                        deposit: deposit,
+                        advanceBalance: advance,
+                        noticePeriodInMonths: noticePeriodInMonths,
+                        isInNoticePeriod: false,
+                        bedId,
+                        location: {
+                            type: 'Point',
+                            coordinates: [property.location.coordinates[0], property.location.coordinates[1]]
+                        }
+                    },
+                    createdBy: ownerId
+                };
+
+                if (email) {
+                    tenantData.email = email;
+                }
+
+                const tenant = existing ? await Tenant.findByIdAndUpdate(existing._id, tenantData, { new: true }) : await Tenant.create(tenantData);
+
+                // Notification
+                const propertyPpid = property.pgpalId;
+                const title = "New Tenant Added";
+                const message = `You have been added to the ${property.name} and assigned to bed ${bedId}.`;
+                const type = "info";
+                const method = ["in-app", "email"];
+
+                try {
+                    await notificationQueue.add('notifications', {
+                        tenantId: tenantPpt,
+                        propertyPpid: propertyPpid,
+                        audience: 'tenant',
+                        title,
+                        message,
+                        type,
+                        method,
+                        createdBy: currentUser?.data?.user?.pgpalId || 'system'
+                    }, {
+                        attempts: 3,
+                        backoff: {
+                            type: 'exponential',
+                            delay: 3000
+                        }
+                    });
+                } catch (err) {
+                    // Notification error is not fatal for tenant creation
+                }
+
+                await invalidateCacheByPattern(`*${propertyPpid}*`);
+                await invalidateCacheByPattern(`*${property._id}*`);
+                await invalidateCacheByPattern(`*${propertyId}*`);
+
+                results.push({ bedId, tenant, message: 'Tenant added and assigned successfully' });
+
+            } catch (err) {
+                results.push({ bedId: tenantInput.bedId, error: err.message });
+            }
+        }
+
+        res.status(201).json({ results });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
 
 // ✅ Update tenant
 exports.updateTenant = async (req, res) => {

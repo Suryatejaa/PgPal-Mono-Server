@@ -10,6 +10,7 @@ const cacheMiddleware = require('../utils/cacheMiddleware');
 
 
 router.post('/', TenantController.addTenant);
+router.post('/bulk-add', TenantController.bulkAddTenants);
 router.put('/update', TenantController.updateTenant);
 router.put('/tenants/:id/currentstay/location', TenantController.updateTenantCurrentStayLocation);
 router.delete('/delete', TenantController.deleteTenant);
