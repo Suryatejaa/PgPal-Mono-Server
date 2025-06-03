@@ -4,7 +4,7 @@ const { Schema } = mongoose;
 const notificationSchema = new Schema({
     tenantId: { type: String }, // For tenant-specific notifications
     ownerId: { type: String },  // For owner-specific notifications
-    propertyPpid: { type: String, required: true },
+    propertyPpid: { type: String},
     type: {
         type: String,
         enum: ['info', 'alert', 'reminder', 'complaint_update', 'manual', 'meal-attendance-reminder'],

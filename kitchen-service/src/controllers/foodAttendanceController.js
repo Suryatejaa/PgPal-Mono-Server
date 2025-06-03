@@ -1,11 +1,13 @@
 const FoodAttendance = require('../models/foodAttendanceSchema');
-const { getActiveTenantsForProperty } = require('./internalApis');
+const { getActiveTenantsForProperty, getTenantConfirmation, getAllProperties } = require('./internalApis');
 const notificationQueue = require('../utils/notificationQueue');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const redisClient = require('../utils/redis');
+const JobStatus = require('../models/jobStatusSchema');
 
 
-exports.sendMealConfirmationNotifications = async (req, res) => {
+const sendMealConfirmationNotifications = async (req, res) => {
+
     const { propertyPpid, meal } = req.body;
 
     if (!propertyPpid || !meal) {
@@ -17,52 +19,87 @@ exports.sendMealConfirmationNotifications = async (req, res) => {
     }
 
     try {
-        const tenants = await getActiveTenantsForProperty(propertyPpid);
-        if (!tenants || tenants.length === 0) {
-            return res.status(404).json({ error: 'No active tenants found for this property' });
+        // Handle 'ALL' to process all properties
+        const properties = propertyPpid === 'ALL'
+            ? await getAllProperties() // Fetch all properties
+            : [{ pgpalId: propertyPpid }]; // Process a single property
+
+        for (const property of properties) {
+            const tenants = await getActiveTenantsForProperty(property.pgpalId);
+            if (!tenants || tenants.length === 0) {
+                console.log(`No active tenants found for property ${property.pgpalId}`);
+                continue;
+            }
+
+            const date = new Date();
+            if (meal === 'breakfast') {
+                date.setDate(date.getDate() + 1); // Breakfast is for the next day
+            }
+            const formattedDate = date.toISOString().split('T')[0];
+
+            for (const tenant of tenants) {
+                // Create attendance record and send notification
+                await FoodAttendance.create({
+                    propertyPpid: property.pgpalId,
+                    tenantPpid: tenant.pgpalId,
+                    meal,
+                    date: formattedDate
+                });
+
+                await notificationQueue.add('notifications', {
+                    tenantId: tenant.pgpalId,
+                    propertyPpid: property.pgpalId,
+                    audience: 'tenant',
+                    title: `Confirm your attendance for ${meal}`,
+                    message: `Please confirm if you will attend ${meal} on ${formattedDate}.`,
+                    type: 'meal-attendance-reminder',
+                    method: ['in-app'],
+                    createdBy: 'system'
+                });
+            }
         }
 
-        const date = new Date().toISOString().split('T')[0]; // Today's date
-
-        for (const tenant of tenants) {
-            // Create attendance record
-            await FoodAttendance.create({
-                propertyPpid,
-                tenantPpid: tenant.pgpalId,
-                meal,
-                date
-            });
-
-            // Push notification
-            await notificationQueue.add('notifications', {
-                tenantId: tenant.pgpalId,
-                propertyPpid,
-                audience: 'tenant',
-                title: `Confirm your attendance for ${meal} for ${date}`,
-                message: `Please confirm if you will attend today's ${meal}.`,
-                type: 'meal-attendance-reminder',
-                method: ['in-app'],
-                createdBy: 'system'
-            }, {
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 3000
-                }
-            });
+        if (res) {
+            res.status(200).json({ message: `Notifications sent for ${meal}` });
         }
-
-        await invalidateCacheByPattern(`*${propertyPpid}*`);
-
-        res.status(200).json({ message: `Notifications sent for ${meal} for ${date}` });
     } catch (error) {
         console.error('Error sending meal confirmation notifications:', error.message);
+        if (res) {
+            res.status(500).json({ error: error.message });
+        }
+    }
+};
+
+const manualTriggerNotifications = async (req, res) => {
+    const { propertyPpid, meal } = req.body;
+
+    if (!propertyPpid || !meal) {
+        return res.status(400).json({ error: 'Property ID and meal type are required' });
+    }
+
+    if (!['breakfast', 'lunch', 'dinner'].includes(meal)) {
+        return res.status(400).json({ error: 'Invalid meal type' });
+    }
+
+    try {
+        // Disable automatic job for this meal
+        await JobStatus.findOneAndUpdate(
+            { propertyPpid, jobName: meal },
+            { enabled: false, manual: true },
+            { upsert: true, new: true }
+        );
+
+        // Send notifications manually
+        await sendMealConfirmationNotifications({ body: { propertyPpid, meal } });
+
+        res.status(200).json({ message: `Manual notifications sent for ${meal}` });
+    } catch (error) {
+        console.error('Error triggering manual notifications:', error.message);
         res.status(500).json({ error: error.message });
     }
 };
 
-
-exports.confirmMealAttendance = async (req, res) => {
+const confirmMealAttendance = async (req, res) => {
     const xUserHeader = req.headers['x-user'];
     if (!xUserHeader) {
         return res.status(401).json({ error: 'Unauthorized' });
@@ -82,7 +119,11 @@ exports.confirmMealAttendance = async (req, res) => {
         return res.status(400).json({ error: 'Meal type and date are required' });
     }
 
-
+    const tenantConfirmation = await getTenantConfirmation(tenantPpid, meal, date);
+    console.log('Tenant Confirmation:', tenantConfirmation[0]);
+    if (!tenantConfirmation) {
+        return res.status(404).json({ error: 'Tenant confirmation not found' });
+    }
 
     try {
         const attendance = await FoodAttendance.findOneAndUpdate(
@@ -95,6 +136,8 @@ exports.confirmMealAttendance = async (req, res) => {
             return res.status(404).json({ error: 'Attendance record not found' });
         }
 
+        const propertyPpid = tenantConfirmation[0].currentStay.propertyPpid;
+        console.log(propertyPpid);
         await invalidateCacheByPattern(`*${propertyPpid}*`);
 
         res.status(200).json({ message: 'Attendance confirmed', attendance });
@@ -104,7 +147,7 @@ exports.confirmMealAttendance = async (req, res) => {
     }
 };
 
-exports.getMealAttendance = async (req, res) => {
+const getMealAttendance = async (req, res) => {
     const { propertyPpid, meal, date } = req.query;
 
     if (!propertyPpid || !meal || !date) {
@@ -115,10 +158,14 @@ exports.getMealAttendance = async (req, res) => {
 
 
     try {
+
+        const totalActiveTenants = await getActiveTenantsForProperty(propertyPpid);
+
         const attendance = await FoodAttendance.find({ propertyPpid, meal, date, confirmed: true });
 
         const response = {
-            message: `Confirmed attendance for ${meal} on ${date}`,
+            message: `${attendance.length} Confirmed attendance for ${meal} on ${date} out of ${totalActiveTenants}`,
+            totalActiveTenants,
             attendance
         };
 
@@ -130,4 +177,34 @@ exports.getMealAttendance = async (req, res) => {
         console.error('Error fetching meal attendance:', error.message);
         res.status(500).json({ error: error.message });
     }
+};
+
+const updateJobStatus = async (req, res) => {
+    const { propertyPpid, jobName, enabled } = req.body;
+
+    if (!propertyPpid || !jobName || enabled === undefined) {
+        return res.status(400).json({ error: 'Property ID, job name, and enabled status are required' });
+    }
+
+    try {
+        // Enable automatic job and disable manual trigger
+        const jobStatus = await JobStatus.findOneAndUpdate(
+            { propertyPpid, jobName },
+            { enabled, manual: !enabled },
+            { upsert: true, new: true }
+        );
+
+        res.status(200).json({ message: 'Job status updated', jobStatus });
+    } catch (error) {
+        console.error('Error updating job status:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+module.exports = {
+    sendMealConfirmationNotifications,
+    manualTriggerNotifications,
+    confirmMealAttendance,
+    getMealAttendance,
+    updateJobStatus
 };

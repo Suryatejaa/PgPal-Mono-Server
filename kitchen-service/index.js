@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const kitchenRoutes = require('./src/routes/kitchenRoutes');
 const cookieParser = require('cookie-parser');
+const { scheduleNotifications } = require('./src/jobs/scheduleNotifications');
 
 // Load environment variables
 dotenv.config();
@@ -20,12 +21,17 @@ app.use(cors({
 app.use(cookieParser());
 app.use('/api/kitchen-service', kitchenRoutes);
 
+
+
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
 })
-    .then(() => console.log('Connected to MongoDB'))
+    .then(() => {
+        console.log('Connected to MongoDB');
+        scheduleNotifications(); // Start the notification scheduling job
+    })
     .catch(err => console.error('MongoDB connection error:', err));
 
 

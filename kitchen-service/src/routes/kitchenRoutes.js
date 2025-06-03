@@ -13,8 +13,9 @@ router.get('/:id',cacheMiddleware, kitchenMenuController.getMenuList); //only ow
 router.get('/:id/menu-today',cacheMiddleware, kitchenMenuController.getTodayMenu);
 
 // Send meal confirmation notifications
-router.post('/meal/notifications', foodAttendanceController.sendMealConfirmationNotifications);
+router.post('/meal/notifications', foodAttendanceController.manualTriggerNotifications);
 router.put('/meal/attendance', foodAttendanceController.confirmMealAttendance);
 router.get('/meal/attendance', cacheMiddleware, foodAttendanceController.getMealAttendance);
+router.put('/jobs/status', foodAttendanceController.updateJobStatus);
 
 module.exports = router;

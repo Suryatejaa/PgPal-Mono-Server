@@ -263,6 +263,41 @@ module.exports = {
         }
     },
 
+    async getAllPropertiesInternal(req, res) {
+
+        const internalServiceHeader = req.headers['x-internal-service'];
+        if (!internalServiceHeader || internalServiceHeader !== 'true') {
+            return res.status(403).json({ error: 'Forbidden: This endpoint is for internal use only' });
+        }
+
+        const cacheKey = '/api' + req.originalUrl; // Always add /api
+        
+        try {
+            if (redisClient.isReady) {
+                const cached = await redisClient.get(cacheKey);
+                if (cached) {
+                    //console.log('Returning cached username availability');
+                    return res.status(200).send(JSON.parse(cached));
+                }
+            }
+            const properties = await Property.find();
+            if (!properties || properties.length === 0) {
+                return res.status(404).json({ error: 'No properties found' });
+            }
+            for (const property of properties) {
+                await increaseViewCount(property._id);
+            }
+
+            const response = properties.map(property => ({ ...property._doc, views: property.views }));
+            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+
+            res.status(200).json(response);
+        } catch (error) {
+            console.log(error.message);
+            res.status(500).json({ error: error.message });
+        }
+    },
+
     async getAllProperties(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
         if (!currentUser) {

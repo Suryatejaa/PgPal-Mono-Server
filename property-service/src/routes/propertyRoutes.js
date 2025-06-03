@@ -13,6 +13,8 @@ router.get('/properties/nearby', PropertyController.getNearbyProperties);
 
 router.post('/', PropertyController.addProperty);
 router.get('/', cacheMiddleware, PropertyController.getAllProperties);
+router.get('/getAllProperties', cacheMiddleware, PropertyController.getAllPropertiesInternal);
+
 router.get('/own', cacheMiddleware, PropertyController.getProperties);
 router.get('/:id', cacheMiddleware, PropertyController.getPropertyById);
 router.get('/property/:id', cacheMiddleware, PropertyController.getPropertyForRoom);

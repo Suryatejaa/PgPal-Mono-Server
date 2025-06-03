@@ -66,6 +66,21 @@ const getPropertyOwner = async (propertyId, currentUser) => {
     }
 };
 
+const getAllProperties = async (currentUser) => {
+    try {
+        const response = await axios.get('http://property-service:4002/api/property-service/getAllProperties', {
+            headers: {                
+                'x-internal-service': true
+            }
+        });
+        // console.log(response.data);
+        return response.data;
+    } catch (error) {
+        console.error('[getAllProperties] Error:', error.message);
+        return null;
+    }
+};
+
 const sendNotification = async (currentUser, tenantId, title, message, type, method) => {
 
     try {
@@ -94,5 +109,6 @@ module.exports = {
     getTenantConfirmation,
     getPropertyOwner,
     sendNotification,
-    getActiveTenantsForProperty
+    getActiveTenantsForProperty,
+    getAllProperties
 };
