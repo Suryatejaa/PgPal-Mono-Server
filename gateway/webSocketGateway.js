@@ -8,7 +8,12 @@ const io = new Server(4011, { // Use a port not used by your HTTP gateway
     }
 });
 
-const sub = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+const sub = new Redis({
+    host: process.env.UPSTASH_REDIS_REST_URL,
+    password: process.env.UPSTASH_REDIS_REST_TOKEN,
+    legacyMode: true, // Use legacy mode for compatibility with existing code
+    maxRetriesPerRequest: null
+});
 
 sub.subscribe('notifications', (err) => {
     if (err) console.error('Redis subscribe error:', err);
