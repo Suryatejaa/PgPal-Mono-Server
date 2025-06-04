@@ -1,0 +1,145 @@
+name: Deploy Microservices to Railway
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          
+      - name: Install Dependencies
+        run: |
+          npm install
+          cd auth-service && npm install
+          cd ../property-service && npm install
+          cd ../room-service && npm install
+          cd ../tenant-service && npm install
+          cd ../complaint-service && npm install
+          cd ../kitchen-service && npm install
+          cd ../dashboard-service && npm install
+          cd ../notification-service && npm install
+          cd ../gateway && npm install
+          
+      - name: Run Tests
+        run: |
+          cd auth-service && npm test
+          cd ../property-service && npm test
+          cd ../room-service && npm test
+          cd ../tenant-service && npm test
+          cd ../complaint-service && npm test
+          cd ../kitchen-service && npm test
+          cd ../dashboard-service && npm test
+          cd ../notification-service && npm test
+          cd ../gateway && npm test
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli
+      
+      - name: Deploy Kitchen Service
+        run: |
+          cd kitchen-service
+          railway up --service kitchen-service
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      
+      - name: Deploy Tenant Service
+        run: |
+          cd ../tenant-service
+          railway up --service tenant-service
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          EMAIL: ${{ secrets.EMAIL }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+      
+      - name: Deploy Complaint Service
+        run: |
+          cd ../complaint-service
+          railway up --service complaint-service
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      
+      - name: Deploy Auth Service
+        run: |
+          cd ../auth-service
+          railway up --service auth-service
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      
+      - name: Deploy Property Service
+        run: |
+          cd ../property-service
+          railway up --service property-service
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      
+      - name: Deploy Room Service
+        run: |
+          cd ../room-service
+          railway up --service room-service
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      
+      - name: Deploy Dashboard Service
+        run: |
+          cd ../dashboard-service
+          railway up --service dashboard-service
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      
+      - name: Deploy Notification Service
+        run: |
+          cd ../notification-service
+          railway up --service notification-service
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      
+      - name: Deploy Gateway
+        run: |
+          cd ../gateway
+          railway up --service gateway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}

@@ -16,6 +16,8 @@ services:
     - GOOGLE_CALLBACK_URL=http://localhost:4000/api/auth-service/google/callback
     - PRIVATE_KEY_ID=${PRIVATE_KEY_ID}
     - PRIVATE_KEY=${PRIVATE_KEY}
+    - REDIS_URL=${UPSTASH_REDIS_REST_URL}
+    - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
     
     depends_on:
       - mongo
@@ -28,7 +30,8 @@ services:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_property_service?retryWrites=true&w=majority 
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4002
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=${UPSTASH_REDIS_REST_URL}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
     depends_on:
       - mongo
       - redis
@@ -40,7 +43,8 @@ services:
       - "4003:4003"
     environment:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_room_service?retryWrites=true&w=majority
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=${UPSTASH_REDIS_REST_URL}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4003
     depends_on:
@@ -54,7 +58,8 @@ services:
       - "4004:4004"
     environment:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_tenant_service?retryWrites=true&w=majority
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=${UPSTASH_REDIS_REST_URL}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4004
       - EMAIL=${EMAIL}
@@ -69,7 +74,8 @@ services:
       - "4010:4010"
     environment:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_payment_service?retryWrites=true&w=majority
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=${UPSTASH_REDIS_REST_URL}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
     depends_on:
       - mongo
       - redis
@@ -85,7 +91,8 @@ services:
       - PORT=4006
       - EMAIL=echoliftagency@gmail.com
       - EMAIL_PASSWORD=dinh blaq osyc cpds
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=${UPSTASH_REDIS_REST_URL}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
     depends_on:
       - mongo
       - redis
@@ -97,7 +104,8 @@ services:
       - "4007:4007"
     environment:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_kitchen_service?retryWrites=true&w=majority
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=${UPSTASH_REDIS_REST_URL}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4007
     depends_on:
@@ -109,8 +117,9 @@ services:
     ports:
       - "4008:4008"
     environment:
-      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_dashboard_service?retryWrites=true&w=majority 
-      - REDIS_URL=redis://redis:6379
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_dashboard_service?retryWrites=true&w=majority
+      - REDIS_URL=${UPSTASH_REDIS_REST_URL}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4008
     depends_on:
@@ -124,7 +133,8 @@ services:
       - "4009:4009"
     environment:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_notification_service?retryWrites=true&w=majority
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=${UPSTASH_REDIS_REST_URL}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4009
     depends_on:
@@ -140,7 +150,8 @@ services:
       - redis
     environment:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_notification_service?retryWrites=true&w=majority
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=${UPSTASH_REDIS_REST_URL}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4009
 
@@ -153,7 +164,8 @@ services:
     ports:
       - "4011:4011"
     environment:
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=${UPSTASH_REDIS_REST_URL}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
     depends_on:
       - redis
 

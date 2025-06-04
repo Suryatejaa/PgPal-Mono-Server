@@ -198,7 +198,7 @@ async function generateRentBillPDF(tenant, property, rentPaid, rentPaidDate) {
             if (isNaN(numAmount)) return 'N/A';
             return `₹ ${numAmount.toLocaleString('en-IN')}`;
         }
-        
+
         const paymentDetails = [
             ['Amount Paid', formatCurrency(rentPaid)],
             ['Payment Date', new Date(rentPaidDate).toLocaleDateString('en-IN')],
@@ -278,7 +278,7 @@ async function generateRentBillPDF(tenant, property, rentPaid, rentPaidDate) {
     }
 
     // Helper function to format currency
-    
+
 
     // Helper function to convert number to words (basic implementation)
     function convertNumberToWords(num) {
