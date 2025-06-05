@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const { Worker } = require('bullmq');
 const Notification = require('../models/notificationModel');
-const Redis = require('ioredis');
+const { Redis } = require('ioredis');
 const dotenv = require('dotenv');
 
 const path = require('path');
@@ -13,23 +13,18 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
+    tls: true,
+    tlsAllowInvalidCertificates: false,
     serverSelectionTimeoutMS: 30000 // Increase timeout to 30s
 })
     .then(() => console.log('✅ MongoDB connected in worker'))
     .catch((err) => console.error('❌ MongoDB connection error in worker:', err));
 
 
-const connection = new Redis({
-    host: process.env.UPSTASH_REDIS_REST_URL,
-    password: process.env.UPSTASH_REDIS_REST_TOKEN,
-    legacyMode: true, // Use legacy mode for compatibility with existing code
-    maxRetriesPerRequest: null
-});
+const redis = new Redis(process.env.REDIS);
 
-
-connection.on('connect', () => console.log('Redis connected successfully'));
-connection.on('error', (err) => console.error('Redis connection error:', err));
-
+redis.on('connect', () => console.log('Redis connected successfully'));
+redis.on('error', (err) => console.error('Redis connection error:', err));
 
 const worker = new Worker('notifications', async job => {
     try {

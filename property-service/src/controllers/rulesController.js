@@ -123,7 +123,7 @@ module.exports = {
                 return res.status(404).json({ error: 'Rules not found' });
             }
 
-            await redisClient.set(cacheKey, JSON.stringify(rules), { EX: 300 });
+            await redisClient.set(cacheKey, JSON.stringify(rules), 'EX', 300);
 
             res.status(200).json(rules);
         } catch (error) {

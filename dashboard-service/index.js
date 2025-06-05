@@ -22,7 +22,9 @@ app.use('/api/dashboard-service', dashboardRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
-    serverSelectionTimeoutMS: 10000 // Increase timeout to 30s
+    serverSelectionTimeoutMS: 10000, // Increase timeout to 30s
+    tls: true,
+    tlsAllowInvalidCertificates: false,
 }
 )
     .then(() => console.log('MongoDB Connected'))

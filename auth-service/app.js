@@ -22,7 +22,9 @@ app.use(cors({
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
-    serverSelectionTimeoutMS: 10000 // Increase timeout to 30s
+    serverSelectionTimeoutMS: 10000, // Increase timeout to 30s
+    tls: true,
+    tlsAllowInvalidCertificates: false, // Allow invalid certificates for local development
 }).then(() => console.log('MongoDB Connected'))
     .catch((err) => console.log('MongoDB connection error', err));
 

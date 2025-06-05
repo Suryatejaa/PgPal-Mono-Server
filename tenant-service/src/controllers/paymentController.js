@@ -201,7 +201,7 @@ exports.getRentStatus = async (req, res) => {
             nextRentDueDate
         };
 
-        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
         res.status(200).json(response);
     } catch (err) {
@@ -258,7 +258,7 @@ exports.getRentSummary = async (req, res) => {
 
         const response = { propertyPpid, tenants: summary };
 
-        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
         res.status(200).json(response);
     } catch (err) {
@@ -314,7 +314,7 @@ exports.getRentDefaulters = async (req, res) => {
 
         const response = { totalDefaulters: formatted.length, defaulters: formatted };
 
-        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
         res.status(200).json(response);
     } catch (err) {

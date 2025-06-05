@@ -27,7 +27,7 @@ module.exports = {
             }
 
             const response = property.amenities || [];
-            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+            await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
             res.status(200).json(response);
         } catch (error) {
@@ -151,7 +151,7 @@ module.exports = {
 
             } catch (err) {
                 console.error('Failed to queue notification:', err.message);
-            } 
+            }
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
             await invalidateCacheByPattern(`*${property._id}*`);

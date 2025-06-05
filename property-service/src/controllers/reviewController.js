@@ -261,7 +261,7 @@ module.exports = {
                 reviews,
                 averageRating
             };
-            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+            await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
 
             res.status(200).json(response);

@@ -68,9 +68,25 @@ const getStayRecordsFromTenantService = async (pppId, currentUser) => {
     }
 };
 
+const removeAllTenantsFromProperty = async (propertyId, currentUser) => {
+    try {
+        const response = await axios.post(`http://localhost:4000/api/tenant-service/remove-all-tenants/${propertyId}`, {}, {
+            headers: {
+                'x-user': JSON.stringify(currentUser),
+                'x-internal-service': true
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error('[removeAllTenantsFromProperty] Error:', error);
+        return null;
+    }
+};
+
 module.exports = {
     getTenantConfirmation,
     sendNotification,
     getActiveTenantsForProperty,
-    getStayRecordsFromTenantService
+    getStayRecordsFromTenantService,
+    removeAllTenantsFromProperty
 };

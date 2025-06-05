@@ -137,7 +137,14 @@ exports.getVacates = async (req, res) => {
         return res.status(403).json({ error: 'Forbidden: You can only access your own properties' });
     }
     const period = req.query.period || 'week';
-    const days = period === 'month' ? 30 : 7;
+    let days;
+    if (period === 'day') {
+        days = 1; // Single day
+    } else if (period === 'month') {
+        days = 30; // Month
+    } else {
+        days = 7; // Week
+    }
     const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     try {

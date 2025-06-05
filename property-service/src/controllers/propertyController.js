@@ -5,8 +5,12 @@ const mongoose = require('mongoose');
 const redisClient = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
-const { getActiveTenantsForProperty, getStayRecordsFromTenantService } = require('./internalApis');
 const moment = require('moment');
+const {
+    getActiveTenantsForProperty,
+    getStayRecordsFromTenantService,
+    removeAllTenantsFromProperty
+} = require('./internalApis');
 
 
 const increaseViewCount = async (id) => {
@@ -51,7 +55,7 @@ module.exports = {
                 return res.status(400).json({ error: 'Occupied beds cannot exceed total beds' });
             }
             //console.log('checkpoint 2');
-            console.log(location)
+            console.log(location);
             let lng = Number(location?.coordinates?.[0]);
             let lat = Number(location?.coordinates?.[1]);
             console.log(lng, lat);
@@ -146,7 +150,7 @@ module.exports = {
         if (role !== 'owner') {
             return res.status(403).json({ error: 'Forbidden: Since you are a tenant, you dont own any properties' });
         }
-        // const cacheKey = '/api' + req.originalUrl; // Always add /api
+        const cacheKey = '/api' + req.originalUrl; // Always add /api
         try {
 
             const properties = await Property.find({ ownerId: id });
@@ -160,7 +164,7 @@ module.exports = {
 
             const response = properties.map(property => ({ ...property._doc, views: property.views }));
 
-            // await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+            await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
             res.status(200).json(response);
         } catch (error) {
@@ -190,8 +194,7 @@ module.exports = {
             await increaseViewCount(req.params.id);
 
             const response = { ...property._doc, views: property.views };
-
-            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+            await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
             res.status(200).json(response);
         } catch (error) {
@@ -223,7 +226,7 @@ module.exports = {
             }
 
             const response = { ...property._doc, views: property.views };
-            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+            await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
             res.status(200).json(response);
         } catch (error) {
@@ -242,6 +245,7 @@ module.exports = {
         try {
 
             if (redisClient.isReady) {
+                console.log('redisClient is ready');
                 const cached = await redisClient.get(cacheKey);
                 if (cached) {
                     //console.log('Returning cached username availability');
@@ -254,8 +258,9 @@ module.exports = {
             if (!property) {
                 return res.status(404).json({ error: 'Property not found' });
             }
+
             const response = { ...property._doc, views: property.views };
-            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+            await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
             res.status(200).json(response);
         } catch (error) {
@@ -271,7 +276,7 @@ module.exports = {
         }
 
         const cacheKey = '/api' + req.originalUrl; // Always add /api
-        
+
         try {
             if (redisClient.isReady) {
                 const cached = await redisClient.get(cacheKey);
@@ -289,7 +294,7 @@ module.exports = {
             }
 
             const response = properties.map(property => ({ ...property._doc, views: property.views }));
-            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+            await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
             res.status(200).json(response);
         } catch (error) {
@@ -321,7 +326,7 @@ module.exports = {
             }
 
             const response = properties.map(property => ({ ...property._doc, views: property.views }));
-            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+            await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
             res.status(200).json(response);
         } catch (error) {
@@ -354,7 +359,7 @@ module.exports = {
                 totalRooms: totalRooms[0]?.totalRooms || 0,
                 totalBeds: totalBeds[0]?.totalBeds || 0,
             };
-            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+            await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
             res.status(200).json(response);
         }
@@ -457,6 +462,13 @@ module.exports = {
                 return res.status(403).json({ error: 'Forbidden: You can only delete your own properties' });
             }
 
+            try {
+                await removeAllTenantsFromProperty(property._id, currentUser);
+            } catch (error) {
+                console.error('[deleteProperty] Error removing tenants:', error.message);
+                return res.status(500).json({ error: 'Failed to remove tenants from property' });
+            }
+
             // Proceed with the deletion
             await Property.findByIdAndDelete(req.params.id);
 
@@ -557,7 +569,7 @@ module.exports = {
             });
 
             const response = properties;
-            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+            await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
             res.status(200).json(response);
         } catch (error) {
@@ -589,7 +601,7 @@ module.exports = {
             const propertyObj = property.toObject();
 
             const response = propertyObj.availableBeds || {};
-            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+            await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
             res.status(200).json(response);
         } catch (error) {
@@ -699,7 +711,7 @@ module.exports = {
                 ownerEmail: owner.data.email,
                 ownerPhone: owner.data.phoneNumber
             };
-            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+            await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
             res.status(200).json(response);
         } catch (error) {

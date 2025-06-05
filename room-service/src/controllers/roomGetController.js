@@ -59,7 +59,7 @@ exports.getRoomsByPropertyId = async (req, res) => {
         };
 
         //console.log('Setting cache for key:', cacheKey);
-        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
         //console.log('Rooms from DB');
         res.status(200).json(response);
@@ -101,7 +101,7 @@ exports.getRoomById = async (req, res) => {
         if (!room) return res.status(404).json({ error: 'Room not found' });
 
 
-        await redisClient.set(cacheKey, JSON.stringify(room), { EX: 300 });
+        await redisClient.set(cacheKey, JSON.stringify(room), 'EX', 300);
 
         res.status(200).json(room);
     } catch (error) {
@@ -156,7 +156,7 @@ exports.getPropertySummary = async (req, res) => {
             occupiedBeds,
             vacantBeds,
         };
-        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
 
         res.status(200).json(response);
@@ -217,7 +217,7 @@ exports.getRoomAvailability = async (req, res) => {
             Vacant_beds: availability.length,
             availability
         };
-        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
         res.status(200).json(response);
     } catch (error) {
@@ -276,7 +276,7 @@ exports.getRoomAvailabilityByType = async (req, res) => {
             occupiedBeds,
             vacantBeds,
         };
-        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
         res.status(200).json(response);
     }
@@ -347,7 +347,7 @@ exports.getPropertySummaryByType = async (req, res) => {
             totalTypes,
             typesSummary,
         };
-        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
         res.status(200).json(response);
 
@@ -406,7 +406,7 @@ exports.searchRooms = async (req, res) => {
             return res.status(404).json({ error: 'No rooms found' });
         }
 
-        await redisClient.set(cacheKey, JSON.stringify(rooms), { EX: 300 });
+        await redisClient.set(cacheKey, JSON.stringify(rooms), 'EX', 300);
 
         res.status(200).json(rooms);
     } catch (error) {
@@ -436,7 +436,7 @@ exports.getRoomByTenantId = async (req, res) => {
         const room = await Room.findOne({ tenantId }).populate('propertyId', 'name location totalRooms ownerId');
         if (!room) return res.status(404).json({ error: 'Room not found' });
 
-        await redisClient.set(cacheKey, JSON.stringify(room), { EX: 300 });
+        await redisClient.set(cacheKey, JSON.stringify(room), 'EX', 300);
 
         res.status(200).json(room);
     } catch (error) {
@@ -467,7 +467,7 @@ exports.getRoomDocs = async (req, res) => {
             count: roomDocs
         };
 
-        await redisClient.set(cacheKey, JSON.stringify(response), { EX: 300 });
+        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
 
         res.status(200).json(response);
     }
@@ -530,11 +530,11 @@ exports.getBedDocs = async (req, res) => {
 
         if (!beds || beds.length === 0) {
             const response = { totalBeds: 0, occupiedBeds: 0, availableBeds: 0 };
-            await redisClient.set(cacheKey, JSON.stringify([response]), { EX: 300 });
+            await redisClient.set(cacheKey, JSON.stringify([response]), 'EX', 300);
             return res.status(200).json([response]);
         }
 
-        await redisClient.set(cacheKey, JSON.stringify(beds), { EX: 300 });
+        await redisClient.set(cacheKey, JSON.stringify(beds), 'EX', 300);
 
         res.status(200).json(beds);
     }

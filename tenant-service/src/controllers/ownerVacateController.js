@@ -19,7 +19,8 @@ const {
     notifyVacateApproved,
     notifyVacateRejected,
     notifyVacateRemoved,
-    notifyVacateWithdrawnOrRetained
+    notifyVacateWithdrawnOrRetained,
+    notifyBulkVacateRemoved
 } = require('../utils/vacateNotifications');
 
 
@@ -624,5 +625,259 @@ exports.rejectImmediateVacate = async (req, res) => {
         res.status(500).json({ error: err.message });
     } finally {
         await session.endSession();
+    }
+};
+
+exports.removeAllTenantsFromProperty = async (req, res) => {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    let currentUser;
+    try {
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const role = currentUser.data.user.role;
+    if (role !== 'owner') {
+        return res.status(403).json({ error: 'Only owners can remove tenants' });
+    }
+
+    const { propertyPpid } = req.params;
+    const { reason = 'Property deletion - bulk tenant removal' } = req.body;
+
+    // Input validation
+    if (!propertyPpid) {
+        return res.status(400).json({ error: 'Property PPID is required' });
+    }
+
+    try {
+        // Get all active tenants from the property
+        const tenants = await Tenant.find({
+            'currentStay.propertyPpid': propertyPpid,
+            status: 'active'
+        });
+
+        if (!tenants || tenants.length === 0) {
+            return res.status(200).json({
+                message: 'No active tenants found in this property',
+                removedCount: 0,
+                details: []
+            });
+        }
+
+        // Validate property ownership for the first tenant (assuming all tenants belong to same property)
+        const property = await validatePropertyOwnership(
+            propertyPpid,
+            currentUser.data.user._id,
+            currentUser
+        );
+
+        // Check for existing immediate vacate requests
+        const tenantIds = tenants.map(tenant => tenant.pgpalId);
+        const existingVacateRequests = await Vacates.find({
+            tenantId: { $in: tenantIds },
+            status: 'pending_owner_approval'
+        });
+
+        if (existingVacateRequests.length > 0) {
+            const conflictingTenants = existingVacateRequests.map(req => req.tenantId);
+            return res.status(400).json({
+                error: `Some tenants have pending immediate vacate requests: ${conflictingTenants.join(', ')}. Please resolve these first.`
+            });
+        }
+
+        // Process all tenants in parallel using Promise.all
+        const tenantProcessingPromises = tenants.map(async (tenant) => {
+            const session = await Tenant.startSession();
+
+            try {
+                return await session.withTransaction(async () => {
+                    // Validate tenant eligibility
+                    validateTenantRemovalEligibility(tenant);
+
+                    const currentStay = tenant.currentStay;
+                    const deposit = currentStay.deposit || 0;
+                    const isImmediateVacate = true;
+                    const isDepositRefunded = false;
+
+                    // Calculate vacate date (immediate)
+                    const vacateDate = new Date();
+
+                    // Create snapshots
+                    const stayHistoryEntry = createStayHistoryEntry(currentStay, vacateDate);
+                    const currentStaySnapshot = createCurrentStaySnapshot(currentStay);
+
+                    // Update tenant status (immediate vacate)
+                    const tenantUpdate = {
+                        status: 'inactive',
+                        currentStay: {
+                            propertyPpid: null,
+                            propertyName: null,
+                            roomPpid: null,
+                            bedId: null,
+                            rent: null,
+                            deposit: null,
+                            assignedAt: null,
+                            noticePeriodInMonths: 0,
+                            isInNoticePeriod: false,
+                            location: null,
+                        },
+                        isInNoticePeriod: false,
+                        noticePeriodStartDate: null,
+                        noticePeriodEndDate: null,
+                        updatedAt: new Date(),
+                        $push: { stayHistory: stayHistoryEntry },
+                    };
+
+                    const updatedTenant = await Tenant.findByIdAndUpdate(
+                        tenant._id,
+                        tenantUpdate,
+                        { new: true, session }
+                    );
+
+                    if (!updatedTenant) {
+                        throw new Error(`Failed to update tenant ${tenant.pgpalId}`);
+                    }
+
+                    // Prepare deposit messages
+                    let depositMessageForTenant = deposit > 0 && !isDepositRefunded
+                        ? `INR ${deposit} deposit will be forfeited due to immediate property closure`
+                        : 'No deposit to return';
+
+                    if (!isDepositRefunded && (deposit > currentStay.rentDue)) {
+                        depositMessageForTenant = `INR ${deposit - currentStay.rentDue} deposit will be returned, please contact owner for details`;
+                    }
+
+                    let depositMessageForOwner = deposit > 0 && !isDepositRefunded
+                        ? `INR ${deposit} deposit can be forfeited due to property closure`
+                        : 'No deposit to return';
+
+                    if (!isDepositRefunded && (deposit > currentStay.rentDue)) {
+                        depositMessageForOwner = `INR ${deposit - currentStay.rentDue} deposit should be returned to tenant, please contact tenant for details`;
+                    }
+
+                    // Create vacate request
+                    const vacateData = {
+                        name: tenant.name,
+                        tenantId: tenant.pgpalId,
+                        phone: tenant.phone,
+                        aadhar: tenant.aadhar,
+                        propertyId: currentStay.propertyPpid,
+                        propertyName: property.name,
+                        roomId: currentStay.roomPpid,
+                        bedId: currentStay.bedId,
+                        isImmediateVacate: true,
+                        vacateDate,
+                        noticePeriodStartDate: null,
+                        noticePeriodEndDate: vacateDate,
+                        reason,
+                        tenantDepositInfo: depositMessageForTenant,
+                        ownerDepositInfo: depositMessageForOwner,
+                        status: 'completed',
+                        createdBy: currentUser.data.user.username,
+                        removedByOwner: true,
+                        previousSnapshot: currentStaySnapshot,
+                        vacateRaisedAt: new Date(),
+                        withdrawWindow: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+                    };
+
+                    const vacateRequest = await Vacates.create([vacateData], { session });
+                    if (!vacateRequest || vacateRequest.length === 0) {
+                        throw new Error(`Failed to create vacate request for tenant ${tenant.pgpalId}`);
+                    }
+
+                    // Clear bed immediately
+                    const clearBedResponse = await clearBed(
+                        currentStay.roomPpid,
+                        currentStay.bedId,
+                        currentUser
+                    );
+                    if (!clearBedResponse) {
+                        throw new Error(`Failed to clear bed for tenant ${tenant.pgpalId}`);
+                    }
+
+                    return {
+                        tenantId: tenant.pgpalId,
+                        tenantName: tenant.name,
+                        vacateRequest: vacateRequest[0],
+                        success: true
+                    };
+                });
+            } catch (error) {
+                return {
+                    tenantId: tenant.pgpalId,
+                    tenantName: tenant.name,
+                    error: error.message,
+                    success: false
+                };
+            } finally {
+                await session.endSession();
+            }
+        });
+
+        // Execute all tenant processing in parallel
+        const results = await Promise.all(tenantProcessingPromises);
+
+        // Separate successful and failed operations
+        const successfulRemovals = results.filter(result => result.success);
+        const failedRemovals = results.filter(result => !result.success);
+
+        // Send bulk notifications for successful removals
+        if (successfulRemovals.length > 0) {
+            try {
+                const vacateRequestsForNotification = successfulRemovals.map(result => result.vacateRequest);
+                await notifyBulkVacateRemoved(vacateRequestsForNotification, currentUser, property);
+            } catch (error) {
+                console.error('Failed to send bulk notifications:', error);
+            }
+        }
+
+        // Clear cache
+        await invalidateCacheByPattern(`*${propertyPpid}*`);
+        if (property?._id) {
+            await invalidateCacheByPattern(`*${property._id}*`);
+        }
+
+        // Prepare response
+        const response = {
+            message: `Bulk tenant removal completed for property ${propertyPpid}`,
+            totalTenants: tenants.length,
+            successfulRemovals: successfulRemovals.length,
+            failedRemovals: failedRemovals.length,
+            details: {
+                successful: successfulRemovals.map(result => ({
+                    tenantId: result.tenantId,
+                    tenantName: result.tenantName,
+                    vacateDate: result.vacateRequest.vacateDate.toDateString(),
+                    withdrawWindow: '24 hours',
+                    status: 'Immediate removal - effective now'
+                })),
+                failed: failedRemovals.map(result => ({
+                    tenantId: result.tenantId,
+                    tenantName: result.tenantName,
+                    error: result.error
+                }))
+            }
+        };
+
+        // Return appropriate status code
+        if (failedRemovals.length === 0) {
+            res.status(200).json(response);
+        } else if (successfulRemovals.length === 0) {
+            res.status(400).json(response);
+        } else {
+            res.status(207).json(response); // Multi-status for partial success
+        }
+
+    } catch (err) {
+        console.error('Error in removeAllTenantsFromProperty:', err);
+        res.status(500).json({
+            error: 'Internal server error during bulk tenant removal',
+            details: err.message
+        });
     }
 };

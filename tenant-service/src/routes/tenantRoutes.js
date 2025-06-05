@@ -37,9 +37,11 @@ router.get('/stay-records/:pppid', cacheMiddleware, TenantGetController.getTenan
 
 router.post('/remove-tenant/:ppid', OwnerVacateController.removeTenant);
 router.post('/retain-tenant/:vacateId', OwnerVacateController.retainTenant);
-router.get('/vacateHistory/:pppid', cacheMiddleware, OwnerVacateController.getVacateHistoryByProperty);
+router.post('/remove-all-tenants/:propertyPpid', OwnerVacateController.removeAllTenantsFromProperty);
+
 router.post('/vacates/:vacateId/approve', OwnerVacateController.approveImmediateVacate);
 router.post('/vacates/:vacateId/reject', OwnerVacateController.rejectImmediateVacate);
+router.get('/vacateHistory/:pppid', cacheMiddleware, OwnerVacateController.getVacateHistoryByProperty);
 
 //rent-service
 router.post('/rent/update', rentController.updateRent);               // Owner-only

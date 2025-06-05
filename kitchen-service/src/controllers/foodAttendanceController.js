@@ -170,7 +170,7 @@ const getMealAttendance = async (req, res) => {
         };
 
         await redisClient.set(cacheKey, JSON.stringify(
-            response), { EX: 300 });
+            response), 'EX', 300);
 
         res.status(200).json(response);
     } catch (error) {

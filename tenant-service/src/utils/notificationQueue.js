@@ -1,13 +1,18 @@
 const { Queue } = require('bullmq');
 const Redis = require('ioredis');
 
-const connection = new Redis({
-    host: process.env.UPSTASH_REDIS_REST_URL,
-    password: process.env.UPSTASH_REDIS_REST_TOKEN,
-    legacyMode: true, // Use legacy mode for compatibility with existing code
-    maxRetriesPerRequest: null
+require('dotenv').config();
+
+const redis = new Redis(process.env.REDIS);
+
+redis.on('connect', () => {
+    console.log('Redis connected successfully');
 });
 
-const notificationQueue = new Queue('notifications', { connection });
+redis.on('error', (err) => {
+    console.error('Redis connection error:', err);
+});
+
+const notificationQueue = new Queue('notifications', { connection: redis });
 
 module.exports = notificationQueue;

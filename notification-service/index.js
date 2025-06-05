@@ -22,7 +22,9 @@ app.use('/api/notification-service', notificationRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
-    serverSelectionTimeoutMS: 30000 // Increase timeout to 30s
+    serverSelectionTimeoutMS: 30000, // Increase timeout to 30s
+    tls: true,
+    tlsAllowInvalidCertificates: false,
 }
 )
     .then(() => console.log('MongoDB Connected', process.env.MONGO_URI))

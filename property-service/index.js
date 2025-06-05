@@ -22,6 +22,8 @@ app.use('/api/property-service', propertyRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
+    tls: true,
+    tlsAllowInvalidCertificates: false,
     serverSelectionTimeoutMS: 10000 // Increase timeout to 30s
 }
 )

@@ -1,16 +1,14 @@
-// utils/redis.js
-const { createClient } = require('redis');
+const { Redis } = require('ioredis');
+require('dotenv').config();
 
-const client = createClient({
-    url: process.env.UPSTASH_REDIS_REST_URL,
-    password: process.env.UPSTASH_REDIS_REST_TOKEN,
-    legacyMode: true // Use legacy mode for compatibility with existing code
+const redis = new Redis(process.env.REDIS);
+
+redis.on('connect', () => {
+    console.log('Redis connected successfully');
 });
 
-client.on('error', (err) => console.error('Redis Client Error', err));
+redis.on('error', (err) => {
+    console.error('Redis connection error:', err);
+});
 
-(async () => {
-    await client.connect();
-})();
-
-module.exports = client;
+module.exports = redis;

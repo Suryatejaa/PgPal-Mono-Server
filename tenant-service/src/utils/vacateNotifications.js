@@ -216,6 +216,50 @@ async function notifyVacateRemoved(vacateData, currentUser, property) {
     await sendNotifications(notifications);
 }
 
+async function notifyBulkVacateRemoved(vacateDataArray, currentUser, property) {
+    console.log('called notifyBulkVacateRemoved', `Processing ${vacateDataArray.length} notifications`);
+    const notifications = [];
+
+    // Create notifications for all tenants
+    vacateDataArray.forEach(vacateData => {
+        // Notify tenant
+        notifications.push({
+            tenantId: vacateData.tenantId,
+            propertyPpid: vacateData.propertyId,
+            audience: 'tenant',
+            title: 'Removed by Owner - Property Closure',
+            message: 'You have been removed from the property due to property closure. Please contact the owner for details regarding deposit and other matters.',
+            type: 'info',
+            method: ['in-app', 'email'],
+            meta: { vacateId: vacateData._id },
+            createdBy: currentUser?.data?.user?.pgpalId || 'system'
+        });
+    });
+
+    // Notify owner once with summary
+    if (property && property.ownerId) {
+        const tenantNames = vacateDataArray.map(v => v.name).join(', ');
+        const tenantCount = vacateDataArray.length;
+
+        notifications.push({
+            ownerId: property.ownerId,
+            propertyPpid: vacateDataArray[0].propertyId,
+            audience: 'owner',
+            title: 'Bulk Tenant Removal Completed',
+            message: `You have successfully removed ${tenantCount} tenant${tenantCount > 1 ? 's' : ''} from property ${property.name}: ${tenantNames}`,
+            type: 'info',
+            method: ['in-app'],
+            meta: {
+                vacateIds: vacateDataArray.map(v => v._id),
+                tenantCount: tenantCount
+            },
+            createdBy: currentUser?.data?.user?.pgpalId || 'system'
+        });
+    }
+
+    await sendNotifications(notifications);
+}
+
 async function sendNotifications(notifications) {
     for (const notification of notifications) {
         console.log('Queuing notification:', notification);
@@ -236,5 +280,6 @@ module.exports = {
     notifyVacateRejected,
     notifyVacateWithdrawnOrRetained,
     sendNotifications,
-    notifyVacateRemoved
+    notifyVacateRemoved,
+    notifyBulkVacateRemoved
 };
