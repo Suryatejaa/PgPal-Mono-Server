@@ -52,6 +52,7 @@ const tenantSchema = new Schema({
         bedId: { type: String },
         assignedAt: { type: Date, default: Date.now },
         noticePeriodInMonths: { type: Number, default: 1 },
+        noticePeriodInDays: { type: Number},
         isInNoticePeriod: { type: Boolean, default: false },
         location: {
             type: {

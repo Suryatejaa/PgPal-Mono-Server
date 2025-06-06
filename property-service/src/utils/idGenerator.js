@@ -14,8 +14,7 @@ const generatePPT = () => {
 };
 
 const generatePPP = () => {
-    propertyCounter++;
-    return `PPP${propertyCounter}`; // Property ID
+    return `PPP${Math.floor(100000 + Math.random() * 900000)}`;
 };
 
 const generatePPR = (propertyId, ownerId) => {

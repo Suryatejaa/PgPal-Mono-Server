@@ -40,9 +40,9 @@ async function validatePropertyOwnership(propertyPpid, userId, currentUser) {
 }
 
 // Calculate vacate date
-function calculateVacateDate(isImmediateVacate, noticePeriodInMonths) {
+function calculateVacateDate(isImmediateVacate, noticePeriodInDays) {
     if (isImmediateVacate) return new Date();
-    const noticePeriodDays = (noticePeriodInMonths || 1) * 30;
+    const noticePeriodDays = noticePeriodInDays || 1;
     return new Date(Date.now() + noticePeriodDays * 24 * 60 * 60 * 1000);
 }
 

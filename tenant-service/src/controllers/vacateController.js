@@ -84,7 +84,7 @@ exports.raiseVacate = async (req, res) => {
         }
 
         // Calculate vacate date
-        const vacateDate = calculateVacateDate(isImmediateVacate, currentStay.noticePeriodInMonths);
+        const vacateDate = calculateVacateDate(isImmediateVacate, currentStay.noticePeriodInDays);
 
         // Create snapshots
         const stayHistoryEntry = createStayHistoryEntry(currentStay, vacateDate);

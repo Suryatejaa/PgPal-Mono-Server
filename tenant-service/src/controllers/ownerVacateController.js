@@ -64,7 +64,8 @@ exports.removeTenant = async (req, res) => {
 
         const existingImmediateVacate = await Vacates.findOne({
             tenantId: tenant.pgpalId,
-            status: 'pending_owner_approval'
+            status: 'pending_owner_approval',
+            propertyId: tenant.currentStay.propertyPpid,
         });
         if (existingImmediateVacate) {
             return res.status(400).json({
@@ -86,7 +87,7 @@ exports.removeTenant = async (req, res) => {
         const deposit = currentStay.deposit || 0;
 
         // Calculate vacate date
-        const vacateDate = calculateVacateDate(isImmediateVacate, currentStay.noticePeriodInMonths);
+        const vacateDate = calculateVacateDate(isImmediateVacate, currentStay.noticePeriodInDays);
 
         // Create snapshots
         const stayHistoryEntry = createStayHistoryEntry(currentStay, vacateDate);
@@ -651,6 +652,7 @@ exports.removeAllTenantsFromProperty = async (req, res) => {
 
     // Input validation
     if (!propertyPpid) {
+        console.log(`[removeAllTenantsFromProperty] Missing property PPID: ${propertyPpid}`);
         return res.status(400).json({ error: 'Property PPID is required' });
     }
 
@@ -676,19 +678,6 @@ exports.removeAllTenantsFromProperty = async (req, res) => {
             currentUser
         );
 
-        // Check for existing immediate vacate requests
-        const tenantIds = tenants.map(tenant => tenant.pgpalId);
-        const existingVacateRequests = await Vacates.find({
-            tenantId: { $in: tenantIds },
-            status: 'pending_owner_approval'
-        });
-
-        if (existingVacateRequests.length > 0) {
-            const conflictingTenants = existingVacateRequests.map(req => req.tenantId);
-            return res.status(400).json({
-                error: `Some tenants have pending immediate vacate requests: ${conflictingTenants.join(', ')}. Please resolve these first.`
-            });
-        }
 
         // Process all tenants in parallel using Promise.all
         const tenantProcessingPromises = tenants.map(async (tenant) => {
@@ -868,6 +857,7 @@ exports.removeAllTenantsFromProperty = async (req, res) => {
         if (failedRemovals.length === 0) {
             res.status(200).json(response);
         } else if (successfulRemovals.length === 0) {
+            console.log('All tenant removals failed:', failedRemovals.map(r => r.error));
             res.status(400).json(response);
         } else {
             res.status(207).json(response); // Multi-status for partial success

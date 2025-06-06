@@ -1,36 +1,25 @@
 const mongoose = require('mongoose');
 const { Worker } = require('bullmq');
 const Notification = require('../models/notificationModel');
-const { Redis } = require('ioredis');
+const redis = require('../utils/redis'); // Use shared connection
 const dotenv = require('dotenv');
 
-const path = require('path');
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
-
-//console.log('Current working directory:', process.cwd());
-//console.log('MONGO_URI from .env:', process.env.MONGO_URI);
+dotenv.config();
 
 mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
     tls: true,
     tlsAllowInvalidCertificates: false,
-    serverSelectionTimeoutMS: 30000 // Increase timeout to 30s
+    serverSelectionTimeoutMS: 30000
 })
     .then(() => console.log('✅ MongoDB connected in worker'))
     .catch((err) => console.error('❌ MongoDB connection error in worker:', err));
-
-
-const redis = new Redis(process.env.REDIS);
-
-redis.on('connect', () => console.log('Redis connected successfully'));
-redis.on('error', (err) => console.error('Redis connection error:', err));
 
 const worker = new Worker('notifications', async job => {
     try {
         console.log(`Processing job ${job.id} with data:`, job.data);
 
-        // Destructure all possible fields
         const {
             tenantIds, tenantId, ownerId, propertyPpid, audience,
             title, message, type, method, createdBy, meta
@@ -78,19 +67,22 @@ const worker = new Worker('notifications', async job => {
             throw new Error('No recipient specified in notification job');
         }
 
+        // Save to database
         await Notification.insertMany(notifications);
-        console.log(`[✅] Sent ${notifications.length} notifications`);
+        console.log(`[✅] Saved ${notifications.length} notifications to database`);
 
+        // Publish to Redis
         for (const notif of notifications) {
-            await connection.publish('notifications', JSON.stringify(notif));
+            await redis.publish('notifications', JSON.stringify(notif));
         }
+        console.log(`[✅] Published ${notifications.length} notifications to Redis`);
 
     } catch (err) {
         console.error(`Job ${job.id} failed with error:`, err);
         throw err;
     }
 }, {
-    connection,
+    connection: redis, // ✅ Fixed: Use the redis instance
     settings: {
         retries: 3,
     },
@@ -99,3 +91,4 @@ const worker = new Worker('notifications', async job => {
 worker.on('completed', job => console.log(`Job ${job.id} completed`));
 worker.on('failed', (job, err) => console.error(`Job ${job.id} failed`, err));
 
+module.exports = worker;

@@ -1,5 +1,6 @@
 const { json } = require('express');
 const Property = require('../models/propertyModel');
+const DeletedProperty = require('../models/deletedPropertiesModal.js');
 const axios = require('axios');
 const mongoose = require('mongoose');
 const redisClient = require('../utils/redis');
@@ -11,6 +12,7 @@ const {
     getStayRecordsFromTenantService,
     removeAllTenantsFromProperty
 } = require('./internalApis');
+
 
 
 const increaseViewCount = async (id) => {
@@ -461,43 +463,49 @@ module.exports = {
             if (property.ownerId !== id) {
                 return res.status(403).json({ error: 'Forbidden: You can only delete your own properties' });
             }
-
-            try {
-                await removeAllTenantsFromProperty(property._id, currentUser);
-            } catch (error) {
-                console.error('[deleteProperty] Error removing tenants:', error.message);
-                return res.status(500).json({ error: 'Failed to remove tenants from property' });
-            }
-
-            // Proceed with the deletion
-            await Property.findByIdAndDelete(req.params.id);
-
             const propertyPpid = property.pgpalId;
 
+            const removedTenants = await removeAllTenantsFromProperty(propertyPpid, currentUser);
+            if (!removedTenants) {
+                return res.status(404).json({ error: 'Failed to remove tenants from property' });
+            }
+
+            // Move property to DeletedProperty collection
+            const deletedProperty = new DeletedProperty({
+                ...property.toObject(),
+                deletedAt: new Date(),
+                deletedBy: id
+            });
+
+            await deletedProperty.save();
+
+            const deleted = await Property.findByIdAndDelete(req.params.id);
+            if (!deleted) {
+                return res.status(404).json({ error: 'Property not found' });
+            }
+
             const title = 'Property Removed';
-            const message = 'A property has been deleted from the system.';
+            const message = 'Your property has been successfully removed from the system. If you have any questions, please contact support.';
             const type = 'alert';
             const method = ['in-app', 'email'];
 
-            const tenants = await getActiveTenantsForProperty(propertyPpid); // Implement this utility
-            for (const tenant of tenants) {
-                await notificationQueue.add('notifications', {
-                    tenantId: tenant.pgpalId,
-                    propertyPpid,
-                    audience: 'tenant',
-                    title,
-                    message,
-                    type,
-                    method,
-                    createdBy: currentUser?.data?.user?.pgpalId || 'system'
-                }, {
-                    attempts: 3,
-                    backoff: {
-                        type: 'exponential',
-                        delay: 3000
-                    }
-                });
-            }
+            await notificationQueue.add('notifications', {
+                ownerId: ppid,
+                propertyPpid,
+                audience: 'owner',
+                title,
+                message,
+                type,
+                method,
+                createdBy: currentUser?.data?.user?.pgpalId || 'system'
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 3000
+                }
+            });
+
 
             await invalidateCacheByPattern(`*${propertyPpid}*`);
             await invalidateCacheByPattern(`*${property._id}*`);

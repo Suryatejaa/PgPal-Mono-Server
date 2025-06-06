@@ -106,37 +106,41 @@ const loginUser = async (req, res) => {
             const type = 'alert';
             const method = ['in-app', 'email'];
 
-            await notificationQueue.add('notifications', {
-                tenantId: user.pgpalId,
-                audience: 'tenant',
-                title,
-                message,
-                type,
-                method,
-                createdBy: 'system'
-            }, {
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 3000
-                }
-            });
+            role === 'tenant' ? (
 
-            await notificationQueue.add('notifications', {
-                ownerId: user.pgpalId,
-                audience: 'owner',
-                title,
-                message,
-                type,
-                method,
-                createdBy: 'system'
-            }, {
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 3000
-                }
-            });
+                await notificationQueue.add('notifications', {
+                    tenantId: user.pgpalId,
+                    audience: 'tenant',
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                })
+            ) : (
+
+                await notificationQueue.add('notifications', {
+                    ownerId: user.pgpalId,
+                    audience: 'owner',
+                    title,
+                    message,
+                    type,
+                    method,
+                    createdBy: 'system'
+                }, {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 3000
+                    }
+                })
+            );
 
         } catch (error) {
             console.error('Error sending notification:', error.message);

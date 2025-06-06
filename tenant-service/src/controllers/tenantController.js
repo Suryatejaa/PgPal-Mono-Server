@@ -22,8 +22,8 @@ exports.addTenant = async (req, res) => {
             return res.status(403).json({ error: 'Only owners can add tenants' });
         }
 
-        const { name, email, phone, gender, address, aadhar, propertyId, roomNumber, bedId, rentPaid, rentPaidDate, rentDueDate, rentPaidMethod, deposit, noticePeriodInMonths } = req.body;
-        if (!name || !phone || !propertyId || !roomNumber || !bedId || !aadhar || deposit === undefined || noticePeriodInMonths === undefined || (rentPaid !== 0 && !rentPaidMethod)) {
+        const { name, email, phone, gender, address, aadhar, propertyId, roomNumber, bedId, rentPaid, rentPaidDate, rentDueDate, rentPaidMethod, deposit, noticePeriodInMonths, noticePeriodInDays } = req.body;
+        if (!name || !phone || !propertyId || !roomNumber || !bedId || !aadhar || deposit === undefined || noticePeriodInDays === undefined || (rentPaid !== 0 && !rentPaidMethod)) {
 
             //console.log('Missing required fields');
             return res.status(400).json({ error: 'Missing required fields, please check' });
@@ -89,6 +89,16 @@ exports.addTenant = async (req, res) => {
         const advance = newDue < 0 ? Math.abs(newDue) : 0;
         const rentDue = newDue > 0 ? newDue : 0;
         const status = rentDue > 0 ? 'unpaid' : 'paid';
+        const convertNoticePeriod = (months, days) => {
+            if (months < 0 || days < 0) return { months: 0, days: 0 };
+            if (months === 0 && days === 0) return { months: 1, days: 0 }; // Default to 1 month notice period
+            if (days >= 30) {
+                months += Math.floor(days / 30);
+                days = days % 30;
+            }
+            return { months, days };
+        };
+        const { months: periodInMonths, days: periodInDays } = convertNoticePeriod(noticePeriodInMonths, noticePeriodInDays);
 
         const tenantData = {
             name,
@@ -113,7 +123,8 @@ exports.addTenant = async (req, res) => {
                 nextRentDueDate: new Date(new Date().setMonth(new Date().getMonth() + 1)), // Assuming rent is due monthly                
                 deposit: deposit,
                 advanceBalance: advance,
-                noticePeriodInMonths: noticePeriodInMonths,
+                noticePeriodInMonths: periodInMonths,
+                noticePeriodInDays: noticePeriodInDays,
                 isInNoticePeriod: false,
                 bedId,
                 location: {

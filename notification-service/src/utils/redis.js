@@ -1,7 +1,10 @@
-const { Redis } = require('ioredis');
+const Redis = require('ioredis');
 require('dotenv').config();
 
-const redis = new Redis(process.env.REDIS);
+const redis = new Redis(process.env.REDIS, {
+    maxRetriesPerRequest: null, // Required for BullMQ
+    enableReadyCheck: true,    // Optional: Ensures Redis is ready before connecting
+});
 
 redis.on('connect', () => {
     console.log('Redis connected successfully');

@@ -99,8 +99,8 @@ exports.getTenantByQuery = async (req, res) => {
 };
 
 exports.getActiveTenantsForProperty = async (req, res) => {
-    const internalService = req.headers['x-internal-service'];
-    if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
+    // const internalService = req.headers['x-internal-service'];
+    // if (!internalService) return res.status(403).json({ error: 'Forbidden, Access denied' });
     const propertyPpid = req.params.pppId;
     const cacheKey = '/api' + req.originalUrl; // Always add /api
     try {

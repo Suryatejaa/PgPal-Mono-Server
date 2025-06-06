@@ -236,7 +236,7 @@ async function notifyBulkVacateRemoved(vacateDataArray, currentUser, property) {
         });
     });
 
-    // Notify owner once with summary
+    // Notify owner once with summary 
     if (property && property.ownerId) {
         const tenantNames = vacateDataArray.map(v => v.name).join(', ');
         const tenantCount = vacateDataArray.length;

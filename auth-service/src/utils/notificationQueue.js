@@ -1,10 +1,9 @@
+// notificationQueue.js - Fixed
 const { Queue } = require('bullmq');
-const Redis = require('ioredis');
+const redis = require('./redis'); // Use shared connection
 
-require('dotenv').config();
-
-const connection = new Redis(process.env.REDIS);
-
-const notificationQueue = new Queue('notifications', { connection });
+const notificationQueue = new Queue('notifications', {
+    connection: redis
+});
 
 module.exports = notificationQueue;
