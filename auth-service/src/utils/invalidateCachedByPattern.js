@@ -1,4 +1,4 @@
-const redisClient = require('../utils/redis');
+const CacheHelper = require('../utils/redis');
 
 const invalidateCacheByPattern = async (pattern) => {
     try {
@@ -7,7 +7,7 @@ const invalidateCacheByPattern = async (pattern) => {
 
 
         do {
-            const scanResult = await redisClient.scan(cursor, { MATCH: pattern, COUNT: 100 });
+            const scanResult = await CacheHelper.scan(cursor, { MATCH: pattern, COUNT: 100 });
             cursor = scanResult.cursor;
             const foundKeys = scanResult.keys;
             keys.push(...foundKeys);
@@ -15,7 +15,7 @@ const invalidateCacheByPattern = async (pattern) => {
 
         if (keys.length > 0) {
             // Delete all matching keys
-            await redisClient.del(keys);
+            await CacheHelper.del(keys);
         } else {
             //console.log('No matching keys found for pattern:', pattern);
         }

@@ -1,6 +1,6 @@
 const Property = require('../models/propertyModel');
 const Rule = require('../models/ruleModel');
-const redisClient = require('../utils/redis');
+const CacheHelper = require('../utils/CacheHelper');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
 const { getActiveTenantsForProperty } = require('./internalApis');
@@ -111,11 +111,11 @@ module.exports = {
         const cacheKey = '/api' + req.originalUrl; // Always add /api
         try {
 
-            if (redisClient.isReady) {
-                const cached = await redisClient.get(cacheKey);
+            if (CacheHelper.isReady()) {
+                const cached = await CacheHelper.get(cacheKey);
                 if (cached) {
                     //console.log('Returning cached username availability');
-                    return res.status(200).send(JSON.parse(cached));
+                    return res.status(200).json(cached);
                 }
             }
             const rules = await Rule.find({ propertyId: req.params.id });
@@ -123,7 +123,7 @@ module.exports = {
                 return res.status(404).json({ error: 'Rules not found' });
             }
 
-            await redisClient.set(cacheKey, JSON.stringify(rules), 'EX', 300);
+            await CacheHelper.set(cacheKey, rules, 600);
 
             res.status(200).json(rules);
         } catch (error) {

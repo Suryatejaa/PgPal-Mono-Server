@@ -2,7 +2,7 @@ const WeeklyMenu = require('../models/kitchenMenuModel');
 const { getPropertyOwner } = require('./internalApis');
 const { getTenantConfirmation, getActiveTenantsForProperty } = require('./internalApis');
 const { getFormattedDayName } = require('../utils/getFormatedDay');
-const redisClient = require('../utils/redis');
+const CacheHelper = require('../utils/CacheHelper');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
 
@@ -249,11 +249,11 @@ exports.getTodayMenu = async (req, res) => {
 
     try {
 
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
+                return res.status(200).json(cached);
             }
         }
 
@@ -304,7 +304,7 @@ exports.getTodayMenu = async (req, res) => {
         };
 
         // Cache the response in Redis with a TTL of 10 minutes
-        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
+        await CacheHelper.set(cacheKey, response, 600);
 
         res.status(200).json(response);
     } catch (error) {
@@ -346,12 +346,12 @@ exports.getMenuList = async (req, res) => {
 
     try {
 
-        if (redisClient.isReady) {
+        if (CacheHelper.isReady()) {
             //console.log('CacheKey:', cacheKey);
-            const cached = await redisClient.get(cacheKey);
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 //console.log('Returning cached menu list availability: ', cached);
-                return res.status(200).send(JSON.parse(cached));
+                return res.status(200).json(cached);
             }
         }
 
@@ -366,7 +366,7 @@ exports.getMenuList = async (req, res) => {
         };
 
         // Cache the response in Redis with a TTL of 10 minutes
-        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
+        await CacheHelper.set(cacheKey, response, 600);
 
         res.status(200).json(response.totalMenus ? response : { message: 'No menus found' });
     } catch (error) {
@@ -535,7 +535,7 @@ exports.deleteWeeklyMenu = async (req, res) => {
         await invalidateCacheByPattern(`*${ownerConfirmation._id}*`);
 
         const cacheKey = `/api/api/kitchen-service/${propertyPpid}`;
-        await redisClient.del(cacheKey);
+        await CacheHelper.del(cacheKey);
 
 
         // Send the updated menus as response

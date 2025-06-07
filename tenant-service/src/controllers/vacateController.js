@@ -3,7 +3,7 @@
 const { clearBed, assignBed } = require('./internalApis');
 const Vacates = require('../models/vacatesModel');
 const Tenant = require('../models/tenantModel');
-const redisClient = require('../utils/redis');
+const CacheHelper = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
 const { getOwnProperty, changeBedStatus } = require('./internalApis.js');
@@ -321,6 +321,7 @@ exports.withdrawVacate = async (req, res) => {
                     deposit: previousSnapshot.deposit,
                     assignedAt: previousSnapshot.assignedAt,
                     noticePeriodInMonths: previousSnapshot.noticePeriodInMonths,
+                    noticePeriodInDays: previousSnapshot.noticePeriodInDays,
                     isInNoticePeriod: false,
                     location: previousSnapshot.location
                 };

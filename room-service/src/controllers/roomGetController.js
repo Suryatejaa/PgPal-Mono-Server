@@ -1,7 +1,7 @@
 const { default: mongoose } = require('mongoose');
 const Room = require('../models/roomModel');
 const axios = require('axios');
-const redisClient = require('../utils/redis');
+const CacheHelper = require('../utils/CacheHelper');
 const moment = require('moment');
 
 const getOwnProperty = async (propertyId, currentUser) => {
@@ -39,12 +39,12 @@ exports.getRoomsByPropertyId = async (req, res) => {
         const cacheKey = '/api' + req.originalUrl;
 
 
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             //console.log(cached);
             if (cached) {
                 //console.log('Returning cached room data');
-                return res.status(200).send(JSON.parse(cached));
+                return res.status(200).json(cached);
             }
         }
 
@@ -59,7 +59,7 @@ exports.getRoomsByPropertyId = async (req, res) => {
         };
 
         //console.log('Setting cache for key:', cacheKey);
-        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
+        await CacheHelper.set(cacheKey, response, 600);
 
         //console.log('Rooms from DB');
         res.status(200).json(response);
@@ -89,11 +89,11 @@ exports.getRoomById = async (req, res) => {
 
     try {
 
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
+                return res.status(200).json(cached);
             }
         }
 
@@ -101,7 +101,7 @@ exports.getRoomById = async (req, res) => {
         if (!room) return res.status(404).json({ error: 'Room not found' });
 
 
-        await redisClient.set(cacheKey, JSON.stringify(room), 'EX', 300);
+        await CacheHelper.set(cacheKey, room, 600);
 
         res.status(200).json(room);
     } catch (error) {
@@ -126,11 +126,11 @@ exports.getPropertySummary = async (req, res) => {
     try {
         const propertyId = req.params.id;
 
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
+                return res.status(200).json(cached);
             }
         }
 
@@ -156,7 +156,7 @@ exports.getPropertySummary = async (req, res) => {
             occupiedBeds,
             vacantBeds,
         };
-        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
+        await CacheHelper.set(cacheKey, response, 600);
 
 
         res.status(200).json(response);
@@ -181,11 +181,11 @@ exports.getRoomAvailability = async (req, res) => {
     try {
         const roomId = req.params.roomId;
 
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
+                return res.status(200).json(cached);
             }
         }
 
@@ -217,7 +217,7 @@ exports.getRoomAvailability = async (req, res) => {
             Vacant_beds: availability.length,
             availability
         };
-        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
+        await CacheHelper.set(cacheKey, response, 600);
 
         res.status(200).json(response);
     } catch (error) {
@@ -245,11 +245,11 @@ exports.getRoomAvailabilityByType = async (req, res) => {
         const cacheKey = '/api' + req.originalUrl; // Always add /api
 
 
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
+                return res.status(200).json(cached);
             }
         }
 
@@ -276,7 +276,7 @@ exports.getRoomAvailabilityByType = async (req, res) => {
             occupiedBeds,
             vacantBeds,
         };
-        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
+        await CacheHelper.set(cacheKey, response, 600);
 
         res.status(200).json(response);
     }
@@ -300,11 +300,11 @@ exports.getPropertySummaryByType = async (req, res) => {
         const cacheKey = '/api' + req.originalUrl; // Always add /api
         const propertyId = req.params.id;
 
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
+                return res.status(200).json(cached);
             }
         }
 
@@ -347,7 +347,7 @@ exports.getPropertySummaryByType = async (req, res) => {
             totalTypes,
             typesSummary,
         };
-        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
+        await CacheHelper.set(cacheKey, response, 600);
 
         res.status(200).json(response);
 
@@ -393,11 +393,11 @@ exports.searchRooms = async (req, res) => {
         //console.log(query);
         const cacheKey = '/api' + req.originalUrl; // Always add /api
 
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
+                return res.status(200).json(cached);
             }
         }
 
@@ -406,7 +406,7 @@ exports.searchRooms = async (req, res) => {
             return res.status(404).json({ error: 'No rooms found' });
         }
 
-        await redisClient.set(cacheKey, JSON.stringify(rooms), 'EX', 300);
+        await CacheHelper.set(cacheKey, rooms, 600);
 
         res.status(200).json(rooms);
     } catch (error) {
@@ -425,18 +425,18 @@ exports.getRoomByTenantId = async (req, res) => {
             return res.status(400).json({ error: 'Tenant ID is required' });
         }
 
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
+                return res.status(200).json(cached);
             }
         }
 
         const room = await Room.findOne({ tenantId }).populate('propertyId', 'name location totalRooms ownerId');
         if (!room) return res.status(404).json({ error: 'Room not found' });
 
-        await redisClient.set(cacheKey, JSON.stringify(room), 'EX', 300);
+        await CacheHelper.set(cacheKey, room, 600);
 
         res.status(200).json(room);
     } catch (error) {
@@ -454,11 +454,11 @@ exports.getRoomDocs = async (req, res) => {
 
     const cacheKey = '/api' + req.originalUrl; // Always add /api
     try {
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
+                return res.status(200).json(cached);
             }
         }
         const roomDocs = await Room.countDocuments({ propertyId: pppid });
@@ -467,7 +467,7 @@ exports.getRoomDocs = async (req, res) => {
             count: roomDocs
         };
 
-        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
+        await CacheHelper.set(cacheKey, response, 600);
 
         res.status(200).json(response);
     }
@@ -492,8 +492,8 @@ exports.getBedDocs = async (req, res) => {
     //console.log(pppObjectId);
     try {
 
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 //console.log('Returning cached username availability');
             }
@@ -530,11 +530,11 @@ exports.getBedDocs = async (req, res) => {
 
         if (!beds || beds.length === 0) {
             const response = { totalBeds: 0, occupiedBeds: 0, availableBeds: 0 };
-            await redisClient.set(cacheKey, JSON.stringify([response]), 'EX', 300);
+            await CacheHelper.set(cacheKey, [response], 600);
             return res.status(200).json([response]);
         }
 
-        await redisClient.set(cacheKey, JSON.stringify(beds), 'EX', 300);
+        await CacheHelper.set(cacheKey, beds, 600);
 
         res.status(200).json(beds);
     }

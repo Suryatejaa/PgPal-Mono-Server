@@ -1,6 +1,6 @@
 const Property = require('../models/propertyModel');
 const Review = require('../models/reviewModel');
-const redisClient = require('../utils/redis');
+const CacheHelper = require('../utils/CacheHelper');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
 
@@ -241,11 +241,11 @@ module.exports = {
         const cacheKey = '/api' + req.originalUrl; // Always add /api
         try {
 
-            if (redisClient.isReady) {
-                const cached = await redisClient.get(cacheKey);
+            if (CacheHelper.isReady()) {
+                const cached = await CacheHelper.get(cacheKey);
                 if (cached) {
                     //console.log('Returning cached username availability');
-                    return res.status(200).send(JSON.parse(cached));
+                    return res.status(200).json(cached);
                 }
             }
 
@@ -261,7 +261,7 @@ module.exports = {
                 reviews,
                 averageRating
             };
-            await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
+            await CacheHelper.set(cacheKey, response, 600);
 
 
             res.status(200).json(response);

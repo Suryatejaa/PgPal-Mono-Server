@@ -1,5 +1,6 @@
 const { getTenantDocs, getOwnProperty, getVacates, getComplaintStats, getRoomDocs, getBedDocs, getCheckins } = require('./internalApis.js');
-const redisClient = require('../utils/redis.js'); // Adjust the path as needed
+// const redis = require('../utils/redis.js'); // Adjust the path as needed
+const CacheHelper = require('../utils/CacheHelper.js'); // Adjust the path as needed
 
 exports.getOverview = async (req, res) => {
     const xUserHeader = req.headers['x-user'];
@@ -28,11 +29,11 @@ exports.getOverview = async (req, res) => {
     const propertyId = ownerConfirmation._id.toString();
     try {
 
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
+                return res.status(200).json(cached);
             }
         }
 
@@ -52,8 +53,13 @@ exports.getOverview = async (req, res) => {
             occupiedBeds: stats.occupiedBeds,
             occupancy: `${occupancy}%`
         };
-        if (redisClient.isReady) {
-            await redisClient.set(cacheKey, JSON.stringify(response), { EX: 600 });
+
+        console.log(CacheHelper.isReady());
+        console.log(cacheKey, response);
+        if (CacheHelper.isReady()) {
+            console.log(`first cacheKey: ${cacheKey}`);
+            console.log(`first response: ${JSON.stringify(response)}`);
+            await CacheHelper.set(cacheKey, response, 600);
         }
         res.json(response);
     } catch (err) {
@@ -92,18 +98,18 @@ exports.getCheckins = async (req, res) => {
 
     try {
 
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
+                return res.status(200).json(cached);
             }
         }
 
         const checkins = await getCheckins(pppid, period, JSON.parse(req.headers['x-user']));
 
-        if (redisClient.isReady) {
-            await redisClient.set(cacheKey, JSON.stringify(checkins), { EX: 600 });
+        if (CacheHelper.isReady()) {
+            await CacheHelper.set(cacheKey, checkins, 600);
         }
         res.json(checkins);
     } catch (err) {
@@ -149,18 +155,18 @@ exports.getVacates = async (req, res) => {
 
     try {
 
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
+                return res.status(200).json(cached);
             }
         }
         //console.log('fromDate:', fromDate, propertyPpid);
         const vacates = await getVacates(propertyPpid, period, JSON.parse(req.headers['x-user']));
 
-        if (redisClient.isReady) {
-            await redisClient.set(cacheKey, JSON.stringify(vacates), { EX: 600 });
+        if (CacheHelper.isReady()) {
+            await CacheHelper.set(cacheKey, vacates, 600);
         }
 
         res.json(vacates);
@@ -192,12 +198,6 @@ exports.getComplaintStats = async (req, res) => {
     const cacheKey = '/api' + req.originalUrl; // Always add /api
     //console.log(`Cache key in controller: ${cacheKey}`);
 
-    // In getComplaintStats method
-    if (!redisClient.isReady) {
-        console.error('Redis client is not ready');
-        return next(); // Proceed without caching
-    }
-
     const ownerConfirmation = await getOwnProperty(propertyPpid, currentUser, true);
     if (ownerConfirmation.ownerId.toString() !== id && role !== 'admin') {
         return res.status(403).json({ error: 'Forbidden: You can only access your own properties' });
@@ -206,22 +206,18 @@ exports.getComplaintStats = async (req, res) => {
 
     try {
 
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
+                return res.status(200).json(cached);
             }
         }
 
         const stats = await getComplaintStats(pppid, JSON.parse(req.headers['x-user']));
 
-        if (!redisClient.isReady) {
-            console.error('Redis client is not ready');
-            return next(); // Proceed without caching
-        }
-        if (redisClient.isReady) {
-            await redisClient.set(cacheKey, JSON.stringify(stats), { EX: 600 });
+        if (CacheHelper.isReady()) {
+            await CacheHelper.set(cacheKey, stats, 600);
             //console.log(`Cache key in controller: ${cacheKey}`);
 
         }

@@ -1,7 +1,7 @@
 const Tenant = require('../models/tenantModel');
 const { generatePPT } = require('../utils/idGenerator'); // Assuming you have a function to generate PPT IDs
 const { assignBed, getOwnProperty, getUserByPhone, getRoomByNumber, getUserByPpid } = require('./internalApis'); // Assuming you have a function to generate PPT IDs
-const redisClient = require('../utils/redis');
+const CacheHelper = require('../utils/CacheHelper');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
 const sendMail = require('../utils/sendMail');

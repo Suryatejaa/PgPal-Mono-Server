@@ -2,7 +2,7 @@ const Complaint = require('../models/complainsModel');
 const { generateRITM } = require('../utils/idGenerator');
 const { getTenantConfirmation } = require('./internalApis');
 const { getPropertyOwner } = require('./internalApis');
-const redisClient = require('../utils/redis.js'); // Adjust the path as needed
+const CacheHelper = require('../utils/CacheHelper'); // Adjust the path as needed
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const { response } = require('express');
 const notificationQueue = require('../utils/notificationQueue.js');
@@ -154,11 +154,11 @@ module.exports = {
 
             const cacheKey = '/api' + req.originalUrl; // Always add /api
 
-            if (redisClient.isReady) {
-                const cached = await redisClient.get(cacheKey);
+            if (CacheHelper.isReady()) {
+                const cached = await CacheHelper.get(cacheKey);
                 if (cached) {
                     //console.log('Returning cached username availability');
-                    return res.status(200).send(JSON.parse(cached));
+                    return res.status(200).json(cached);
                 }
             }
 
@@ -170,8 +170,8 @@ module.exports = {
 
             const complaints = await Complaint.find(filter).sort({ createdAt: -1 });
 
-            if (redisClient.isReady) {
-                await redisClient.set(cacheKey, JSON.stringify(complaints), { EX: 60 });
+            if (CacheHelper.isReady()) {
+                await CacheHelper.set(cacheKey, complaints, 60);
             }
 
             res.status(200).json(complaints);
@@ -187,19 +187,19 @@ module.exports = {
         const cacheKey = '/api' + req.originalUrl; // Always add /api
         try {
 
-            if (redisClient.isReady) {
-                const cached = await redisClient.get(cacheKey);
+            if (CacheHelper.isReady()) {
+                const cached = await CacheHelper.get(cacheKey);
                 if (cached) {
                     //console.log('Returning cached username availability');
-                    return res.status(200).send(JSON.parse(cached));
+                    return res.status(200).json(cached);
                 }
             }
 
             const complaint = await Complaint.findOne({ complaintId: req.params.id });
             if (!complaint) return res.status(404).json({ error: 'Complaint not found' });
 
-            if (redisClient.isReady) {
-                await redisClient.set(cacheKey, JSON.stringify(complaint), { EX: 60 });
+            if (CacheHelper.isReady()) {
+                await CacheHelper.set(cacheKey, complaint, 60);
             }
 
             res.status(200).json(complaint);
@@ -289,7 +289,7 @@ module.exports = {
             const isComplaintClosed = req.body.status === 'Closed';
             const isNotesAdded = req.body.notes && !Array.isArray(req.body.notes);
             const whatUpdated = isUpdatedByTenant ? 'closed' : isUpdatedByOwner ? 'resolved' : isComplaintClosed ? 'closed' : isNotesAdded ? 'updated with notes' : 'updated';
-            const complaintType = updatedComplaint?.complaintType
+            const complaintType = updatedComplaint?.complaintType;
 
             const title = 'Complaint Status Updated';
             message = `Your complaint on ${complaintType} has been ${whatUpdated}. Check the latest status for more details.`;
@@ -395,8 +395,8 @@ module.exports = {
                 resolvedComplaints
             };
 
-            if (redisClient.isReady) {
-                await redisClient.set(cacheKey, JSON.stringify(response), { EX: 60 });
+            if (CacheHelper.isReady()) {
+                await CacheHelper.set(cacheKey, response, 60);
             }
 
             res.status(200).json(response);
@@ -410,11 +410,11 @@ module.exports = {
             const { propertyId } = req.params;
             const cacheKey = '/api' + req.originalUrl; // Always add /api
 
-            if (redisClient.isReady) {
-                const cached = await redisClient.get(cacheKey);
+            if (CacheHelper.isReady()) {
+                const cached = await CacheHelper.get(cacheKey);
                 if (cached) {
                     //console.log('Returning cached username availability');
-                    return res.status(200).send(JSON.parse(cached));
+                    return res.status(200).json(cached);
                 }
             }
 
@@ -431,8 +431,8 @@ module.exports = {
                 closedComplaints
             };
 
-            if (redisClient.isReady) {
-                await redisClient.set(cacheKey, JSON.stringify(response), { EX: 60 });
+            if (CacheHelper.isReady()) {
+                await CacheHelper.set(cacheKey, response, 600);
             }
 
             res.status(200).json(response);

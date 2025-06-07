@@ -80,6 +80,7 @@ function createCurrentStaySnapshot(currentStay) {
         deposit: currentStay.deposit,
         assignedAt: currentStay.assignedAt,
         noticePeriodInMonths: currentStay.noticePeriodInMonths,
+        noticePeriodInDays: currentStay.noticePeriodInDays,
         location: currentStay.location,
     };
 }

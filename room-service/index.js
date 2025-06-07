@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 4003;
 // Middleware
 app.use(express.json());
 app.use(cors({
-    origin: 'http://localhost:5173',
+    origin: ['http://localhost:5173', 'http://localhost:5174'],
     credentials: true,
 }));
 app.use(cookieParser());
@@ -28,10 +28,10 @@ mongoose.connect(process.env.MONGO_URI, {
     tlsAllowInvalidCertificates: false,
 })
     .then(() => console.log('Connected to MongoDB'));
-        // Routes
-        app.get('/', (req, res) => {
-            res.send('Room Service is running');
-        });
+// Routes
+app.get('/', (req, res) => {
+    res.send('Room Service is running');
+});
 
 // Start the server
 app.listen(PORT, () => {

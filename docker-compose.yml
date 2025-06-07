@@ -157,13 +157,13 @@ services:
     volumes:
     - ./mongo-data:/data/db
   
-  redis:
-    image: redis
-    container_name: redis
-    ports:
-      - "6379:6379"
-    environment:
-      - REDIS_URL=${REDIS}  # Use Railway Redis from .env
+  # redis:
+  #   image: redis
+  #   container_name: redis
+  #   ports:
+  #     - "6379:6379"
+  #   environment:
+  #     - REDIS_URL=${REDIS}  # Use Railway Redis from .env
       
 volumes:
   mongo-data:

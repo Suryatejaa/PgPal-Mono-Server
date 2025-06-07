@@ -1,7 +1,8 @@
 const Tenant = require('../models/tenantModel');
+const Vacate = require('../models/vacatesModel');
 const { getOwnProperty, getUserByPhone } = require("./internalApis");
 const notificationQueue = require('../utils/notificationQueue.js');
-const redisClient = require('../utils/redis');
+const CacheHelper = require('../utils/CacheHelper');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const { sendMail, generateRentBillPDF } = require('../utils/sendMail');
 const fs = require('fs');
@@ -35,6 +36,8 @@ exports.updateRent = async (req, res) => {
     try {
         const tenant = await Tenant.findOne({ pgpalId: tenantId });
         if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+        const isInNoticePeriod = tenant.isInNoticePeriod;
 
         const property = await getOwnProperty(tenant.currentStay.propertyPpid, currentUser, ppid = true);
         if (!property) return res.status(404).json({ error: 'Property not found' });
@@ -75,6 +78,45 @@ exports.updateRent = async (req, res) => {
         );
 
         if (!updatedTenant) return res.status(404).json({ error: 'Failed to update tenant rent details' });
+
+        if (isInNoticePeriod) {
+            const vacate = await Vacate.findOne({ tenantId, status: 'noticeperiod' });
+            if (vacate) {
+                const rent = vacate.previousSnapshot.rent;
+                const lastPaid = vacate.previousSnapshot.rentPaid ? vacate.previousSnapshot.rentPaid : 0;
+                const totalPaid = rentPaid + lastPaid;
+                const newDue = rent - totalPaid;
+                const advance = newDue < 0 ? Math.abs(newDue) : 0;
+                const rentDue = newDue > 0 ? newDue : 0;
+                const status = rentDue > 0 ? 'unpaid' : 'paid';
+
+                const assignedDate = new Date(vacate.previousSnapshot.assignedAt); // Get assigned date
+                const currentDate = new Date(); // Current date
+                const nextMonth = new Date(currentDate.setMonth(currentDate.getMonth() + 1)); // Add one month to current date
+                const nextRentDueDate = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), assignedDate.getDate()); // Use day from assignedDate
+                
+                const updatedVacate = await Vacate.findOneAndUpdate(
+                    { tenantId, status: 'noticeperiod' },
+                    {
+                        $set: {
+                            'previousSnapshot.rentPaid': totalPaid,
+                            'previousSnapshot.rentDue': rentDue,    
+                            'previousSnapshot.rentPaidDate': rentPaidDate ? new Date(rentPaidDate) : new Date(),
+                            'previousSnapshot.rentDueDate': newDue > 0 ? new Date(new Date().setDate(new Date().getDate() + 7)) : nextRentDueDate,
+                            'previousSnapshot.advanceBalance': advance,
+                            'previousSnapshot.rentPaidStatus': status,
+                            'previousSnapshot.rentPaidMethod': rentPaidMethod,
+                            'previousSnapshot.rentPaidTransactionId': transactionId || null,
+                            'previousSnapshot.nextRentDueDate': nextRentDueDate,
+                            updatedAt: new Date()
+                        }
+                    },
+                    { new: true }// Return the updated document
+                );
+                if (!updatedVacate) return res.status(404).json({ error: 'Failed to update vacate rent details' });
+            }
+        }
+
 
         const title = "Rent Information Updated";
         const message = `The rent of ₹.${rentPaid} for your stay at ${property.name} of bed ${tenant.currentStay.bedId} has been updated.`;
@@ -182,11 +224,11 @@ exports.getRentStatus = async (req, res) => {
         if (property.status && property.status !== 200) return res.status(404).json({ error: property.error });
         if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
 
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
+                return res.status(200).json(cached);
             }
         }
 
@@ -201,7 +243,7 @@ exports.getRentStatus = async (req, res) => {
             nextRentDueDate
         };
 
-        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
+        await CacheHelper.set(cacheKey, response, 600);
 
         res.status(200).json(response);
     } catch (err) {
@@ -234,11 +276,11 @@ exports.getRentSummary = async (req, res) => {
         if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
 
 
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
+                return res.status(200).json(cached);
             }
         }
 
@@ -258,7 +300,7 @@ exports.getRentSummary = async (req, res) => {
 
         const response = { propertyPpid, tenants: summary };
 
-        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
+        await CacheHelper.set(cacheKey, response, 600);
 
         res.status(200).json(response);
     } catch (err) {
@@ -289,11 +331,11 @@ exports.getRentDefaulters = async (req, res) => {
         if (property.status && property.status !== 200) return res.status(404).json({ error: property.error });
         if (property.ownerId.toString() !== id) return res.status(403).json({ error: 'You do not own this property' });
 
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 //console.log('Returning cached username availability');
-                return res.status(200).send(JSON.parse(cached));
+                return res.status(200).json(cached);
             }
         }
 
@@ -314,7 +356,7 @@ exports.getRentDefaulters = async (req, res) => {
 
         const response = { totalDefaulters: formatted.length, defaulters: formatted };
 
-        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', 300);
+        await CacheHelper.set(cacheKey, response, 600);
 
         res.status(200).json(response);
     } catch (err) {

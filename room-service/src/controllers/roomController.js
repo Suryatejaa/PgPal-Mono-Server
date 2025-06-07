@@ -1,6 +1,6 @@
 const Room = require('../models/roomModel');
 const axios = require('axios');
-const redisClient = require('../utils/redis');
+const CacheHelper = require('../utils/redis');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
 const { getOwnProperty } = require('./internalApis.js');
@@ -653,13 +653,13 @@ exports.changeBedStatus = async (req, res) => {
     }
 
     try {
-        const room = await Room.findOne({pgpalId: roomId});
+        const room = await Room.findOne({ pgpalId: roomId });
         if (!room) return res.status(404).json({ error: 'Room not found' });
 
         const bed = room.beds.find(b => b.bedId === bedId);
         if (!bed) return res.status(404).json({ error: 'Bed not found' });
 
-       await Room.updateOne(
+        await Room.updateOne(
             { pgpalId: roomId, 'beds.bedId': bedId },
             { $set: { 'beds.$.status': status } }
         );

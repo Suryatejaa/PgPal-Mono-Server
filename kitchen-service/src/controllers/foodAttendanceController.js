@@ -2,7 +2,7 @@ const FoodAttendance = require('../models/foodAttendanceSchema');
 const { getActiveTenantsForProperty, getTenantConfirmation, getAllProperties } = require('./internalApis');
 const notificationQueue = require('../utils/notificationQueue');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
-const redisClient = require('../utils/redis');
+const CacheHelper = require('../utils/CacheHelper');
 const JobStatus = require('../models/jobStatusSchema');
 
 
@@ -169,8 +169,7 @@ const getMealAttendance = async (req, res) => {
             attendance
         };
 
-        await redisClient.set(cacheKey, JSON.stringify(
-            response), 'EX', 300);
+        await CacheHelper.set(cacheKey, response, 600);
 
         res.status(200).json(response);
     } catch (error) {

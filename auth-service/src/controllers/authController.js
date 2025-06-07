@@ -2,7 +2,7 @@ const User = require('../models/userModel');
 const otpStore = {};
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
-const redisClient = require('../utils/redis.js'); // Adjust the path as needed
+const CacheHelper = require('../utils/CacheHelper'); // Adjust the path as needed
 const { generatePPT } = require('../utils/idGenerator.js');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
@@ -126,7 +126,7 @@ const loginUser = async (req, res) => {
             ) : (
 
                 await notificationQueue.add('notifications', {
-                    ownerId: user.pgpalId,
+                    ownerId: user._id,
                     audience: 'owner',
                     title,
                     message,
@@ -194,8 +194,8 @@ const checkUsernameAvailability = async (req, res) => {
         let usernames;
 
         // 1. Try to get usernames from cache
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 usernames = JSON.parse(cached);
             }
@@ -205,8 +205,8 @@ const checkUsernameAvailability = async (req, res) => {
         if (!usernames) {
             const users = await User.find({}, 'username');
             usernames = users.map(u => u.username.toLowerCase());
-            if (redisClient.isReady) {
-                await redisClient.set(cacheKey, JSON.stringify(usernames), { EX: 600 }); // 10 min cache
+            if (CacheHelper.isReady()) {
+                await CacheHelper.set(cacheKey, usernames, 600); // 10 min cache
             }
         }
 
@@ -229,8 +229,8 @@ const checkEmailAvailability = async (req, res) => {
         let emails;
 
         // 1. Try to get emails from cache
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 emails = JSON.parse(cached);
             }
@@ -240,8 +240,8 @@ const checkEmailAvailability = async (req, res) => {
         if (!emails) {
             const users = await User.find({}, 'email');
             emails = users.map(u => u.email.toLowerCase());
-            if (redisClient.isReady) {
-                await redisClient.set(cacheKey, JSON.stringify(emails), { EX: 600 }); // 10 min cache
+            if (CacheHelper.isReady()) {
+                await CacheHelper.set(cacheKey, emails, 600); // 10 min cache
             }
         }
 
@@ -265,8 +265,8 @@ const checkPhoneNumberAvailability = async (req, res) => {
         let phoneNumbers;
 
         // 1. Try to get phone numbers from cache
-        if (redisClient.isReady) {
-            const cached = await redisClient.get(cacheKey);
+        if (CacheHelper.isReady()) {
+            const cached = await CacheHelper.get(cacheKey);
             if (cached) {
                 phoneNumbers = JSON.parse(cached);
             }
@@ -276,8 +276,8 @@ const checkPhoneNumberAvailability = async (req, res) => {
         if (!phoneNumbers) {
             const users = await User.find({}, 'phoneNumber');
             phoneNumbers = users.map(u => u.phoneNumber);
-            if (redisClient.isReady) {
-                await redisClient.set(cacheKey, JSON.stringify(phoneNumbers), { EX: 600 }); // 10 min cache
+            if (CacheHelper.isReady()) {
+                await CacheHelper.set(cacheKey, phoneNumbers, 600); // 10 min cache
             }
         }
 
