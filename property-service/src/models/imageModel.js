@@ -4,7 +4,7 @@ const ImageSchema = new mongoose.Schema({
     propertyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Property', required: true },
     url: String,
     description: String
-}, { timestamps: true }); const mongoose = require('mongoose');
+}, { timestamps: true });
 
 module.exports = mongoose.model('Image', ImageSchema);
 

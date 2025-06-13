@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const session = require('express-session');
 const authRoutes = require('./src/routes/authRoutes');
+const adminRoutes = require('./src/routes/adminRoutes');
 const passport = require('./src/controllers/googleLogin');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
@@ -16,7 +17,7 @@ app.use(session({ secret: 'your-session-secret', resave: false, saveUninitialize
 app.use(passport.initialize());
 app.use(passport.session());
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:5174'],
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'http:localhost:5175'],
     credentials: true,
 }));
 
@@ -30,6 +31,7 @@ mongoose.connect(process.env.MONGO_URI, {
 
 // Routes
 app.use('/api/auth-service', authRoutes);
+app.use('/api/auth-service/admin', adminRoutes);
 
 const PORT = process.env.PORT || 4001;
 app.listen(PORT, () => console.log(`Auth Service running on port ${PORT}`));

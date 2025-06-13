@@ -1,6 +1,6 @@
 const Complaint = require('../models/complainsModel');
 const { generateRITM } = require('../utils/idGenerator');
-const { getTenantConfirmation } = require('./internalApis');
+const {makeInternalApiCall, getTenantConfirmation } = require('./internalApis');
 const { getPropertyOwner } = require('./internalApis');
 const CacheHelper = require('../utils/CacheHelper'); // Adjust the path as needed
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');

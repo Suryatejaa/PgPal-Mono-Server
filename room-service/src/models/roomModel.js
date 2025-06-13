@@ -1,37 +1,41 @@
 const mongoose = require('mongoose');
-const {generatePPR} = require('../utils/idGenerator'); // Import the ID generator function
+const { generatePPR } = require('../utils/idGenerator'); // Import the ID generator function
 
 const RoomSchema = new mongoose.Schema({
     propertyId: { type: mongoose.Schema.Types.ObjectId, required: true },
-    roomNumber: { type: Number, required: true }, 
-    floor: { type: Number, required: true }, 
+    roomNumber: { type: Number, required: true },
+    floor: { type: Number, required: true },
     type: { type: String, enum: ['single', 'double', 'triple', 'four', 'five', 'six', 'seven', 'eight'], required: true },
     totalBeds: { type: Number, required: true },
     rentPerBed: { type: Number, required: true },
     beds: [
         {
             bedId: { type: String, required: true },
-            status: { type: String, enum: ['vacant', 'occupied','noticeperiod'], required: true },
+            status: { type: String, enum: ['vacant', 'occupied', 'noticeperiod'], required: true },
             tenantNo: { type: String, default: null },
             tenantPpt: { type: String, default: null },
         }
     ],
-    pgpalId: { 
+    pgpalId: {
         type: String,
         unique: true,
-        default: function() { return generatePPR(); } // Generate a new property ID
+        default: function () { return generatePPR(); } // Generate a new property ID
     },
     status: { type: String, enum: ['vacant', 'partially occupied', 'occupied'], default: 'vacant' },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
 });
 
-RoomSchema.pre('save', function(next) {
+RoomSchema.index({ propertyId: 1, roomNumber: 1 }, {
+    unique: true, name: 'unique_room_per_property'
+}); // Ensure unique room numbers per property
+
+RoomSchema.pre('save', function (next) {
     this.updatedAt = Date.now();
     next();
 });
 
-RoomSchema.pre('findOneAndUpdate', function(next) {
+RoomSchema.pre('findOneAndUpdate', function (next) {
     this.set({ updatedAt: Date.now() });
     next();
 });
@@ -45,6 +49,6 @@ RoomSchema.pre('save', async function (next) {
             uniqueId = await this.model('Room').findOne({ pgpaalId: this.pgpaalId });
         }
     }
-})
+});
 
 module.exports = mongoose.model('Room', RoomSchema);

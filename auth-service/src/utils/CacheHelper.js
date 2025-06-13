@@ -14,8 +14,10 @@ class CacheHelper {
 
         try {
             const cached = await redisClient.get(key);
+            
             if (cached) {
                 console.log('Cache hit:', key);
+                console.log('Cached data:', cached);
                 return JSON.parse(cached);
             }
             console.log('Cache miss:', key);

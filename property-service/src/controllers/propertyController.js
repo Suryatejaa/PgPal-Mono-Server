@@ -7,13 +7,14 @@ const CacheHelper = require('../utils/CacheHelper');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
 const moment = require('moment');
+const { PLAN_LIMITS, getSuggestedPlan } = require('../middleware/planValidates.js');
 const {
     getActiveTenantsForProperty,
     getStayRecordsFromTenantService,
     removeAllTenantsFromProperty
-} = require('./internalApis');
-
-
+ } = require('./internalApis');
+const PlanHelper = require('../utils/planHelper');
+const PlanLimits = require('../config/planLimits.js');
 
 const increaseViewCount = async (id) => {
     const property = await Property.findById(id);
@@ -43,6 +44,28 @@ module.exports = {
         const phone = currentUser.data.user.phoneNumber;
         const email = currentUser.data.user.email;
 
+        const userPlan = currentUser.data.user.currentPlan || { type: 'free' };
+        const planType = userPlan.type || 'free';
+        const planLimits = PLAN_LIMITS[planType];
+
+        if (role !== 'owner') {
+            return res.status(403).json({ error: 'Forbidden: Only owners can add properties' });
+        }
+
+        // ✅ Check plan limits before adding property
+        const totalOwnedProperties = await Property.countDocuments({ ownerId: id });
+
+        if (planLimits.maxProperties !== -1 && totalOwnedProperties >= planLimits.maxProperties) {
+            return res.status(403).json({
+                code:'PROPERTY_LIMIT_REACHED',
+                error: `Property limit reached. Your ${planType} plan allows ${planLimits.maxProperties} properties.`,
+                currentCount: totalOwnedProperties,
+                maxAllowed: planLimits.maxProperties,
+                upgradeRequired: true,
+                suggestedPlan: getSuggestedPlan(totalOwnedProperties + 1)
+            });
+        }
+
         if (role !== 'owner') {
             return res.status(403).json({ error: 'Forbidden: Only owners can add properties' });
         }
@@ -50,12 +73,12 @@ module.exports = {
             return res.status(401).json({ error: 'Unauthorized: Missing userId' });
         }
 
+
+
         try {
-            const { name, address, totalBeds, contact, totalRooms, rentRange, depositRange, pgGenderType, occupiedBeds, location } = req.body;
-            const availableBeds = totalBeds - occupiedBeds;
-            if (availableBeds < 0) {
-                return res.status(400).json({ error: 'Occupied beds cannot exceed total beds' });
-            }
+            const { name, address, contact, rentRange, depositRange, pgGenderType, location } = req.body;
+            const availableBeds = 0;
+
             //console.log('checkpoint 2');
             console.log(location);
             let lng = Number(location?.coordinates?.[0]);
@@ -69,13 +92,16 @@ module.exports = {
                 return res.status(400).json({ error: 'Invalid or missing location coordinates' });
             }
 
+            const maxRoomsAllowed = planLimits.maxRoomsPerProperty || -1;
+            const maxBedsAllowed = planLimits.maxBedsPerProperty || -1;
+
             const property = await Property.create({
                 name,
                 address,
                 ownerId: id,
-                totalBeds,
-                totalRooms,
-                occupiedBeds,
+                totalBeds: 0,
+                totalRooms: 0,
+                occupiedBeds: 0,
                 pgGenderType,
                 availableBeds,
                 rentRange: {
@@ -95,9 +121,10 @@ module.exports = {
                     coordinates: [lng, lat]
                 },
                 contact,
+                maxRoomsAllowed,
+                maxBedsAllowed,
                 createdBy: id
             });
-            res.status(201).json(property);
 
             const propertyPpid = property.pgpalId;
             //console.log('Property PPID ', propertyPpid);
@@ -111,7 +138,7 @@ module.exports = {
                 //console.log('Adding notification job to the queue...');
 
                 await notificationQueue.add('notifications', {
-                    tenantIds: [ppid],
+                    ownerId: currentUser?.data?.user?.pgpalId,
                     propertyPpid,
                     title,
                     message,
@@ -141,36 +168,150 @@ module.exports = {
         }
     },
 
-
-    async getProperties(req, res) {
+    async updateMaxRoomsnBeds(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
         if (!currentUser) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const id = currentUser.data.user._id;
         const role = currentUser.data.user.role;
+        const ppid = currentUser.data.user.pgpalId;
         if (role !== 'owner') {
-            return res.status(403).json({ error: 'Forbidden: Since you are a tenant, you dont own any properties' });
+            return res.status(403).json({ error: 'Forbidden: Only owners can update max rooms and beds' });
         }
-        const cacheKey = '/api' + req.originalUrl; // Always add /api
+        if (!id) {
+            return res.status(401).json({ error: 'Unauthorized: Missing userId' });
+        }
         try {
-
-            const properties = await Property.find({ ownerId: id });
-            if (!properties || properties.length === 0) {
-                return res.status(404).json({ error: 'No properties found' });
+            const { currentPlan } = req.body;
+            const property = await Property.findById(req.params.id);
+            if (!property) {
+                return res.status(404).json({ error: 'Property not found' });
             }
-            // Increase view count for each property
-            for (const property of properties) {
-                await increaseViewCount(property._id);
+            if (property.ownerId !== id) {
+                return res.status(403).json({ error: 'Forbidden: You can only update your own properties' });
+
+            }
+            const { maxRoomsPerProperty, maxBedsPerProperty } = PLAN_LIMITS[currentPlan] || {};
+            if (maxRoomsPerProperty === undefined || maxBedsPerProperty === undefined) {
+                return res.status(400).json({ error: 'Invalid plan limits' });
             }
 
-            const response = properties.map(property => ({ ...property._doc, views: property.views }));
+            // Proceed with the update
+            const updatedProperty = await Property.findByIdAndUpdate(
+                req.params.id,
+                { maxRoomsAllowed: maxRoomsPerProperty, maxBedsAllowed: maxBedsPerProperty },
 
-            await CacheHelper.set(cacheKey, response, 600);
+                { new: true }
+            );
+            const propertyPpid = updatedProperty.pgpalId;
+            await invalidateCacheByPattern(`*${propertyPpid}*`);
+            await invalidateCacheByPattern(`*${property._id}*`);
+            
 
-            res.status(200).json(response);
+            res.status(200).json(updatedProperty);
         } catch (error) {
             res.status(500).json({ error: error.message });
+        }
+    },
+
+    async getProperties(req, res) {
+        try {
+            const currentUser = JSON.parse(req.headers['x-user']) || {};
+            if (!currentUser) {
+                return res.status(401).json({ error: 'Unauthorized' });
+            }
+
+        
+
+            // Log user structure for debugging
+            if (req.headers['x-debug']) {
+                console.log('🔍 [getProperties] Debug - currentUser structure:', {
+                    hasData: !!currentUser.data,
+                    hasUser: currentUser.data?.user ? true : false,
+                    userId: currentUser.data?.user?._id || currentUser._id || 'missing',
+                    role: currentUser.data?.user?.role || currentUser.role || 'missing'
+                });
+            }
+
+            const id = currentUser?.data?.user?._id || currentUser?._id;
+            const role = currentUser?.data?.user?.role || currentUser?.role;
+            const plan = currentUser?.data?.user?.currentPlan || { type: 'free' };
+
+            const maxRoomsAllowed = PlanLimits[plan]?.maxRoomsPerProperty || -1;
+            const maxBedsAllowed = PlanLimits[plan]?.maxBedsPerProperty || -1;
+
+            if (!id || !role) {
+                const error = new Error('Missing user ID or role in request');
+                console.error('❌ [getProperties] Authorization error:', {
+                    id,
+                    role,
+                    structure: {
+                        hasData: !!currentUser.data,
+                        hasDataUser: !!(currentUser.data && currentUser.data.user),
+                        hasDirectProps: !!(currentUser._id && currentUser.role)
+                    }
+                });
+                return res.status(401).json({
+                    error: 'Unauthorized: Invalid user data',
+                    details: 'Missing required user identification or role information'
+                });
+            }
+
+            if (role !== 'owner') {
+                return res.status(403).json({
+                    error: 'Forbidden: Since you are a tenant, you dont own any properties',
+                    role: role,
+                    requiredRole: 'owner'
+                });
+            }
+
+            console.log(`🔍 [getProperties] Searching for properties with ownerId: ${id}`);
+
+            // Try to fetch properties
+            const properties = await Property.find({ ownerId: id });
+            const updateRoomsnBeds = await Property.updateMany(
+                { ownerId: id },
+                {
+                    $set: {
+                        maxRoomsAllowed,
+                        maxBedsAllowed
+                    }
+                }
+            );
+
+            if (!properties || properties.length === 0) {
+                console.log(`📭 [getProperties] No properties found for user ${id}`);
+                return res.status(404).json({
+                    error: 'No properties found',
+                    details: 'No properties are associated with this user account'
+                });
+            }
+
+            const response = properties.map(property => ({
+                ...property._doc,
+                views: property.views || 0
+            }));
+
+            console.log(`✅ [getProperties] Found ${properties.length} properties for user ${id}`);
+            res.status(200).json(response);
+
+        } catch (error) {
+            // Enhanced error logging with stack trace
+            console.error('❌ [getProperties] Unhandled error:', {
+                message: error.message,
+                stack: error.stack,
+                url: req.originalUrl,
+                method: req.method,
+                user: req.headers['x-user'] ? 'Present' : 'Missing'
+            });
+
+            res.status(500).json({
+                error: error.message,
+                details: 'An unexpected error occurred while fetching properties',
+                path: req.path,
+                timestamp: new Date().toISOString()
+            });
         }
     },
 
@@ -585,7 +726,6 @@ module.exports = {
         }
     },
 
-
     async getAvailability(req, res) {
         const currentUser = JSON.parse(req.headers['x-user']) || {};
         if (!currentUser) {
@@ -735,6 +875,11 @@ module.exports = {
         }
         const id = currentUser.data.user._id;
         const role = currentUser.data.user.role;
+        const plan = currentUser.data.user.currentPlan
+
+        console.log(currentUser.data.user);
+        console.log(plan);
+        console.log(currentUser);
 
         if (role !== 'owner') {
             return res.status(403).json({ error: 'Forbidden: Only owners can update properties' });
@@ -752,6 +897,30 @@ module.exports = {
             }
             if (property.ownerId !== id) {
                 return res.status(403).json({ error: 'Forbidden: You can only update your own properties' });
+            }
+
+            // Check plan limits for rooms and beds per property
+           
+            const planLimits = PLAN_LIMITS[plan];
+
+            if (planLimits.maxRoomsPerProperty !== -1 && totalRooms > planLimits.maxRoomsPerProperty) {
+                return res.status(403).json({
+                    error: `Room limit reached. Your ${planType} plan allows ${planLimits.maxRoomsPerProperty} rooms per property.`,
+                    currentCount: totalRooms,
+                    maxAllowed: planLimits.maxRoomsPerProperty,
+                    upgradeRequired: true,
+                    suggestedPlan: getSuggestedPlan(totalRooms + 1)
+                });
+            }
+
+            if (planLimits.maxBedsPerProperty !== -1 && totalBeds > planLimits.maxBedsPerProperty) {
+                return res.status(403).json({
+                    error: `Bed limit reached. Your ${planType} plan allows ${planLimits.maxBedsPerProperty} beds per property.`,
+                    currentCount: totalBeds,
+                    maxAllowed: planLimits.maxBedsPerProperty,
+                    upgradeRequired: true,
+                    suggestedPlan: getSuggestedPlan(totalBeds + 1)
+                });
             }
 
             property.totalBeds = totalBeds;
@@ -917,6 +1086,95 @@ module.exports = {
 
             res.status(200).json(trend);
 
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+
+    async getPlanInfo(req, res) {
+        const currentUser = JSON.parse(req.headers['x-user']) || {};
+        if (!currentUser) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        try {
+            const userPlan = PlanHelper.getUserPlan(currentUser);
+            const planSummary = PlanHelper.getPlanSummary(userPlan);
+
+            res.status(200).json({
+                success: true,
+                planInfo: planSummary
+            });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+
+    async getPlanUsage(req, res) {
+        const currentUser = JSON.parse(req.headers['x-user']) || {};
+        if (!currentUser) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const id = currentUser.data.user._id;
+        const role = currentUser.data.user.role;
+
+        if (role !== 'owner') {
+            return res.status(403).json({ error: 'Forbidden: Only owners can view plan usage' });
+        }
+
+        try {
+            const userPlan = PlanHelper.getUserPlan(currentUser);
+
+            // Get current usage statistics
+            const totalProperties = await Property.countDocuments({ ownerId: id });
+
+            // Get detailed property stats
+            const properties = await Property.find({ ownerId: id });
+            let totalRooms = 0;
+            let totalBeds = 0;
+            let totalImages = 0;
+
+            properties.forEach(property => {
+                totalRooms += property.totalRooms || 0;
+                totalBeds += property.totalBeds || 0;
+                totalImages += property.images ? property.images.length : 0;
+            });
+
+            const usage = {
+                properties: {
+                    current: totalProperties,
+                    limit: userPlan.limits.maxProperties,
+                    unlimited: userPlan.limits.maxProperties === -1,
+                    percentage: userPlan.limits.maxProperties === -1 ? 0 : Math.round((totalProperties / userPlan.limits.maxProperties) * 100)
+                },
+                rooms: {
+                    current: totalRooms,
+                    averagePerProperty: totalProperties > 0 ? Math.round(totalRooms / totalProperties) : 0,
+                    limitPerProperty: userPlan.limits.maxRoomsPerProperty,
+                    unlimited: userPlan.limits.maxRoomsPerProperty === -1
+                },
+                beds: {
+                    current: totalBeds,
+                    averagePerProperty: totalProperties > 0 ? Math.round(totalBeds / totalProperties) : 0,
+                    limitPerProperty: userPlan.limits.maxBedsPerProperty,
+                    unlimited: userPlan.limits.maxBedsPerProperty === -1
+                },
+                images: {
+                    current: totalImages,
+                    averagePerProperty: totalProperties > 0 ? Math.round(totalImages / totalProperties) : 0,
+                    limitPerProperty: userPlan.limits.maxImagesPerProperty,
+                    unlimited: userPlan.limits.maxImagesPerProperty === -1
+                }
+            };
+
+            res.status(200).json({
+                success: true,
+                planType: userPlan.type,
+                usage,
+                features: userPlan.limits.features,
+                restrictions: userPlan.limits.restrictions
+            });
         } catch (error) {
             res.status(500).json({ error: error.message });
         }

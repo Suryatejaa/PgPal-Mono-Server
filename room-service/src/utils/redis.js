@@ -1,6 +1,9 @@
 const Redis = require('ioredis');
 require('dotenv').config();
 
+
+// Initialize Redis connection based on environment
+
 const redis = new Redis(process.env.REDIS);
 
 redis.on('connect', () => {

@@ -95,9 +95,13 @@ router.post('/google/logout', async (req, res) => {
 
 router.get('/update-profile', authenticate, updateProfileGoogle);
 
-router.get('/check-username', UserController.checkUsernameAvailability);
+router.get('/check-usernames', UserController.checkUsernameAvailability);
 router.get('/check-email', UserController.checkEmailAvailability);
 router.get('/check-phonenumber', UserController.checkPhoneNumberAvailability);
+
+router.post('/update-plan', authenticate, UserController.updateCurrentPlan);
+router.post('/cancel-plan', authenticate, UserController.cancelSubscription);
+router.get('/get-current-plan', authenticate, UserController.checkPlanStatus);
 
 router.post('/protected', authenticate, (req, res) => {
     res.status(200).json({

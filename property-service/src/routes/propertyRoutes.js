@@ -5,15 +5,17 @@ const reviewController = require('../controllers/reviewController');
 const amenitiesController = require('../controllers/amenitiesController');
 const imagesController = require('../controllers/imagesController');
 const rulesController = require('../controllers/rulesController');
+const {validatePlanAccess} = require('../middleware/planValidates.js');
 
 const cacheMiddleware = require('../utils/cacheMiddleware');
 
 router.get('/search', cacheMiddleware, PropertyController.searchProperties);
 router.get('/properties/nearby', PropertyController.getNearbyProperties);
 
-router.post('/', PropertyController.addProperty);
+router.post('/', validatePlanAccess('add_property'), PropertyController.addProperty);
 router.get('/', cacheMiddleware, PropertyController.getAllProperties);
 router.get('/getAllProperties', cacheMiddleware, PropertyController.getAllPropertiesInternal);
+router.put('/property/:id/updateMaxRoomsnBeds', PropertyController.updateMaxRoomsnBeds);
 
 router.get('/own', cacheMiddleware, PropertyController.getProperties);
 router.get('/:id', cacheMiddleware, PropertyController.getPropertyById);
@@ -47,6 +49,6 @@ router.put('/:id/images/:imageId', imagesController.updateImage);
 
 router.get('/:id/availability', cacheMiddleware, PropertyController.getAvailability);
 router.put('/:id/availability', PropertyController.updateAvailability);
-router.get('/:id/occupancy-trend', cacheMiddleware, PropertyController.occupancyTrend);
+router.get('/:id/occupancy-trend', cacheMiddleware, validatePlanAccess('view_occupancy_trend'), PropertyController.occupancyTrend);
 
 module.exports = router;

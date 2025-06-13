@@ -6,18 +6,46 @@ const CacheHelper = require('../utils/CacheHelper'); // Adjust the path as neede
 const { generatePPT } = require('../utils/idGenerator.js');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
+const { makeInternalApiCall, getMyProperties, updateMaxRoomsnBeds } = require('./internalApis');
 
 
 const setHeader = (res, token) => {
     res.setHeader('Authorization', `Bearer ${token}`);
 };
 
+const isNewLoginSession = (user, req) => {
+    const now = Date.now();
+    const lastLoginTime = user.lastLogin ? user.lastLogin.getTime() : 0;
+    const timeDifference = now - lastLoginTime;
+
+    // Consider it a new login if:
+    // 1. More than 30 minutes since last login, OR
+    // 2. Different IP address, OR  
+    // 3. Different User-Agent
+    const thirtyMinutes = 30 * 60 * 1000;
+    const userAgent = req.headers['user-agent'];
+    const clientIP = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'];
+
+    const isNewSession = timeDifference > thirtyMinutes ||
+        user.lastLoginIP !== clientIP ||
+        user.lastUserAgent !== userAgent;
+
+    console.log(`🔍 [AUTH] Login session check for ${user.username}:`);
+    console.log(`   Time difference: ${Math.round(timeDifference / 1000 / 60)} minutes`);
+    console.log(`   Is new session: ${isNewSession}`);
+
+    return isNewSession;
+};
+
 const registerUser = async (req, res) => {
     try {
         const { username, email, phoneNumber, gender, role, password, location } = req.body;
 
+        const toLowerCase = (str) => str ? str.toLowerCase() : str;
+        const usernameLower = toLowerCase(username);
+
         // Store user data temporarily
-        userDetails = { username, email, phoneNumber, gender, role, password, location };
+        userDetails = { username: usernameLower, email: toLowerCase(email), phoneNumber: toLowerCase(phoneNumber), gender, role, password, location };
         try {
             const otpResponse = await axios.post('http://localhost:4001/api/auth-service/otp/send', userDetails);
             if (otpResponse.status === 200) {
@@ -42,7 +70,8 @@ const registerUser = async (req, res) => {
 const loginUser = async (req, res) => {
     try {
         const { credential, password, role } = req.body;
-        //Find user by credential and role;
+
+        // Find user by credential and role
         const user = await User.findOne({
             $and: [
                 {
@@ -53,37 +82,95 @@ const loginUser = async (req, res) => {
                         { pgpalId: credential }
                     ]
                 },
-                { role: role } // Ensure the role matches
+                { role: role }
             ]
         });
+
         if (!user) {
             return res.status(401).json({ message: 'Invalid credential or role' });
         }
+
         const isValid = await user.comparePassword(password);
         if (!isValid) {
             return res.status(401).json({ message: 'Incorrect password' });
         }
 
+        if (user.isSuspended) {
+            return res.status(403).json({
+                code: 'SUSPENDED',
+                message: 'Your account is suspended, please contact support.'
+            });
+        }
+
+        // ✅ Check if this is a genuinely new login session
+        const isNewSession = isNewLoginSession(user, req);
+
         const token = user.generateAuthToken();
         const refreshToken = user.generateRefreshToken();
-        const cookieExpires = 3600000; // 1 hour in milliseconds
+
+        // Set cookies
         res.cookie('token', token, {
             httpOnly: true,
             sameSite: 'lax',
             secure: false,
             maxAge: 15 * 60 * 1000,
             path: '/',
-        }); // 5 mins
+        });
+
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
             sameSite: 'lax',
             secure: false,
             maxAge: 7 * 24 * 60 * 60 * 1000,
             path: '/',
-        }); // 7 days
+        });
+
         res.setHeader('Authorization', `Bearer ${token}`);
         res.setHeader('Refresh-Token', refreshToken);
         setHeader(res, token);
+
+        // ✅ Enhanced user update with session tracking
+        const userAgent = req.headers['user-agent'];
+        const clientIP = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'];
+
+        await User.findByIdAndUpdate(user._id, {
+            lastLogin: new Date(),
+            refreshToken: refreshToken,
+            lastLoginIP: clientIP,
+            lastUserAgent: userAgent
+        });
+
+        try {
+            const currentPlan = user.currentPlan; // Default to 'free' if not set
+            const subscriptionStatus = user.subscriptionStatus; // Default to 'inactive' if not set
+            const subscriptionEndDate = user.currentPlan !== 'free' ? user.subscriptionStatus.subscriptionEndDate : null; // Default to null if not set
+            const today = new Date();
+
+            if (currentPlan !== 'free' && subscriptionStatus === 'active' && subscriptionEndDate) {
+                // Check if subscription is still valid
+                if (new Date(subscriptionEndDate) < today) {
+                    // Subscription has expired, update user plan to 'free'
+                    await User.findByIdAndUpdate(user._id, {
+                        currentPlan: 'free',
+                        isInFreePlan: true,
+                        isStarterPack: false,
+                        isProfessionalPack: false,
+                        isInTrialPeriod: false,
+                        subscriptionStatus: {
+                            plan: 'free',
+                            status: 'inactive',
+                            subscriptionStartDate: null,
+                            subscriptionEndDate: null
+
+                        }
+                    });
+                }
+            }
+        } catch (error) {
+            console.error(`❌ [AUTH] Error updating user plan for ${user.username}:`, error.message);
+        }
+
+        // Send response first
         res.send({
             message: 'Logged in successfully',
             user: {
@@ -93,62 +180,72 @@ const loginUser = async (req, res) => {
                 role: user.role,
                 phone: user.phoneNumber,
                 pgpalId: user.pgpalId,
-                gender: user.gender
+                gender: user.gender,
+                currentPlan: user.currentPlan,
+                isTrialClaimed: user.isTrialClaimed,
             },
             authToken: token,
             refreshToken: refreshToken
         });
 
-        await User.findByIdAndUpdate(user._id, { refreshToken: refreshToken });
-        try {
-            const title = 'New login detected';
-            const message = `A new login was detected for your account. If this was not you, please secure your account.`;
-            const type = 'alert';
-            const method = ['in-app', 'email'];
+        // ✅ Only send notification for genuinely new login sessions
+        if (isNewSession) {
+            try {
+                console.log(`🔔 [AUTH] Sending new login notification for ${user.username}`);
 
-            role === 'tenant' ? (
+                const title = 'New login detected';
+                const message = `A new login was detected for your account from ${clientIP || 'unknown location'}. If this was not you, please secure your account immediately.`;
+                const type = 'security';
+                const method = ['in-app', 'email'];
 
-                await notificationQueue.add('notifications', {
+                const notificationData = role === 'tenant' ? {
                     tenantId: user.pgpalId,
                     audience: 'tenant',
                     title,
                     message,
                     type,
                     method,
-                    createdBy: 'system'
-                }, {
-                    attempts: 3,
-                    backoff: {
-                        type: 'exponential',
-                        delay: 3000
+                    createdBy: 'system',
+                    meta: {
+                        loginIP: clientIP,
+                        loginTime: new Date().toISOString(),
+                        userAgent: userAgent
                     }
-                })
-            ) : (
-
-                await notificationQueue.add('notifications', {
+                } : {
                     ownerId: user._id,
                     audience: 'owner',
                     title,
                     message,
                     type,
                     method,
-                    createdBy: 'system'
-                }, {
+                    createdBy: 'system',
+                    meta: {
+                        loginIP: clientIP,
+                        loginTime: new Date().toISOString(),
+                        userAgent: userAgent
+                    }
+                };
+
+                await notificationQueue.add('notifications', notificationData, {
                     attempts: 3,
                     backoff: {
                         type: 'exponential',
                         delay: 3000
-                    }
-                })
-            );
+                    },
+                    delay: 2000 // 2 second delay to ensure user session is established
+                });
 
-        } catch (error) {
-            console.error('Error sending notification:', error.message);
+                console.log(`✅ [AUTH] New login notification queued for ${user.username}`);
+
+            } catch (error) {
+                console.error(`❌ [AUTH] Error sending login notification for ${user.username}:`, error.message);
+            }
+        } else {
+            console.log(`🔄 [AUTH] Skipping notification - not a new session for ${user.username}`);
         }
 
-
     } catch (error) {
-        console.error(error);
+        console.error('❌ [AUTH] Login error:', error);
         res.status(400).json({
             message: 'Error logging in user',
             error: error.message
@@ -189,37 +286,50 @@ const getUser = async (req, res) => {
 };
 
 const checkUsernameAvailability = async (req, res) => {
+    console.log('Checking username availability');
     try {
-        const cacheKey = 'all_usernames'; // Use a fixed key for all usernames
+        const cacheKey = 'all_usernames';
         let usernames;
 
         // 1. Try to get usernames from cache
         if (CacheHelper.isReady()) {
+            // console.log(`Checking cache for ${cacheKey}`);
             const cached = await CacheHelper.get(cacheKey);
             if (cached) {
-                usernames = JSON.parse(cached);
+                // console.log(`Cache hit for ${cacheKey}`);
+                usernames = cached; // Remove JSON.parse() - already parsed by CacheHelper.get()
             }
         }
 
+        // console.log('usernames');
+
         // 2. If not cached, fetch from DB and cache it
         if (!usernames) {
+            // console.log(`Cache miss for ${cacheKey}, fetching from DB`);
             const users = await User.find({}, 'username');
             usernames = users.map(u => u.username.toLowerCase());
+            // console.log(usernames);
             if (CacheHelper.isReady()) {
-                await CacheHelper.set(cacheKey, usernames, 600); // 10 min cache
+                await CacheHelper.set(cacheKey, usernames, 600);
             }
         }
 
         // 3. Check availability
         let { username } = req.query;
+        // console.log('Checking username:', username);
         if (username) username = username.toLowerCase();
         const isTaken = usernames.includes(username);
+
         res.status(200).send({
             available: !isTaken,
             message: isTaken ? 'Username is not available' : 'Username is available'
         });
     } catch (error) {
-        res.status(500).send({ message: 'Error checking username availability', error: error.message });
+        console.error('Username check error:', error);
+        res.status(500).send({
+            message: 'Error checking usernames availability',
+            error: error.message
+        });
     }
 };
 
@@ -232,7 +342,7 @@ const checkEmailAvailability = async (req, res) => {
         if (CacheHelper.isReady()) {
             const cached = await CacheHelper.get(cacheKey);
             if (cached) {
-                emails = JSON.parse(cached);
+                emails = cached;
             }
         }
 
@@ -268,7 +378,7 @@ const checkPhoneNumberAvailability = async (req, res) => {
         if (CacheHelper.isReady()) {
             const cached = await CacheHelper.get(cacheKey);
             if (cached) {
-                phoneNumbers = JSON.parse(cached);
+                phoneNumbers = cached;
             }
         }
 
@@ -324,6 +434,10 @@ const sendOtpEmail = require('../utils/sendOtpEmail');
 
 
 const updateUser = async (req, res) => {
+    const currentUser = JSON.parse(req.headers['x-user']) || {};
+    if (!currentUser) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     try {
         const userId = req.user._id;
         const { username, email, phoneNumber, currentPassword, newPassword, confirmNewPassword } = req.body;
@@ -445,11 +559,15 @@ const verifyEmailOtp = async (req, res) => {
         // Invalidate caches
         await invalidateCacheByPattern('*all_emails*');
 
-        res.status(200).json({ message: 'Email updated successfully.', user });
+        res.status(200).json({
+            message: 'Email updated successfully.',
+            user
+        });
     } catch (error) {
         res.status(400).json({ message: 'Error verifying OTP', error: error.message });
     }
 };
+
 const resendOtp = async (req, res) => {
     try {
         const { email, ...userDetails } = req.body;
@@ -493,17 +611,25 @@ const verifyOtp = async (req, res) => {
 
         const getPgpalId = async () => {
             try {
-                const response = await axios.get(`http://tenant-service:4004/api/tenant-service/tenants-int/${userData.phoneNumber}`,
-                    {
-                        headers: {
-                            'x-internal-service': true,
-                        }
-                    }
+                const result = await makeInternalApiCall(
+                    'GET',
+                    `http://tenant-service:4004/api/tenant-service/tenants-int/${userData.phoneNumber}`,
+                    null,
+                    { 'x-internal-service': true },
+                    'getTenantPpid',
+                    'tenant-service',
+                    'auth-service'
                 );
-                const ppid = response.data;
-                return ppid;
+
+                if (result.success) {
+                    console.log(`✅ [AUTH] Found existing PPID for tenant ${userData.phoneNumber}: ${result.data}`);
+                    return result.data;
+                } else {
+                    console.log(`⚠️ [AUTH] No existing PPID found for tenant ${userData.phoneNumber}: ${result.error}`);
+                    return null;
+                }
             } catch (error) {
-                console.error('Error fetching pgpalId:', error.message);
+                console.error(`❌ [AUTH] Error fetching PPID for ${userData.phoneNumber}:`, error.message);
                 return null;
             }
         };
@@ -531,6 +657,8 @@ const verifyOtp = async (req, res) => {
             password: userData.password, // Make sure to hash password before saving in production
             isVerified: true,
             pgpalId: pgpalId ? pgpalId : undefined,
+            lastLogin: new Date(),
+            lastPasswordChange: new Date(),
         });
         await user.save();
 
@@ -579,7 +707,13 @@ const verifyOtp = async (req, res) => {
             user: {
                 _id: user._id,
                 name: user.name,
-                email: user.email
+                email: user.email,
+                role: user.role,
+                phone: user.phoneNumber,
+                pgpalId: user.pgpalId,
+                gender: user.gender,
+                currentPlan: user.currentPlan,
+                isTrialClaimed: user.isTrialClaimed,
             },
             authToken: token,
             refreshToken: refreshToken
@@ -590,7 +724,287 @@ const verifyOtp = async (req, res) => {
     }
 };
 
+const updateCurrentPlan = async (req, res) => {
+    const currentUser = req.user || JSON.parse(req.headers['x-user']) || {};
+    if (!currentUser) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    console.log(`🔍 [updateCurrentPlan] Updating plan for user ${currentUser}`);
 
+    try {
+        const userId = req.user._id;
+        const { currentPlan, subscriptionDuration } = req.body;
+
+        if (!currentPlan) {
+            return res.status(400).json({ message: 'Current plan is required.' });
+        }
+
+        // Validate plan type
+        const validPlans = ['free', 'trial', 'starter', 'professional'];
+        if (!validPlans.includes(currentPlan)) {
+            return res.status(400).json({ message: 'Invalid plan type.' });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        // Prepare update object
+        const updateData = {
+            currentPlan,
+            updatedAt: new Date()
+        };
+
+        // Handle different plan types
+        switch (currentPlan) {
+            case 'free':
+                updateData.isInFreePlan = true;
+                updateData.isInTrialPeriod = false;
+                updateData.isStarterPack = false;
+                updateData.isProfessionalPack = false;
+                updateData.trialEndDate = null;
+                updateData.subscriptionStatus = {
+                    plan: 'free',
+                    status: 'active',
+                    subscriptionStartDate: new Date(),
+                    subscriptionEndDate: null
+                };
+                break;
+
+            case 'trial':
+                const trialDuration = 30;
+                updateData.isInTrialPeriod = true;
+                updateData.isStarterPack = false;
+                updateData.isInFreePlan = false;
+                updateData.isTrialClaimed = true;
+                updateData.isProfessionalPack = false;
+                updateData.trialStartDate = user.trialStartDate || new Date();
+                updateData.trialEndDate = new Date(Date.now() + (trialDuration * 24 * 60 * 60 * 1000));
+                updateData.subscriptionStatus = {
+                    plan: 'trial',
+                    status: 'active',
+                    subscriptionStartDate: new Date(),
+                    subscriptionEndDate: updateData.trialEndDate
+                };
+                break;
+
+            case 'starter':
+                const starterDuration = subscriptionDuration || 1;
+                updateData.isInTrialPeriod = false;
+                updateData.isStarterPack = true;
+                updateData.isProfessionalPack = false;
+                updateData.trialEndDate = new Date();
+                const starterEndDate = new Date();
+                starterEndDate.setMonth(starterEndDate.getMonth() + starterDuration);
+                updateData.subscriptionStatus = {
+                    plan: 'starter',
+                    status: 'active',
+                    subscriptionStartDate: new Date(),
+                    subscriptionEndDate: starterEndDate
+                };
+                break;
+
+            case 'professional':
+                const professionalDuration = subscriptionDuration || 1;
+                updateData.isInTrialPeriod = false;
+                updateData.isStarterPack = false;
+                updateData.isProfessionalPack = true;
+                updateData.trialEndDate = new Date();
+                const professionalEndDate = new Date();
+                professionalEndDate.setMonth(professionalEndDate.getMonth() + professionalDuration);
+                updateData.subscriptionStatus = {
+                    plan: 'professional',
+                    status: 'active',
+                    subscriptionStartDate: new Date(),
+                    subscriptionEndDate: professionalEndDate
+                };
+                break;
+        }
+
+        // ✅ Update user plan first
+        const updatedUser = await User.findByIdAndUpdate(userId, updateData, { new: true });
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        console.log(`📋 [AUTH] Plan updated for user ${userId}: ${user.currentPlan} -> ${currentPlan}`);
+
+        try {
+            await notificationQueue.add('notifications', {
+                ownerId: updatedUser._id, // Fix: should be ownerId for owners
+                audience: 'owner',
+                title: 'Plan Updated',
+                message: `Your plan has been updated to ${currentPlan}. ${propertyUpdateSummary?.totalProperties > 0 ? `Property limits have been updated for ${propertyUpdateSummary.totalProperties} properties.` : ''}`,
+                type: 'info',
+                method: ['in-app', 'email'],
+                createdBy: 'system'
+            }, {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 3000
+                }
+            });
+
+            console.log(`📬 [AUTH] Plan update notification queued for user ${userId}`);
+        } catch (error) {
+            console.error(`❌ [AUTH] Error sending notification:`, error.message);
+        }
+
+        // ✅ Enhanced response with property update summary
+        res.status(200).json({
+            message: 'Current plan updated successfully.',
+            user: {
+                _id: updatedUser._id,
+                name: updatedUser.username,
+                email: updatedUser.email,
+                role: updatedUser.role,
+                phone: updatedUser.phoneNumber,
+                pgpalId: updatedUser.pgpalId,
+                currentPlan: updatedUser.currentPlan,
+                isInTrialPeriod: updatedUser.isInTrialPeriod,
+                isStarterPack: updatedUser.isStarterPack,
+                isProfessionalPack: updatedUser.isProfessionalPack,
+                subscriptionStatus: updatedUser.subscriptionStatus,
+                trialEndDate: updatedUser.trialEndDate
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ [AUTH] Error updating current plan:', error);
+        res.status(500).json({
+            message: 'Error updating current plan',
+            error: error.message
+        });
+    }
+};
+
+const cancelSubscription = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        // Update user's plan to free
+        const updateData = {
+            currentPlan: 'free',
+            isInTrialPeriod: false,
+            isStarterPack: false,
+            isProfessionalPack: false,
+            subscriptionStatus: {
+                plan: 'free',
+                status: 'active',
+                subscriptionStartDate: new Date(),
+                subscriptionEndDate: null // Free plan doesn't expire
+            },
+            trialEndDate: null // Reset trial end date
+        };
+        await User.findByIdAndUpdate(userId, updateData, { new: true });
+
+        notificationQueue.add('notifications', {
+            tenantId: user._id,
+            audience: 'owner',
+            title: 'Subscription Cancelled',
+            message: 'Your subscription has been cancelled and you have been downgraded to the free plan.',
+            type: 'info',
+            method: ['in-app', 'email'],
+            createdBy: 'system'
+        }, {
+            attempts: 3,
+            backoff: {
+                type: 'exponential',
+                delay: 3000
+            }
+        });
+
+        res.status(200).json({
+            message: 'Subscription cancelled successfully. You have been downgraded to the free plan.',
+            user: {
+                _id: user._id,
+                name: user.username,
+                email: user.email,
+                role: user.role,
+                phone: user.phoneNumber,
+                pgpalId: user.pgpalId,
+                currentPlan: user.currentPlan
+            }
+        });
+
+    } catch (error) {
+        console.error('Error cancelling subscription:', error);
+        res.status(500).json({
+            message: 'Error cancelling subscription',
+            error: error.message
+        });
+    }
+};
+
+// Add this method to check if user's plan is expired
+const checkPlanStatus = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        const now = new Date();
+        let planStatus = 'active';
+        let needsUpgrade = false;
+
+        // Check trial expiry
+        if (user.isInTrialPeriod && user.trialEndDate && now > user.trialEndDate) {
+            planStatus = 'expired';
+            needsUpgrade = true;
+
+            // Auto-downgrade to free if trial expired
+            await User.findByIdAndUpdate(userId, {
+                currentPlan: 'free',
+                isInTrialPeriod: false,
+                subscriptionStatus: {
+                    plan: 'free',
+                    status: 'active'
+                }
+            });
+        }
+
+        // Check subscription expiry
+        if (user.subscriptionEndDate && now > user.subscriptionEndDate) {
+            planStatus = 'expired';
+            needsUpgrade = true;
+
+            // Auto-downgrade to free if subscription expired
+            await User.findByIdAndUpdate(userId, {
+                currentPlan: 'free',
+                isInTrialPeriod: false,
+                isStarterPack: false,
+                isProfessionalPack: false,
+                subscriptionStatus: {
+                    plan: 'free',
+                    status: 'active'
+                }
+            });
+        }
+
+        res.status(200).json({
+            planStatus,
+            needsUpgrade,
+            currentPlan: user.currentPlan,
+            daysRemaining: user.subscriptionEndDate ?
+                Math.ceil((user.subscriptionEndDate - now) / (1000 * 60 * 60 * 24)) : null
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            message: 'Error checking plan status',
+            error: error.message
+        });
+    }
+};
 
 const refreshToken = async (req, res) => {
     const { refreshToken } = req.cookies;
@@ -603,6 +1017,14 @@ const refreshToken = async (req, res) => {
         if (!user) {
             return res.status(401).json({ message: 'Invalid refresh token' });
         }
+
+        if (user.isSuspended) {
+            return res.status(403).json({
+                code: 'SUSPENDED',
+                message: 'Your account is suspended, Cannot refresh token.'
+            });
+        }
+
         const newToken = user.generateAuthToken();
         const newRefreshToken = user.generateRefreshToken();
 
@@ -623,7 +1045,10 @@ const refreshToken = async (req, res) => {
     }
     catch (error) {
         console.error('Error refreshing token: ', error);
-        res.status(500).json({ message: 'Error refreshing token', error: error.message });
+        res.status(500).json({
+            message: 'Error refreshing token',
+            error: error.message
+        });
     }
 };
 
@@ -641,5 +1066,8 @@ module.exports = {
     refreshToken,
     getUserById,
     verifyEmailOtp,
-    resendOtp
+    resendOtp,
+    updateCurrentPlan,
+    checkPlanStatus,
+    cancelSubscription
 };

@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const tenantRoutes = require('./src/routes/tenantRoutes');
 const paymentRoutes = require('./src/routes/paymentRoutes');
+const monitorRoutes = require('./src/routes/monitoringRoutes');
 const cookieParser = require('cookie-parser');
 const VacateTenantsJob = require('./src/jobs/vacateTenantsJob');
 const JobScheduler = require('./src/jobs/JobScheduler');
@@ -18,7 +19,7 @@ const PORT = process.env.PORT || 4004;
 // Middleware
 app.use(express.json());
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:5174'],
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'http:localhost:5175'],
     credentials: true,
 }));
 app.use(cookieParser());
@@ -35,6 +36,8 @@ process.on('SIGTERM', () => {
 
 app.use('/api/tenant-service', tenantRoutes);
 app.use('/api/rent-service', paymentRoutes);
+app.use('/api/tenant-service/monitor', monitorRoutes);
+
 
 app.post('/api/tenant-service/manual-vacate-job', async (req, res) => {
     try {

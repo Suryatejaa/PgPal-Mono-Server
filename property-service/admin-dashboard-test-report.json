@@ -1,0 +1,60 @@
+{
+  "timestamp": "2025-06-09T13:53:39.170Z",
+  "summary": {
+    "passed": 0,
+    "failed": 10,
+    "total": 10
+  },
+  "tests": [
+    {
+      "name": "Dashboard Overview",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    },
+    {
+      "name": "Property Management",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    },
+    {
+      "name": "User Management",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    },
+    {
+      "name": "System Analytics",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    },
+    {
+      "name": "Bulk Operations",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    },
+    {
+      "name": "System Maintenance",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    },
+    {
+      "name": "Notification System",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    },
+    {
+      "name": "Data Export",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    },
+    {
+      "name": "Unauthorized Access Prevention",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    },
+    {
+      "name": "Super Admin Restrictions",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    }
+  ]
+}

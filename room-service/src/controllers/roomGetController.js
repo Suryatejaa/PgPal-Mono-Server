@@ -15,6 +15,8 @@ const getOwnProperty = async (propertyId, currentUser) => {
                 }
             }
         );
+
+       
         //console.log(response.data);
         return response.data;
     } catch (error) {
@@ -51,6 +53,40 @@ exports.getRoomsByPropertyId = async (req, res) => {
         const rooms = await Room.find({ propertyId }).populate('propertyId', 'name location totalRooms ownerId');
         if (!rooms || rooms.length === 0) {
             return res.status(404).json({ error: 'No rooms found' });
+        }
+
+        try {
+            const totalRoomsInProperty = await Room.countDocuments({ propertyId });
+            const totalBedsInProperty = await Room.aggregate([
+                { $match: { propertyId: new mongoose.Types.ObjectId(propertyId) } },
+                { $group: { _id: null, totalBeds: { $sum: "$totalBeds" } } }
+            ]);
+            const occupiedBedsInProperty = await Room.aggregate([
+                { $match: { propertyId: new mongoose.Types.ObjectId(propertyId) } },
+                { $unwind: "$beds" },
+                { $match: { "beds.status": "occupied" } },
+                { $count: "occupiedBeds" }
+            ]);
+
+            const updatedTotalBeds = totalBedsInProperty[0]?.totalBeds || 0;
+            const updatedOccupiedBeds = occupiedBedsInProperty[0]?.occupiedBeds || 0;
+            const updatedAvailableBeds = updatedTotalBeds - updatedOccupiedBeds;
+
+            console.log(`Updating property ${propertyId} with totalBeds: ${updatedTotalBeds}, totalRooms: ${totalRoomsInProperty}, occupiedBeds: ${updatedOccupiedBeds}, availableBeds: ${updatedAvailableBeds}`);
+            await axios.put(`http://property-service:4002/api/property-service/properties/${propertyId}/update-beds`, {
+                totalBeds: updatedTotalBeds,
+                totalRooms: totalRoomsInProperty,
+                occupiedBeds: updatedOccupiedBeds,
+                availableBeds: updatedAvailableBeds
+            }, {
+                headers: {
+                    'x-user': JSON.stringify(currentUser),
+                    'x-internal-service': true
+                }
+            });
+        }
+        catch (error) {
+            console.error('[getOwnProperty] Error updating property beds:', error.message);
         }
 
         const response = {

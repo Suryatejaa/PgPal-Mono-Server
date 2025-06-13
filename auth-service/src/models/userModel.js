@@ -25,7 +25,7 @@ const userSchema = new mongoose.Schema(
         },
         role: {
             type: String,
-            enum: ['owner', 'tenant'],
+            enum: ['owner', 'tenant', 'admin'],
             required: [true, 'Role is required'],
         },
         password: {
@@ -45,6 +45,22 @@ const userSchema = new mongoose.Schema(
             default: function () { return this.role === 'owner' ? generatePPO() : generatePPT(); } // 6 digit code
         },
 
+        isSuspended: { type: Boolean, default: false }, // New field to track suspension status
+
+        lastLogin: {
+            type: Date,
+            default: Date.now
+        },
+        lastLoginIP: {
+            type: String,
+            default: null
+        },
+        lastUserAgent: {
+            type: String,
+            default: null
+        },
+
+        lastPasswordChange: { type: Date, default: null }, // New field to track last password change time
         passwordResetToken: { type: String },
         otp: { type: String },
         isVerified: { type: Boolean, default: false },
@@ -54,6 +70,28 @@ const userSchema = new mongoose.Schema(
 
         location: { type: String, default: '' },
 
+        isTrialClaimed: { type: Boolean, default: false }, // New field to track if trial has been claimed
+        isInFreePlan: { type: Boolean, default: true }, // New field to track free plan status
+        isInTrialPeriod: { type: Boolean, default: false }, // New field to track trial period status
+        isStarterPack: { type: Boolean, default: false }, // New field to track starter pack status
+        isProfessionalPack: { type: Boolean, default: false }, // New field to track professional pack status
+        currentPlan: { type: String, default: 'free' }, // New field to track current plan
+        trialStartDate: { type: Date, default: Date.now }, // New field to track trial start date
+        trialEndDate: { type: Date, default: null }, // New field to track trial end date
+        subscriptionStatus: {
+            plan: {
+                type: String,
+                enum: ['free', 'trial', 'starter', 'professional'],
+                default: 'free',
+            },
+            status: {
+                type: String,
+                enum: ['active', 'inactive', 'cancelled', 'expired'],
+                default: 'inactive'
+            },
+            subscriptionStartDate: { type: Date, default: null }, // New field to track subscription start date
+            subscriptionEndDate: { type: Date, default: null }, // New field to track subscription end date
+        },
     },
     { timestamps: true }
 );
@@ -68,7 +106,20 @@ userSchema.pre('save', async function (next) {
 
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
+    this.currentPlan = 'free'; // Set current plan based on trial period
+    this.isTrialClaimed = false; // Default to false for new users
+    this.isInFreePlan = true; // Default to true for new users
+    this.isInTrialPeriod = false; // Set trial period status for new users
+    this.isStarterPack = false; // Default to false for new users
+    this.isProfessionalPack = false; // Default to false for new users
+    this.subscriptionStatus = {
+        status: 'active', // Default status for new users
+        plan: 'free',
+        subscriptionStartDate: new Date(),
+        subscriptionEndDate: null // Free plan doesn't expire
+    }; // Set subscription status based on trial period
     next();
+
 });
 const hashPassword = async (password) => {
     const salt = await bcrypt.genSalt(12);
@@ -87,6 +138,8 @@ userSchema.pre('findOneAndUpdate', async function (next) {
     this.setUpdate(update); // Reapply modified update
     next();
 });
+
+
 
 userSchema.methods.comparePassword = async function (candidatePassword) {
     return await bcrypt.compare(candidatePassword, this.password);

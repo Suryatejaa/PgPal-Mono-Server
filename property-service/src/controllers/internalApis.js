@@ -1,87 +1,413 @@
 const axios = require('axios');
 
-const getTenantConfirmation = async (tenantId, currentUser) => {
-    try {
-        const response = await axios.get(`http://tenant-service:4004/api/tenant-service/tenants?ppid=${tenantId}`, {
-            headers: {
-                'x-user': JSON.stringify(currentUser),
-                'x-internal-service': true
-            }
+// Internal API Error Tracker for Property Service
+const internalErrorTracker = {
+    errors: [],
+    requestCount: 0,
+    serviceStats: {},
+
+    addError: (error) => {
+        const errorEntry = {
+            id: `property_internal_err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: new Date().toISOString(),
+            ...error
+        };
+
+        internalErrorTracker.errors.push(errorEntry);
+
+        // Keep only last 500 internal errors
+        if (internalErrorTracker.errors.length > 500) {
+            internalErrorTracker.errors.shift();
+        }
+
+        // Update service stats
+        const service = error.targetService;
+        if (!internalErrorTracker.serviceStats[service]) {
+            internalErrorTracker.serviceStats[service] = {
+                requests: 0,
+                errors: 0,
+                lastError: null
+            };
+        }
+        internalErrorTracker.serviceStats[service].errors++;
+        internalErrorTracker.serviceStats[service].lastError = errorEntry;
+
+        // Log critical internal errors
+        if (error.status >= 500 || error.timeout) {
+            console.error(`🚨 [PROPERTY INTERNAL API] CRITICAL ERROR in ${error.sourceService} -> ${error.targetService}`);
+            console.error(`   Method: ${error.method} ${error.url}`);
+            console.error(`   Status: ${error.status || 'TIMEOUT'}`);
+            console.error(`   Function: ${error.functionName}`);
+            console.error(`   Error: ${error.message}`);
+            console.error(`   User: ${error.userId}`);
+            console.error(`   Time: ${error.timestamp}`);
+        }
+    },
+
+    addRequest: (service) => {
+        internalErrorTracker.requestCount++;
+        if (!internalErrorTracker.serviceStats[service]) {
+            internalErrorTracker.serviceStats[service] = {
+                requests: 0,
+                errors: 0,
+                lastError: null
+            };
+        }
+        internalErrorTracker.serviceStats[service].requests++;
+    },
+
+    getStats: () => {
+        const now = new Date();
+        const lastHour = internalErrorTracker.errors.filter(e =>
+            now - new Date(e.timestamp) < 60 * 60 * 1000
+        );
+
+        const errorsByService = {};
+        const errorsByFunction = {};
+
+        internalErrorTracker.errors.forEach(error => {
+            errorsByService[error.targetService] = (errorsByService[error.targetService] || 0) + 1;
+            errorsByFunction[error.functionName] = (errorsByFunction[error.functionName] || 0) + 1;
         });
-        return response.data;
+
+        const serviceErrorRates = {};
+        Object.entries(internalErrorTracker.serviceStats).forEach(([service, stats]) => {
+            serviceErrorRates[service] = {
+                errorRate: stats.requests > 0 ? ((stats.errors / stats.requests) * 100).toFixed(2) : 0,
+                totalRequests: stats.requests,
+                totalErrors: stats.errors,
+                lastError: stats.lastError
+            };
+        });
+
+        return {
+            totalErrors: internalErrorTracker.errors.length,
+            errorsLastHour: lastHour.length,
+            totalRequests: internalErrorTracker.requestCount,
+            overallErrorRate: internalErrorTracker.requestCount > 0 ?
+                ((internalErrorTracker.errors.length / internalErrorTracker.requestCount) * 100).toFixed(2) : 0,
+            errorsByService,
+            errorsByFunction,
+            serviceErrorRates,
+            recentErrors: internalErrorTracker.errors.slice(-5).reverse()
+        };
+    }
+};
+
+// Enhanced internal API call wrapper with monitoring
+const makeInternalApiCall = async (
+    method,
+    url,
+    data = null,
+    headers = {},
+    functionName = 'unknown',
+    targetService = 'unknown',
+    sourceService = 'property-service'
+) => {
+    const startTime = Date.now();
+    let userId = 'unknown';
+
+    try {
+        // Extract user ID from headers if available
+        if (headers['x-user']) {
+            try {
+                const userObj = JSON.parse(headers['x-user']);
+                userId = userObj?.data?.user?._id || 'unknown';
+            } catch (e) {
+                // Ignore parsing errors
+            }
+        }
+
+        // Track request
+        internalErrorTracker.addRequest(targetService);
+
+        // Make the API call
+        const config = {
+            method: method.toLowerCase(),
+            url,
+            timeout: 10000, // 10 second timeout for property service
+            headers: {
+                'x-internal-service': true,
+                ...headers
+            }
+        };
+
+        if (data && ['post', 'put', 'patch'].includes(method.toLowerCase())) {
+            config.data = data;
+        }
+
+        const response = await axios(config);
+        const duration = Date.now() - startTime;
+
+        // Log successful call
+        console.log(`✅ [PROPERTY INTERNAL API] ${sourceService} -> ${targetService}: ${method} ${url} (${duration}ms)`);
+
+        return {
+            success: true,
+            data: response.data,
+            status: response.status,
+            duration
+        };
+
     } catch (error) {
-        console.error('[getTenantConfirmation] Error:', error.message);
+        const duration = Date.now() - startTime;
+        let errorStatus = 500;
+        let errorMessage = error.message;
+        let isTimeout = false;
+
+        if (error.response) {
+            errorStatus = error.response.status;
+            errorMessage = error.response.data?.message || error.response.statusText || error.message;
+        } else if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+            isTimeout = true;
+            errorMessage = 'Request timeout';
+        } else if (error.code === 'ECONNREFUSED') {
+            errorMessage = 'Service unavailable';
+        }
+
+        // Track error
+        internalErrorTracker.addError({
+            sourceService,
+            targetService,
+            functionName,
+            method: method.toUpperCase(),
+            url,
+            status: errorStatus,
+            message: errorMessage,
+            duration,
+            userId,
+            timeout: isTimeout,
+            code: error.code,
+            requestData: data ? JSON.stringify(data).substring(0, 500) : null
+        });
+
+        return {
+            success: false,
+            error: errorMessage,
+            status: errorStatus,
+            duration,
+            timeout: isTimeout
+        };
+    }
+};
+
+// Enhanced API functions with monitoring
+const getTenantConfirmation = async (tenantId, currentUser) => {
+    const url = `http://tenant-service:4004/api/tenant-service/tenants?ppid=${tenantId}`;
+    const headers = {
+        'x-user': JSON.stringify(currentUser)
+    };
+
+    const result = await makeInternalApiCall(
+        'GET',
+        url,
+        null,
+        headers,
+        'getTenantConfirmation',
+        'tenant-service',
+        'property-service'
+    );
+
+    if (result.success) {
+        return result.data;
+    } else {
+        console.error(`[getTenantConfirmation] Failed to get tenant confirmation for ${tenantId}:`, result.error);
         return null;
     }
 };
 
 const getActiveTenantsForProperty = async (propertyId, currentUser) => {
-    try {
-        const response = await axios.get(`http://tenant-service:4004/api/tenant-service/active-tenants/${propertyId}`, {
-            headers: {
-                'x-user': JSON.stringify(currentUser),
-                'x-internal-service': true
-            }
-        });
-        return response.data;
-    } catch (error) {
-        console.error('[getActiveTenantsForProperty] Error:', error.message);
+    const url = `http://tenant-service:4004/api/tenant-service/active-tenants/${propertyId}`;
+    const headers = {
+        'x-user': JSON.stringify(currentUser)
+    };
+
+    const result = await makeInternalApiCall(
+        'GET',
+        url,
+        null,
+        headers,
+        'getActiveTenantsForProperty',
+        'tenant-service',
+        'property-service'
+    );
+
+    if (result.success) {
+        return result.data;
+    } else {
+        console.error(`[getActiveTenantsForProperty] Failed to get active tenants for property ${propertyId}:`, result.error);
         return null;
     }
 };
 
 const sendNotification = async (currentUser, tenantId, title, message, type, method) => {
+    const url = 'http://notification-service:4009/api/notification-service';
+    const data = {
+        tenantId,
+        title,
+        message,
+        type,
+        method,
+        createdBy: 'system'
+    };
+    const headers = {
+        'x-user': JSON.stringify(currentUser)
+    };
 
-    try {
-        const response = await axios.post('http://notification-service:4009/api/notification-service',
-            {
-                tenantId,
-                title,
-                message,
-                type,
-                method,
-                createdBy: 'system'
-            },
-            {
-                headers: {
-                    'x-user': JSON.stringify(currentUser),
-                    'x-internal-service': true
-                }
-            });
-    } catch (err) {
-        console.error('Error sending notification:', err.message);
+    const result = await makeInternalApiCall(
+        'POST',
+        url,
+        data,
+        headers,
+        'sendNotification',
+        'notification-service',
+        'property-service'
+    );
+
+    if (!result.success) {
+        console.error(`[sendNotification] Failed to send notification to ${tenantId}:`, result.error);
     }
+
+    return result.success;
 };
 
 const getStayRecordsFromTenantService = async (pppId, currentUser) => {
-    try {
-        const response = await axios.get(`http://tenant-service:4004/api/tenant-service/stay-records/${pppId}`, {
-            headers: {
-                'x-user': JSON.stringify(currentUser),
-                'x-internal-service': true
-            }
-        });
-        return response.data;
-    } catch (error) {
-        console.error('[getStayRecords] Error:', error.message);
+    const url = `http://tenant-service:4004/api/tenant-service/stay-records/${pppId}`;
+    const headers = {
+        'x-user': JSON.stringify(currentUser)
+    };
+
+    const result = await makeInternalApiCall(
+        'GET',
+        url,
+        null,
+        headers,
+        'getStayRecordsFromTenantService',
+        'tenant-service',
+        'property-service'
+    );
+
+    if (result.success) {
+        return result.data;
+    } else {
+        console.error(`[getStayRecords] Failed to get stay records for ${pppId}:`, result.error);
         return null;
     }
 };
 
 const removeAllTenantsFromProperty = async (propertyId, currentUser) => {
     console.log('removeAllTenantsFromProperty', propertyId);
-    try {
-        const response = await axios.post(`http://tenant-service:4004/api/tenant-service/remove-all-tenants/${propertyId}`, {}, {
-            headers: {
-                'x-user': JSON.stringify(currentUser),
-                'x-internal-service': true
-            }
-        });
-        return response.data;
-    } catch (error) {
-        console.error('[removeAllTenantsFromProperty] Error:', error.message);
+    const url = `http://tenant-service:4004/api/tenant-service/remove-all-tenants/${propertyId}`;
+    const headers = {
+        'x-user': JSON.stringify(currentUser)
+    };
+
+    const result = await makeInternalApiCall(
+        'POST',
+        url,
+        {},
+        headers,
+        'removeAllTenantsFromProperty',
+        'tenant-service',
+        'property-service'
+    );
+
+    if (result.success) {
+        return result.data;
+    } else {
+        console.error(`[removeAllTenantsFromProperty] Failed to remove all tenants from property ${propertyId}:`, result.error);
         return null;
     }
+};
+
+// Internal API monitoring endpoints
+const getInternalApiStats = (req, res) => {
+    try {
+        const stats = internalErrorTracker.getStats();
+        res.json({
+            service: 'property-service',
+            timestamp: new Date().toISOString(),
+            internalApiStats: stats
+        });
+    } catch (error) {
+        res.status(500).json({
+            error: 'Failed to get internal API stats',
+            message: error.message
+        });
+    }
+};
+
+const getInternalApiErrors = (req, res) => {
+    try {
+        const { limit = 50, service, functionName } = req.query;
+        let errors = [...internalErrorTracker.errors];
+
+        if (service) {
+            errors = errors.filter(e => e.targetService === service);
+        }
+
+        if (functionName) {
+            errors = errors.filter(e => e.functionName === functionName);
+        }
+
+        res.json({
+            service: 'property-service',
+            errors: errors.slice(-parseInt(limit)).reverse(),
+            total: errors.length,
+            filters: { service, functionName }
+        });
+    } catch (error) {
+        res.status(500).json({
+            error: 'Failed to get internal API errors',
+            message: error.message
+        });
+    }
+};
+
+// Health check for internal APIs
+const checkInternalApiHealth = async (req, res) => {
+    const services = [
+        { name: 'tenant-service', url: 'http://tenant-service:4004/api/tenant-service/health' },
+        { name: 'notification-service', url: 'http://notification-service:4009/api/notification-service/health' }
+    ];
+
+    const healthResults = {};
+
+    for (const service of services) {
+        try {
+            const result = await makeInternalApiCall(
+                'GET',
+                service.url,
+                null,
+                {},
+                'healthCheck',
+                service.name,
+                'property-service'
+            );
+
+            healthResults[service.name] = {
+                status: result.success ? 'healthy' : 'unhealthy',
+                responseTime: result.duration,
+                error: result.success ? null : result.error
+            };
+        } catch (error) {
+            healthResults[service.name] = {
+                status: 'unhealthy',
+                responseTime: null,
+                error: error.message
+            };
+        }
+    }
+
+    const overallHealth = Object.values(healthResults).every(r => r.status === 'healthy');
+
+    res.json({
+        service: 'property-service',
+        timestamp: new Date().toISOString(),
+        overallHealth: overallHealth ? 'healthy' : 'degraded',
+        dependencies: healthResults,
+        internalApiStats: internalErrorTracker.getStats()
+    });
 };
 
 module.exports = {
@@ -89,5 +415,14 @@ module.exports = {
     sendNotification,
     getActiveTenantsForProperty,
     getStayRecordsFromTenantService,
-    removeAllTenantsFromProperty
+    removeAllTenantsFromProperty,
+
+    // Monitoring functions
+    makeInternalApiCall,
+    getInternalApiStats,
+    getInternalApiErrors,
+    checkInternalApiHealth,
+
+    // Direct access to tracker for advanced use cases
+    internalErrorTracker
 };

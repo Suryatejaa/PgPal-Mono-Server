@@ -6,6 +6,7 @@ const notificationQueue = require('../utils/notificationQueue.js');
 const { getOwnProperty } = require('./internalApis.js');
 const mongoose = require('mongoose');
 const { getActiveTenantsForProperty } = require('./internalApis.js');
+const PlanLimits = require('../config/planLimits.js');
 
 const retryTenantService = async (tenantPayload, currentUser, retries = 3, delay = 1000) => {
     for (let attempt = 1; attempt <= retries; attempt++) {
@@ -31,76 +32,152 @@ const retryTenantService = async (tenantPayload, currentUser, retries = 3, delay
     }
 };
 
+/**
+ * Add one or more rooms to a property, with optional tenant data
+ */
 exports.addRooms = async (req, res) => {
     try {
+        // ✅ 1. User authentication and authorization
         if (!req.headers['x-user']) {
             return res.status(400).json({ error: 'Missing x-user header' });
         }
 
         const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        if (!currentUser?.data?.user) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
-        const id = currentUser.data.user._id;
-        const role = currentUser.data.user.role;
-        const ppid = currentUser.data.user.pgpalId;
+
+        const { _id: userId, role, username } = currentUser.data.user;
 
         if (role !== 'owner') {
             return res.status(403).json({ error: 'Only owners can add rooms' });
         }
 
+        // ✅ 2. Request validation
         const { propertyId, rooms } = req.body;
 
-        if (!propertyId) return res.status(400).json({ error: 'Property ID is required' });
+        if (!propertyId) {
+            return res.status(400).json({ error: 'Property ID is required' });
+        }
+
         if (!Array.isArray(rooms) || rooms.length === 0) {
             return res.status(400).json({ error: 'Rooms array is required' });
         }
 
+        // ✅ 3. Property validation
         const property = await getOwnProperty(propertyId, currentUser, false);
-        const propertyPpid = property.pgpalId;
-        if (!property) return res.status(404).json({ error: 'Property not found' });
-        if (property.ownerId.toString() !== id) {
+        if (!property) {
+            return res.status(404).json({ error: 'Property not found' });
+        }
+        if (property.ownerId.toString() !== userId) {
             return res.status(403).json({ error: `Forbidden: You don't own this property` });
         }
+        const propertyPpid = property.pgpalId;
 
+        // ✅ 4. Plan limits check
+        const currentPlan = currentUser.data.user.currentPlan || 'free';
+        const planLimits = PlanLimits[currentPlan] || PlanLimits.free;
+        const maxRoomsAllowed = planLimits.maxRoomsPerProperty || -1;
+        const maxBedsAllowed = planLimits.maxBedsPerProperty || -1;
+
+        // Check room limit
+        const currentRoomCount = await Room.countDocuments({ propertyId });
+        if (maxRoomsAllowed !== -1 && currentRoomCount + rooms.length > maxRoomsAllowed) {
+            return res.status(403).json({
+                code: 'ROOM_LIMIT_EXCEEDED',
+                error: `Cannot add more than ${maxRoomsAllowed} rooms to this property`,
+                currentRoomCount,
+                maxRoomsAllowed
+            });
+        }
+
+        // Check bed limit
+        const currentBedCount = await Room.aggregate([
+            { $match: { propertyId: new mongoose.Types.ObjectId(propertyId) } },
+            { $group: { _id: null, totalBeds: { $sum: "$totalBeds" } } }
+        ]);
+        const totalBeds = currentBedCount[0]?.totalBeds || 0;
+
+        // Calculate total new beds being added
         const roomTypeBedMap = {
             single: 1, double: 2, triple: 3, four: 4,
             five: 5, six: 6, seven: 7, eight: 8
         };
 
-        const roomsToInsert = [];
-        const bedsToUpdate = [];
-        const tenantErrors = [];
-
-        const existingRooms = await Room.find({ propertyId });
-        const existingRoomNumbers = existingRooms.map(room => room.roomNumber);
-
-        for (const room of rooms) {
-            if (existingRoomNumbers.includes(Number(room.roomNumber))) {
-                return res.status(400).json({ error: `Room number ${room.roomNumber} already exists for this property` });
+        const bedsBeingAdded = rooms.reduce((sum, room) => {
+            const bedsInRoom = roomTypeBedMap[room.type] || 0;
+            if (bedsInRoom === 0) {
+                throw new Error(`Invalid room type: ${room.type}`);
             }
+            return sum + bedsInRoom;
+        }, 0);
+
+        if (maxBedsAllowed !== -1 && totalBeds + bedsBeingAdded > maxBedsAllowed) {
+            return res.status(403).json({
+                code: 'BED_LIMIT_EXCEEDED',
+                error: `Cannot add more than ${maxBedsAllowed} beds to this property`,
+                currentBedCount: totalBeds,
+                maxBedsAllowed
+            });
         }
+
+        // ✅ 5. Check for duplicate rooms on same floor
+        const existingRooms = await Room.find({ propertyId });
+        const existingRoomFloorMap = new Map();
+
+        // Build a map of existing room+floor combinations
+        for (const existingRoom of existingRooms) {
+            const key = `${existingRoom.roomNumber}-${existingRoom.floor}`;
+            existingRoomFloorMap.set(key, true);
+        }
+
+        // Check each new room for conflicts on the same floor
+        for (const room of rooms) {
+            const key = `${room.roomNumber}-${room.floor}`;
+            if (existingRoomFloorMap.has(key)) {
+                return res.status(400).json({
+                    error: `Room number ${room.roomNumber} already exists on floor ${room.floor}`,
+                    code: 'DUPLICATE_ROOM_ON_FLOOR'
+                });
+            }
+            // Mark this combination as used for subsequent rooms in the same batch
+            existingRoomFloorMap.set(key, true);
+        }
+
+        // ✅ 6. Process each room and prepare for database
+        const roomsToInsert = [];
+        const bedsToUpdate = []; // For tenant tracking
 
         for (const room of rooms) {
             const { roomNumber, floor, type, rentPerBed, beds } = room;
             const totalBeds = roomTypeBedMap[type];
-            if (!totalBeds) return res.status(400).json({ error: `Invalid room type: ${type}` });
+
+            // Validate bed count matches room type
             if (!Array.isArray(beds) || beds.length !== totalBeds) {
-                return res.status(400).json({ error: `Room ${roomNumber}: Expected ${totalBeds} beds` });
+                return res.status(400).json({
+                    error: `Room ${roomNumber}: Expected ${totalBeds} beds for room type '${type}'`,
+                    expected: totalBeds,
+                    received: beds?.length || 0
+                });
             }
 
+            // Process bed information
             const bedsWithIds = beds.map((bed, index) => {
                 const bedId = `${roomNumber}-B${index + 1}`;
-                if (bed.status === 'occupied') {
+
+                // Track beds with tenants for later processing
+                if (bed.status === 'occupied' && bed.tenant) {
                     bedsToUpdate.push({ roomNumber, bedId, tenant: bed.tenant });
                 }
+
+                // Default all beds to vacant initially
                 return { ...bed, bedId, status: 'vacant' };
             });
 
-            const status = beds.every(b => b.status === 'vacant') ? 'vacant'
-                : beds.every(b => b.status === 'occupied') ? 'occupied'
-                    : 'partially occupied';
+            // Determine initial room status
+            const status = 'vacant'; // Start with vacant, update after tenant processing
 
+            // Add to insertion batch
             roomsToInsert.push({
                 propertyId,
                 roomNumber,
@@ -110,124 +187,151 @@ exports.addRooms = async (req, res) => {
                 totalBeds,
                 beds: bedsWithIds,
                 status,
-                updatedBy: id,
-                updatedByName: currentUser.data.user.username,
+                updatedBy: userId,
+                updatedByName: username,
                 updatedByRole: role
             });
         }
 
+        // ✅ 7. Insert rooms into database
         const insertedRooms = await Room.insertMany(roomsToInsert);
 
-        const savedRooms = await Room.find({ propertyId, roomNumber: { $in: rooms.map(r => r.roomNumber) } });
-        if (savedRooms.length !== rooms.length) {
-            return res.status(500).json({ error: 'Failed to save all rooms. Please try again.' });
-        }
+        // ✅ 8. Update property statistics
+        const updatedStats = await updatePropertyBedStats(propertyId);
 
-        const totalRoomsInProperty = await Room.countDocuments({ propertyId });
-        const totalBedsInProperty = await Room.aggregate([
-            { $match: { propertyId: new mongoose.Types.ObjectId(propertyId) } },
-            { $group: { _id: null, totalBeds: { $sum: "$totalBeds" } } }
-        ]);
-        const occupiedBedsInProperty = await Room.aggregate([
-            { $match: { propertyId: new mongoose.Types.ObjectId(propertyId) } },
-            { $unwind: "$beds" },
-            { $match: { "beds.status": "occupied" } },
-            { $count: "occupiedBeds" }
-        ]);
-
-        const updatedTotalBeds = totalBedsInProperty[0]?.totalBeds || 0;
-        const updatedOccupiedBeds = occupiedBedsInProperty[0]?.occupiedBeds || 0;
-        const updatedAvailableBeds = updatedTotalBeds - updatedOccupiedBeds;
-
-
-        await axios.patch(`http://property-service:4002/api/property-service/properties/${propertyId}/update-beds`, {
-            totalBeds: updatedTotalBeds,
-            totalRooms: totalRoomsInProperty,
-            occupiedBeds: updatedOccupiedBeds,
-            availableBeds: updatedAvailableBeds
-        }, {
-            headers: {
-                'x-user': JSON.stringify(currentUser),
-                'x-internal-service': true
-            }
-        });
-
-        await invalidateCacheByPattern(`*${propertyId}*`);
-        await invalidateCacheByPattern(`*${propertyPpid}*`);
-        await invalidateCacheByPattern(`*${property._id}*`);
-
-
-        await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
-
-        for (const bedToUpdate of bedsToUpdate) {
-            const { roomNumber, bedId, tenant } = bedToUpdate;
-
-            if (!tenant || !tenant.name || !tenant.phone || !tenant.aadhar || tenant.deposit === undefined || tenant.noticePeriodInMonths === undefined) {
-                console.warn(`Missing tenant info for bed ${bedId}, skipping`);
-                continue;
-            }
-
-            const tenantPayload = {
-                name: tenant.name,
-                phone: tenant.phone,
-                aadhar: tenant.aadhar,
-                propertyId,
-                roomNumber,
-                bedId,
-                rentPaid: tenant.rentPaid,
-                rentPaidMethod: tenant.rentPaidMethod,
-                deposit: tenant.deposit,
-                noticePeriodInMonths: tenant.noticePeriodInMonths || 1
-            };
-
-            //console.log(tenantPayload);
-
-            try {
-                const tenantResponse = await retryTenantService(tenantPayload, currentUser);
-                if (tenantResponse.status === 201) {
-                    await Room.updateOne(
-                        { propertyId, roomNumber, 'beds.bedId': bedId },
-                        { $set: { 'beds.$.status': 'occupied' } }
-                    );
+        await axios.patch(
+            `http://property-service:4002/api/property-service/properties/${propertyId}/update-beds`,
+            updatedStats,
+            {
+                headers: {
+                    'x-user': JSON.stringify(currentUser),
+                    'x-internal-service': true
                 }
-            } catch (err) {
-                console.error(`Failed to add tenant for bed ${bedId}:`, err.message);
-                tenantErrors.push({ bedId, error: err.response?.data?.error || err.message });
             }
-        }
+        );
 
-        // Recalculate room status
-        const updatedRooms = await Room.find({ propertyId, roomNumber: { $in: rooms.map(r => r.roomNumber) } });
-        for (const room of updatedRooms) {
-            const updatedStatus = room.beds.every(b => b.status === 'vacant') ? 'vacant'
-                : room.beds.every(b => b.status === 'occupied') ? 'occupied'
-                    : 'partially occupied';
-
-            await Room.updateOne(
-                { _id: room._id },
-                { $set: { status: updatedStatus } }
-            );
-        }
-
-        const title = 'New Room Added';
-        const message = 'A new room has been successfully added to the property.';
-        const typee = 'info';
-        const method = ['in-app'];
-
-
+        // ✅ 9. Clear cache
         await invalidateCacheByPattern(`*${propertyId}*`);
         await invalidateCacheByPattern(`*${propertyPpid}*`);
         await invalidateCacheByPattern(`*${property._id}*`);
 
+        // ✅ 10. Process tenant assignments if any
+        const tenantErrors = [];
 
+        if (bedsToUpdate.length > 0) {
+            // Short delay to ensure rooms are available before tenant assignment
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            for (const { roomNumber, bedId, tenant } of bedsToUpdate) {
+                if (!tenant?.name || !tenant.phone || !tenant.aadhar) {
+                    console.warn(`Missing required tenant info for bed ${bedId}, skipping`);
+                    tenantErrors.push({
+                        bedId,
+                        error: 'Missing required tenant information'
+                    });
+                    continue;
+                }
+
+                const tenantPayload = {
+                    name: tenant.name,
+                    phone: tenant.phone,
+                    aadhar: tenant.aadhar,
+                    propertyId,
+                    roomNumber,
+                    bedId,
+                    rentPaid: tenant.rentPaid || 0,
+                    rentPaidMethod: tenant.rentPaidMethod || null,
+                    deposit: tenant.deposit || 0,
+                    noticePeriodInMonths: tenant.noticePeriodInMonths || 1
+                };
+
+                try {
+                    const tenantResponse = await retryTenantService(tenantPayload, currentUser);
+
+                    if (tenantResponse.status === 201) {
+                        await Room.updateOne(
+                            { propertyId, roomNumber, 'beds.bedId': bedId },
+                            { $set: { 'beds.$.status': 'occupied' } }
+                        );
+                    }
+                } catch (err) {
+                    console.error(`Failed to add tenant for bed ${bedId}:`, err.message);
+                    tenantErrors.push({
+                        bedId,
+                        error: err.response?.data?.error || err.message
+                    });
+                }
+            }
+
+            // Update room statuses after tenant assignments
+            await updateRoomStatusesForProperty(propertyId);
+        }
+
+        // ✅ 11. Return success response
         res.status(201).json({
-            message: tenantErrors.length > 0 ? 'Rooms added successfully, but adding tenant failed, please add tenants separetly' : 'Rooms added successfully',
+            message: tenantErrors.length > 0
+                ? 'Rooms added successfully, but adding some tenants failed'
+                : 'Rooms added successfully',
             rooms: insertedRooms,
             tenantErrors: tenantErrors.length > 0 ? tenantErrors : undefined
         });
 
     } catch (err) {
-        res.status(500).json({ error: 'Internal server error' });
+        console.error('Error adding rooms:', err);
+        res.status(500).json({
+            error: 'Failed to add rooms',
+            details: err.message
+        });
+    }
+};
+
+/**
+ * Helper function to update property bed statistics
+ */
+const updatePropertyBedStats = async (propertyId) => {
+    const totalRooms = await Room.countDocuments({ propertyId });
+
+    const totalBedsResult = await Room.aggregate([
+        { $match: { propertyId: new mongoose.Types.ObjectId(propertyId) } },
+        { $group: { _id: null, totalBeds: { $sum: "$totalBeds" } } }
+    ]);
+
+    const occupiedBedsResult = await Room.aggregate([
+        { $match: { propertyId: new mongoose.Types.ObjectId(propertyId) } },
+        { $unwind: "$beds" },
+        { $match: { "beds.status": "occupied" } },
+        { $count: "occupiedBeds" }
+    ]);
+
+    const totalBeds = totalBedsResult[0]?.totalBeds || 0;
+    const occupiedBeds = occupiedBedsResult[0]?.occupiedBeds || 0;
+    const availableBeds = totalBeds - occupiedBeds;
+
+    return {
+        totalRooms,
+        totalBeds,
+        occupiedBeds,
+        availableBeds
+    };
+};
+
+/**
+ * Helper function to update room statuses
+ */
+const updateRoomStatusesForProperty = async (propertyId) => {
+    const rooms = await Room.find({ propertyId });
+
+    for (const room of rooms) {
+        const updatedStatus = room.beds.every(b => b.status === 'vacant') ? 'vacant'
+            : room.beds.every(b => b.status === 'occupied') ? 'occupied'
+                : 'partially occupied';
+
+        if (updatedStatus !== room.status) {
+            await Room.updateOne(
+                { _id: room._id },
+                { $set: { status: updatedStatus } }
+            );
+        }
     }
 };
 

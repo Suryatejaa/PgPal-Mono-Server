@@ -72,7 +72,7 @@ const forgotPasswordResetUser = async (req, res) => {
 
     if (!user) return res.status(401).send({ message: 'User not found' });
     delete otpStore[email];
-    await user.updateOne({ password: await bcrypt.hash(newPassword, 12), otp: null });
+    await user.updateOne({ password: await bcrypt.hash(newPassword, 12), otp: null,lastPasswordChange: Date.now() });
     res.send({ message: 'Password reset successfully' });
 };
 
@@ -82,6 +82,7 @@ const passwordResetUser = async (req, res) => {
     const isValid = await user.comparePassword(oldPassword);
     if (!isValid) return res.status(401).send({ message: 'Invalid old password' });
     user.password = await bcrypt.hash(newPassword, 12);
+    user.lastPasswordChange = Date.now();
     await user.save();
     res.send({ message: 'Password reset successfully' });
 };

@@ -98,20 +98,12 @@ const propertySchema = new mongoose.Schema({
         description: { type: String }
     }],
 
-
-
-    // availability: {
-    //     type: {
-    //         startDate: { type: Date, required: true },
-    //         endDate: { type: Date, required: true }
-    //     },
-    //     required: true
-    // },
-
     createdAt: {
         type: Date,
         default: Date.now
     },
+    maxRoomsAllowed: { type: Number }, // Default limit for rooms
+    maxBedsAllowed: { type: Number }, // Default limit for beds
 
 }, { timestamps: true });
 

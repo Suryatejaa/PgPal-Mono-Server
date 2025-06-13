@@ -3,6 +3,7 @@ const Review = require('../models/reviewModel');
 const CacheHelper = require('../utils/CacheHelper');
 const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
+const { PLAN_LIMITS } = require('../middleware/planValidates.js');
 
 
 module.exports = {
@@ -254,15 +255,28 @@ module.exports = {
                 return res.status(404).json({ error: 'No reviews found for this property' });
             }
 
+            // Apply plan-based review limits
+            const userPlan = currentUser.data.user.currentPlan || { type: 'free' };
+            const planType = userPlan.type || 'free';
+            const planLimits = PLAN_LIMITS[planType];
+
+            let limitedReviews = reviews;
+            if (planLimits.maxReviewsDisplayed !== -1) {
+                limitedReviews = reviews.slice(0, planLimits.maxReviewsDisplayed);
+            }
+
             // Calculate the average rating
             const averageRating = reviews.reduce((acc, review) => acc + review.rating, 0) / reviews.length;
 
             const response = {
-                reviews,
-                averageRating
+                reviews: limitedReviews,
+                averageRating,
+                totalReviews: reviews.length,
+                displayedReviews: limitedReviews.length,
+                planLimit: planLimits.maxReviewsDisplayed,
+                upgradeRequired: planLimits.maxReviewsDisplayed !== -1 && reviews.length > planLimits.maxReviewsDisplayed
             };
             await CacheHelper.set(cacheKey, response, 600);
-
 
             res.status(200).json(response);
 

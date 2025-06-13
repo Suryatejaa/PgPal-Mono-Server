@@ -17,8 +17,8 @@ services:
     - PRIVATE_KEY_ID=${PRIVATE_KEY_ID}
     - PRIVATE_KEY=${PRIVATE_KEY}
     - REDIS=${REDIS}  # Use Railway Redis from .env
-    depends_on:
-      - mongo
+    #depends_on:
+      # - mongo
 
   property-service:
     build: ./property-service
@@ -29,8 +29,8 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4002
       - REDIS=${REDIS}  # Use Railway Redis from .env
-    depends_on:
-      - mongo
+    #depends_on:
+      # - mongo
 
   room-service:
     build: ./room-service
@@ -41,8 +41,75 @@ services:
       - REDIS=${REDIS}  # Use Railway Redis from .env
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4003
-    depends_on:
-      - mongo
+      - ADMIN_SESSION_TIMEOUT=3600000
+      - BCRYPT_ROUNDS=12
+
+      # Admin System Configuration
+      - ADMIN_RATE_LIMIT_WINDOW=900000
+      - ADMIN_RATE_LIMIT_MAX=100
+      - ADMIN_CACHE_TTL=300
+      - ADMIN_LOG_RETENTION_DAYS=90
+
+      # Email Configuration (for notifications)
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_SECURE=false
+      - SMTP_USER=admin@test.com
+      - SMTP_PASS=test-password
+      - EMAIL_FROM=noreply@pgpaal.com
+      - EMAIL_FROM_NAME=PG Paal Admin System
+
+      # Slack Integration (disabled for development)
+      - SLACK_WEBHOOK_URL=
+      - SLACK_CHANNEL=#admin-alerts
+      - SLACK_USERNAME=PG-Paal-Bot
+
+      # Webhook Notifications (disabled for development)
+      - WEBHOOK_URL=
+      - WEBHOOK_SECRET=development-webhook-secret
+
+      # File Storage Configuration
+      - EXPORT_DIR=./exports
+      - MAX_EXPORT_FILE_SIZE=50000000
+      - EXPORT_CLEANUP_INTERVAL=86400000
+
+# Performance & Monitoring
+      - HEALTH_CHECK_INTERVAL=300000
+      - PERFORMANCE_THRESHOLD_MS=5000
+      - MEMORY_THRESHOLD_MB=512
+
+# Feature Flags
+      - ENABLE_ADVANCED_ANALYTICS=true
+      - ENABLE_BULK_OPERATIONS=true
+      - ENABLE_SCHEDULED_REPORTS=false
+      - ENABLE_PERFORMANCE_MONITORING=true
+      - ENABLE_ACTIVITY_LOGGING=true
+      - ENABLE_REAL_TIME_UPDATES=false
+
+# Analytics Configuration
+      - ANALYTICS_RETENTION_DAYS=365
+      - ANALYTICS_BATCH_SIZE=1000
+      - ANALYTICS_CACHE_TTL=1800
+
+# Logging Configuration
+      - LOG_LEVEL=debug
+      - LOG_FORMAT=combined
+      - LOG_FILE_PATH=./logs/admin.log
+      - LOG_MAX_SIZE=10m
+      - LOG_MAX_FILES=5
+
+# Rate Limiting Configuration
+      - RATE_LIMIT_WINDOW_MS=900000
+      - RATE_LIMIT_MAX_REQUESTS=100
+      - RATE_LIMIT_SKIP_FAILED_REQUESTS=true
+
+# Cache Configuration
+      - CACHE_DEFAULT_TTL=300
+      - CACHE_MAX_SIZE=1000
+      - CACHE_CHECK_PERIOD=600
+
+    #depends_on:
+      # - mongo
 
   tenant-service:
     build: ./tenant-service
@@ -55,8 +122,8 @@ services:
       - PORT=4004
       - EMAIL=${EMAIL}
       - EMAIL_PASSWORD=${EMAIL_PASSWORD}
-    depends_on:
-      - mongo
+    #depends_on:
+      # - mongo
 
   payment-service:
     build: ./payment-service
@@ -65,8 +132,8 @@ services:
     environment:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_payment_service?retryWrites=true&w=majority
       - REDIS=${REDIS}  # Use Railway Redis from .env
-    depends_on:
-      - mongo
+    #depends_on:
+      # - mongo
 
   complaint-service:
     build: ./complaint-service
@@ -79,8 +146,8 @@ services:
       - EMAIL=echoliftagency@gmail.com
       - EMAIL_PASSWORD=dinh blaq osyc cpds
       - REDIS=${REDIS}  # Use Railway Redis from .env
-    depends_on:
-      - mongo
+    #depends_on:
+      # - mongo
 
   kitchen-service:
     build: ./kitchen-service
@@ -91,8 +158,8 @@ services:
       - REDIS=${REDIS}  # Use Railway Redis from .env
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4007
-    depends_on:
-      - mongo
+    #depends_on:
+      # - mongo
 
   dashboard-service:
     build: ./dashboard-service
@@ -103,8 +170,8 @@ services:
       - REDIS=${REDIS}  # Use Railway Redis from .env
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4008
-    depends_on:
-      - mongo
+    #depends_on:
+      # - mongo
 
   notification-service:
     build: ./notification-service
@@ -115,8 +182,8 @@ services:
       - REDIS=${REDIS}  # Use Railway Redis from .env
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4009
-    depends_on:
-      - mongo 
+    #depends_on:
+      # - mongo 
 
   notification-worker:
     build: ./notification-service
@@ -126,8 +193,7 @@ services:
       - REDIS=${REDIS}  # Use Railway Redis from .env
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4009
-    depends_on:
-      - mongo
+    #depends_on:
       - notification-service
 
   websocket-gateway:
@@ -148,14 +214,14 @@ services:
     environment:
       - NODE_ENV=development
 
-  mongo:
-    image: mongo
-    container_name: mongodb
-    ports:
-      - "27017:27017"
-    command: ["--replSet", "rs0"]
-    volumes:
-    - ./mongo-data:/data/db
+  # mongo:
+  #   image: mongo
+  #   container_name: mongodb
+  #   ports:
+  #     - "27017:27017"
+  #   command: ["--replSet", "rs0"]
+  #   volumes:
+  #   - ./mongo-data:/data/db
   
   # redis:
   #   image: redis
