@@ -1,6 +1,6 @@
 const Room = require('../models/roomModel');
 const mongoose = require('mongoose');
-const CacheHelper = require('../utils/redis');
+const CacheHelper = require('../utils/CacheHelper');
 const moment = require('moment');
 const AdminAnalytics = require('../utils/adminAnalytics');
 const { AdminLogger, AdminLog } = require('../utils/adminLogger');
@@ -49,7 +49,7 @@ exports.getDashboardOverview = [checkAdminAuth, async (req, res) => {
         const cached = await CacheHelper.get(cacheKey);
 
         if (cached) {
-            return res.json({ success: true, data: JSON.parse(cached) });
+            return res.json({ success: true, data: cached });
         }
 
         // Aggregate room statistics
@@ -112,7 +112,7 @@ exports.getDashboardOverview = [checkAdminAuth, async (req, res) => {
         };
 
         // Cache for 5 minutes
-        await CacheHelper.setWithExpiry(cacheKey, JSON.stringify(overview), 300);
+        await CacheHelper.set(cacheKey, JSON.stringify(overview), 300);
 
         res.json({ success: true, data: overview });
 
@@ -181,7 +181,7 @@ exports.getPropertyAnalytics = [checkAdminAuth, async (req, res) => {
         const cached = await CacheHelper.get(cacheKey);
 
         if (cached) {
-            return res.json({ success: true, data: JSON.parse(cached) });
+            return res.json({ success: true, data: cached });
         }
 
         const propertyStats = await Room.aggregate([
@@ -258,7 +258,7 @@ exports.getPropertyAnalytics = [checkAdminAuth, async (req, res) => {
         });
 
         // Cache for 10 minutes
-        await CacheHelper.setWithExpiry(cacheKey, JSON.stringify(enrichedStats), 600);
+        await CacheHelper.set(cacheKey, JSON.stringify(enrichedStats), 600);
 
         res.json({ success: true, data: enrichedStats });
 
@@ -275,7 +275,7 @@ exports.getRevenueAnalytics = [checkAdminAuth, async (req, res) => {
         const cached = await CacheHelper.get(cacheKey);
 
         if (cached) {
-            return res.json({ success: true, data: JSON.parse(cached) });
+            return res.json({ success: true, data: cached });
         }
 
         // Calculate potential and actual revenue
@@ -348,7 +348,7 @@ exports.getRevenueAnalytics = [checkAdminAuth, async (req, res) => {
         };
 
         // Cache for 15 minutes
-        await CacheHelper.setWithExpiry(cacheKey, JSON.stringify(analytics), 900);
+        await CacheHelper.set(cacheKey, JSON.stringify(analytics), 900);
 
         res.json({ success: true, data: analytics });
 
