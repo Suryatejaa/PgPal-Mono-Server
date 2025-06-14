@@ -176,13 +176,13 @@ jobs:
             cd /opt/pgpaal-production
             
             # Backup current deployment
-            docker compose -f docker-compose.prod.yml exec -T postgres pg_dump -U pgpaal_user pgpaal_db > backup-$(date +%Y%m%d-%H%M%S).sql
+            docker compose -f docker-compose.yml exec -T postgres pg_dump -U pgpaal_user pgpaal_db > backup-$(date +%Y%m%d-%H%M%S).sql
             
             # Pull latest images
-            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.yml pull
             
             # Rolling update with health checks
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker compose -f docker-compose.yml up -d --remove-orphans
             
             # Wait for health checks
             sleep 30
