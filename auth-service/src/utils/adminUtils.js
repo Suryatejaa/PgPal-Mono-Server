@@ -3,7 +3,7 @@ const GoogleUser = require('../models/googleModel');
 const CacheHelper = require('./CacheHelper');
 const invalidateCacheByPattern = require('./invalidateCachedByPattern');
 const notificationQueue = require('./notificationQueue');
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 
 /**
  * Advanced Admin Utilities

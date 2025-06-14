@@ -261,7 +261,7 @@ router.post('/security/force-password-reset',
             }
 
             const User = require('../models/userModel');
-            const crypto = require('crypto');
+            const crypto = require('node:crypto');
 
             // Generate password reset tokens for all users
             const resetTokens = userIds.map(() => crypto.randomBytes(32).toString('hex'));
