@@ -1,6 +1,7 @@
 services:
   auth-service:
     build: ./auth-service
+    image: ghcr.io/suryatejaa/pgpal-mono-server/auth-service:latest
     ports:
       - "4001:4001"
     environment:
@@ -24,6 +25,7 @@ services:
 
   property-service:
     build: ./property-service
+    image: ghcr.io/suryatejaa/pgpal-mono-server/property-service:latest
     ports:
       - "4002:4002"
     environment:
@@ -37,6 +39,7 @@ services:
 
   room-service:
     build: ./room-service
+    image: ghcr.io/suryatejaa/pgpal-mono-server/room-service:latest
     ports:
       - "4003:4003"
     environment:
@@ -116,6 +119,7 @@ services:
 
   tenant-service:
     build: ./tenant-service
+    image: ghcr.io/suryatejaa/pgpal-mono-server/tenant-service:latest
     ports:
       - "4004:4004"
     environment:
@@ -131,6 +135,7 @@ services:
 
   payment-service:
     build: ./payment-service
+    image: ghcr.io/suryatejaa/pgpal-mono-server/payment-service:latest
     ports:
       - "4010:4010"
     environment:
@@ -141,6 +146,7 @@ services:
 
   complaint-service:
     build: ./complaint-service
+    image: ghcr.io/suryatejaa/pgpal-mono-server/complaint-service:latest
     ports:
       - "4006:4006"
     environment:
@@ -156,6 +162,7 @@ services:
 
   kitchen-service:
     build: ./kitchen-service
+    image: ghcr.io/suryatejaa/pgpal-mono-server/kitchen-service:latest
     ports:
       - "4007:4007"
     environment:
@@ -169,6 +176,7 @@ services:
 
   dashboard-service:
     build: ./dashboard-service
+    image: ghcr.io/suryatejaa/pgpal-mono-server/dashboard-service:latest
     ports:
       - "4008:4008"
     environment:
@@ -181,6 +189,7 @@ services:
 
   notification-service:
     build: ./notification-service
+    image: ghcr.io/suryatejaa/pgpal-mono-server/notification-service:latest
     ports:
       - "4009:4009"
     environment:
@@ -193,6 +202,7 @@ services:
 
   notification-worker:
     build: ./notification-service
+    image: ghcr.io/suryatejaa/pgpal-mono-server/notification-worker:latest
     command: node src/workers/notificationWorker.js
     environment:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_notification_service?retryWrites=true&w=majority
@@ -205,6 +215,7 @@ services:
   websocket-service:
     build:
       context: ./websocket-service
+    image: ghcr.io/suryatejaa/pgpal-mono-server/websocket-service:latest
     ports:
       - "4011:4011"
     environment:
@@ -218,6 +229,7 @@ services:
 
   gateway:
     build: ./gateway
+    image: ghcr.io/suryatejaa/pgpal-mono-server/gateway:latest
     ports:
       - "4000:4000"
     environment:
