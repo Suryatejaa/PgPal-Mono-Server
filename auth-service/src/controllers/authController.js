@@ -193,7 +193,7 @@ const loginUser = async (req, res) => {
 
                 const title = 'New login detected';
                 const message = `A new login was detected for your account from ${clientIP || 'unknown location'}. If this was not you, please secure your account immediately.`;
-                const type = 'security';
+                const type = 'alert';
                 const method = ['in-app', 'email'];
 
                 const notificationData = role === 'tenant' ? {
