@@ -173,7 +173,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            cd /opt/pgpaal-production
+            cd /root/PgPal-Mono-Server
             
             # Backup current deployment
             docker compose -f docker-compose.yml exec -T postgres pg_dump -U pgpaal_user pgpaal_db > backup-$(date +%Y%m%d-%H%M%S).sql
