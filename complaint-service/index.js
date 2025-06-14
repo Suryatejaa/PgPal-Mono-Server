@@ -19,6 +19,17 @@ app.use(express.json());
 app.use(cors({
     origin: ['http://localhost:5173', 'http://localhost:5174', 'http:localhost:5175'],
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+        'Origin',
+        'X-Requested-With',
+        'Content-Type',
+        'Accept',
+        'Authorization',
+        'x-user',
+        'x-internal-service',
+        'x-debug'
+    ]
 }));
 app.use(cookieParser());
 app.use('/api/complaint-service', complainRoutes);

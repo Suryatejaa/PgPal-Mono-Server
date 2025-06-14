@@ -16,6 +16,7 @@ services:
     - GOOGLE_CALLBACK_URL=http://localhost:4000/api/auth-service/google/callback
     - PRIVATE_KEY_ID=${PRIVATE_KEY_ID}
     - PRIVATE_KEY=${PRIVATE_KEY}
+    - NODE_ENV=${NODE_ENV}
     - REDIS=${REDIS}  # Use Railway Redis from .env
     #depends_on:
       # - mongo

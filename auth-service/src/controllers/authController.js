@@ -8,6 +8,17 @@ const invalidateCacheByPattern = require('../utils/invalidateCachedByPattern');
 const notificationQueue = require('../utils/notificationQueue.js');
 const { makeInternalApiCall, getMyProperties, updateMaxRoomsnBeds } = require('./internalApis');
 
+const getCookieOptions = (maxAge) => {
+    const isProduction = process.env.NODE_ENV === 'production';
+    return {
+        httpOnly: true,
+        sameSite: isProduction ? 'none' : 'lax',
+        secure: isProduction,
+        path: '/',
+        maxAge,
+        domain: isProduction ? process.env.COOKIE_DOMAIN : undefined
+    };
+};
 
 const setHeader = (res, token) => {
     res.setHeader('Authorization', `Bearer ${token}`);
@@ -47,12 +58,11 @@ const registerUser = async (req, res) => {
         // Store user data temporarily
         userDetails = { username: usernameLower, email: toLowerCase(email), phoneNumber: toLowerCase(phoneNumber), gender, role, password, location };
         try {
-            const otpResponse = await axios.post('http://localhost:4001/api/auth-service/otp/send', userDetails);
-            if (otpResponse.status === 200) {
-                res.status(200).send({
-                    message: 'OTP sent to your email. Verify OTP to complete registration.'
-                });
-            }
+            await sendOtpInternal(userDetails);
+
+            res.status(200).send({
+                message: 'OTP sent to your email. Verify OTP to complete registration.'
+            });
         } catch (error) {
             return res.status(400).send({
                 message: 'Error sending otp',
@@ -109,21 +119,9 @@ const loginUser = async (req, res) => {
         const refreshToken = user.generateRefreshToken();
 
         // Set cookies
-        res.cookie('token', token, {
-            httpOnly: true,
-            sameSite: 'lax',
-            secure: false,
-            maxAge: 15 * 60 * 1000,
-            path: '/',
-        });
+        res.cookie('token', token, getCookieOptions(15 * 60 * 1000)); // 15 minutes
+        res.cookie('refreshToken', refreshToken, getCookieOptions(7 * 24 * 60 * 60 * 1000)); // 7 days
 
-        res.cookie('refreshToken', refreshToken, {
-            httpOnly: true,
-            sameSite: 'lax',
-            secure: false,
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-            path: '/',
-        });
 
         res.setHeader('Authorization', `Bearer ${token}`);
         res.setHeader('Refresh-Token', refreshToken);
@@ -263,8 +261,17 @@ const logoutUser = async (req, res) => {
 
         await User.findByIdAndUpdate(user._id, { refreshToken: null });
 
-        res.clearCookie('token', { httpOnly: true, sameSite: 'lax', secure: false });
-        res.clearCookie('refreshToken', { httpOnly: true, sameSite: 'lax', secure: false });
+        const isProduction = process.env.NODE_ENV === 'production';
+        const clearCookieOptions = {
+            httpOnly: true,
+            sameSite: isProduction ? 'none' : 'lax',
+            secure: isProduction,
+            path: '/',
+            domain: isProduction ? process.env.COOKIE_DOMAIN : undefined
+        };
+
+        res.clearCookie('token', clearCookieOptions);
+        res.clearCookie('refreshToken', clearCookieOptions);
 
 
         res.status(200).json({ message: 'Logged out successfully' });
@@ -511,6 +518,26 @@ const updateUser = async (req, res) => {
     }
 };
 
+const sendOtpInternal = async (userDetails) => {
+    try {
+        const email = userDetails.email;
+        const otp = otpGenerator();
+        const otpExpiry = Date.now() + 5 * 60 * 1000; // 5 minutes
+
+        // Store OTP with user details
+        otpStore[email] = { otp, otpExpiry, ...userDetails };
+
+        // Send OTP email
+        await sendOtpEmail(email, otp);
+
+        console.log(`✅ [AUTH] OTP sent to ${email}`);
+        return { success: true, message: 'OTP sent successfully' };
+    } catch (error) {
+        console.error('❌ [AUTH] Error sending OTP:', error.message);
+        throw new Error('Failed to send OTP. Please try again later.');
+    }
+};
+
 const sendOtp = async (req, res) => {
     try {
         const userDetails = req.body;
@@ -681,8 +708,8 @@ const verifyOtp = async (req, res) => {
             console.error('Error saving refresh token to database:', error.message);
         }
 
-        res.cookie('token', token, { httpOnly: true, sameSite: 'lax', maxAge: 15 * 60 * 1000, path: '/', secure: false }); // 5 mins
-        res.cookie('refreshToken', refreshToken, { httpOnly: true, sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/', secure: false }); // 7 days
+        res.cookie('token', token, getCookieOptions(15 * 60 * 1000)); // 15 minutes
+        res.cookie('refreshToken', refreshToken, getCookieOptions(7 * 24 * 60 * 60 * 1000)); // 7 days
         res.setHeader('Authorization', `Bearer ${token}`);
         res.setHeader('Refresh-Token', refreshToken);
         setHeader(res, token);

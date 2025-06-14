@@ -7,34 +7,46 @@ const cors = require('cors');
 const app = express();
 
 // CORS Middleware
-const allowedOrigins = [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:4000',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174',
-    'http://127.0.0.1:4000',
-    'http://localhost:5175',
-    'http://127.0.0.1:5175'
-];
+
 
 const corsOptions = {
     origin: function (origin, callback) {
-        if (!origin) {
-            return callback(null, true);
-        }
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
 
-        if (allowedOrigins.includes(origin)) {
+        const allowedOrigins = [
+            'http://localhost:5173',
+            'http://localhost:5174',
+            'http://localhost:4000',
+            'http://127.0.0.1:5173',
+            'http://127.0.0.1:5174',
+            'http://127.0.0.1:4000',
+            'http://localhost:5175',
+            'http://127.0.0.1:5175',
+             process.env.FRONTEND_URL || 'http://localhost:5173',
+        ];
+
+        if (allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
         } else {
-            console.log('Rejected origin:', origin);
             callback(new Error('Not allowed by CORS'));
         }
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    credentials: true,
+    credentials: true, // This is crucial for cookies
     optionsSuccessStatus: 200,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: [
+        'Origin',
+        'X-Requested-With',
+        'Content-Type',
+        'Accept',
+        'Authorization',
+        'x-user',
+        'x-internal-service',
+        'x-debug'
+    ]
 };
+
 
 app.use(cors(corsOptions));
 
