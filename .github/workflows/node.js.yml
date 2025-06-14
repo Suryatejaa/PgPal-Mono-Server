@@ -204,16 +204,29 @@ jobs:
             docker system prune -f
 
   # ✅ Notify deployment status
-  notify:
-    name: Notify Deployment
-    runs-on: ubuntu-latest
-    needs: [deploy-production]
-    if: always()
+    # ✅ Simple email notification
+  # notify:
+    # name: Notify Deployment
+    # runs-on: ubuntu-latest
+    # needs: [deploy-production]
+    # if: always()
     
-    steps:
-      - name: Notify Slack
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
-          text: "PGPaal deployment ${{ job.status }} on production! All services included."
+    # steps:
+    #   - name: Send email notification
+    #     uses: dawidd6/action-send-mail@v3
+    #     with:
+    #       server_address: smtp.gmail.com
+    #       server_port: 587
+    #       username: ${{ secrets.EMAIL_USERNAME }}
+    #       password: ${{ secrets.EMAIL_PASSWORD }}
+    #       subject: "PGPaal Deployment ${{ needs.deploy-production.result }}"
+    #       body: |
+    #         PGPaal deployment has completed with status: ${{ needs.deploy-production.result }}
+            
+    #         Repository: ${{ github.repository }}
+    #         Branch: ${{ github.ref_name }}
+    #         Commit: ${{ github.sha }}
+            
+    #         Check the deployment at: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    #       to: your-email@example.com
+    #       from: noreply@yourproject.com
