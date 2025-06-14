@@ -18,8 +18,18 @@ const PORT = process.env.PORT || 4004;
 
 // Middleware
 app.use(express.json());
+// ...existing code...
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:5174', 'http:localhost:5175'],
+    origin: [
+        'http://localhost:5173', 
+        'http://localhost:5174', 
+        'http://localhost:5175',
+        'http://127.0.0.1:5173',
+        'http://127.0.0.1:5174', 
+        'http://127.0.0.1:5175',
+        'ws://localhost:4011',
+        'ws://127.0.0.1:4011'
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
@@ -30,9 +40,12 @@ app.use(cors({
         'Authorization',
         'x-user',
         'x-internal-service',
-        'x-debug'
+        'x-debug',
+        'Connection',
+        'Upgrade'
     ]
 }));
+// ...existing code...
 app.use(cookieParser());
 
 // Start the vacate tenants job

@@ -15,6 +15,9 @@ const {
  } = require('./internalApis');
 const PlanHelper = require('../utils/planHelper');
 const PlanLimits = require('../config/planLimits.js');
+const WebSocketEmitter = require('../utils/WebSocketEmitter.js');
+const wsEmitter = new WebSocketEmitter('property-service');
+
 
 const increaseViewCount = async (id) => {
     const property = await Property.findById(id);
@@ -159,6 +162,16 @@ module.exports = {
                 console.error('Failed to queue notification:', err.message);
             }
 
+            await wsEmitter.notifyPropertyUpdate({
+                action: 'property-added',
+                property: {
+                    id: property._id,
+                    name: property.name,
+                    location: property.location,
+                    ownerId: property.ownerId
+                }
+            }, currentUser.data.user._id);
+            
             res.status(201).json(property);
 
 

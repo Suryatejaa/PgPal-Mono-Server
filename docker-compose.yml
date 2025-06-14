@@ -17,6 +17,7 @@ services:
     - PRIVATE_KEY_ID=${PRIVATE_KEY_ID}
     - PRIVATE_KEY=${PRIVATE_KEY}
     - NODE_ENV=${NODE_ENV}
+    - WEBSOCKET_URL=ws://websocket-service:4011
     - REDIS=${REDIS}  # Use Railway Redis from .env
     #depends_on:
       # - mongo
@@ -29,6 +30,7 @@ services:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_property_service?retryWrites=true&w=majority 
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4002
+      - WEBSOCKET_URL=ws://websocket-service:4011
       - REDIS=${REDIS}  # Use Railway Redis from .env
     #depends_on:
       # - mongo
@@ -44,7 +46,7 @@ services:
       - PORT=4003
       - ADMIN_SESSION_TIMEOUT=3600000
       - BCRYPT_ROUNDS=12
-
+      - WEBSOCKET_URL=ws://websocket-service:4011
       # Admin System Configuration
       - ADMIN_RATE_LIMIT_WINDOW=900000
       - ADMIN_RATE_LIMIT_MAX=100
@@ -122,6 +124,7 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4004
       - EMAIL=${EMAIL}
+      - WEBSOCKET_URL=ws://websocket-service:4011
       - EMAIL_PASSWORD=${EMAIL_PASSWORD}
     #depends_on:
       # - mongo
@@ -146,6 +149,7 @@ services:
       - PORT=4006
       - EMAIL=echoliftagency@gmail.com
       - EMAIL_PASSWORD=dinh blaq osyc cpds
+      - WEBSOCKET_URL=ws://websocket-service:4011
       - REDIS=${REDIS}  # Use Railway Redis from .env
     #depends_on:
       # - mongo
@@ -159,6 +163,7 @@ services:
       - REDIS=${REDIS}  # Use Railway Redis from .env
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4007
+      - WEBSOCKET_URL=ws://websocket-service:4011
     #depends_on:
       # - mongo
 
@@ -197,16 +202,19 @@ services:
     #depends_on:
       - notification-service
 
-  websocket-gateway:
-    build: 
-      context: ./gateway
-      dockerfile: dockerfile.websocket
-    working_dir: /app
-    command: node webSocketGateway.js
+  websocket-service:
+    build:
+      context: ./websocket-service
     ports:
       - "4011:4011"
     environment:
-      - REDIS=${REDIS}  # Use Railway Redis from .env
+      - REDIS_URL=${REDIS}  # Use Railway Redis from .env
+      - NODE_ENV=${NODE_ENV}
+    depends_on:
+      - redis
+    networks:
+      - pgpaal-network
+    restart: unless-stopped
 
   gateway:
     build: ./gateway

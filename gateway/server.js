@@ -23,7 +23,9 @@ const corsOptions = {
             'http://127.0.0.1:4000',
             'http://localhost:5175',
             'http://127.0.0.1:5175',
-             process.env.FRONTEND_URL || 'http://localhost:5173',
+            'ws://localhost:4011',
+            'ws://127.0.0.1:4011',
+            process.env.FRONTEND_URL || 'http://localhost:5173',
         ];
 
         if (allowedOrigins.indexOf(origin) !== -1) {
@@ -43,10 +45,11 @@ const corsOptions = {
         'Authorization',
         'x-user',
         'x-internal-service',
-        'x-debug'
+        'x-debug',
+        'Connection',
+        'Upgrade'
     ]
 };
-
 
 app.use(cors(corsOptions));
 
@@ -662,9 +665,9 @@ const PORT = process.env.PORT || 4000;
 
 app.listen(PORT, () => {
     console.log(`🚀 API Gateway running on port ${PORT}`);
-    console.log(`📊 Health endpoint: http://localhost:${PORT}/api/gateway/health`);
-    console.log(`🔍 Error monitoring: http://localhost:${PORT}/api/gateway/errors`);
-    console.log(`📈 Service status: http://localhost:${PORT}/api/gateway/services`);
+    console.log(`📊 Health endpoint: http://46.62.142.3:${PORT}/api/gateway/health`);
+    console.log(`🔍 Error monitoring: http://46.62.142.3:${PORT}/api/gateway/errors`);
+    console.log(`📈 Service status: http://46.62.142.3:${PORT}/api/gateway/services`);
 });
 
 // Graceful shutdown
