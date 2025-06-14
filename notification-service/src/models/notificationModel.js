@@ -7,7 +7,7 @@ const notificationSchema = new Schema({
     propertyPpid: { type: String},
     type: {
         type: String,
-        enum: ['info', 'alert', 'reminder', 'complaint_update', 'manual', 'meal-attendance-reminder'],
+        enum: ['info', 'alert', 'reminder', 'security', 'complaint_update', 'manual', 'meal-attendance-reminder'],
         default: 'info'
     },
     method: {
