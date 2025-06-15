@@ -190,20 +190,31 @@ jobs:
             sleep 30
             
             # Verify deployment for all services
-            curl -f http://46.62.142.3:4001/health || echo "auth-service health check failed"
-            curl -f http://46.62.142.3:4002/health || echo "property-service health check failed"
-            curl -f http://46.62.142.3:4003/health || echo "room-service health check failed"
-            curl -f http://46.62.142.3:4004/health || echo "tenant-service health check failed"
-            curl -f http://46.62.142.3:4006/health || echo "complaint-service health check failed"
-            curl -f http://46.62.142.3:4007/health || echo "kitchen-service health check failed"
-            curl -f http://46.62.142.3:4008/health || echo "dashboard-service health check failed"
-            curl -f http://46.62.142.3:4009/health || echo "notification-service health check failed"
-            curl -f http://46.62.142.3:4010/health || echo "payment-service health check failed"
-            curl -f http://46.62.142.3:4000/health || echo "gateway health check failed"
-            curl -f http://46.62.142.3:4011/health || echo "websocket-service health check failed"
-            
+            echo "🔍 Running health checks..."
+            curl -f http://localhost:4001/health || echo "❌ auth-service health check failed"
+            curl -f http://localhost:4002/health || echo "❌ property-service health check failed"
+            curl -f http://localhost:4003/health || echo "❌ room-service health check failed"
+            curl -f http://localhost:4004/health || echo "❌ tenant-service health check failed"
+            curl -f http://localhost:4006/health || echo "❌ complaint-service health check failed"
+            curl -f http://localhost:4007/health || echo "❌ kitchen-service health check failed"
+            curl -f http://localhost:4008/health || echo "❌ dashboard-service health check failed"
+            curl -f http://localhost:4009/health || echo "❌ notification-service health check failed"
+            curl -f http://localhost:4010/health || echo "❌ payment-service health check failed"
+            curl -f http://localhost:4000/api/gateway/health || echo "❌ gateway health check failed"
+            curl -f http://localhost:4011/health || echo "❌ websocket health check failed"
+      
+            # Show container status
+            echo "📋 Container Status:"
+            docker compose -f docker-compose.yml ps
+      
+            # Show recent logs for failed services
+            echo "📝 Recent logs:"
+            docker compose -f docker-compose.yml logs --tail=10
+
             # Cleanup old images
             docker system prune -f
+
+            echo "✅ Deployment completed!"
 
   # ✅ Notify deployment status
     # ✅ Simple email notification
