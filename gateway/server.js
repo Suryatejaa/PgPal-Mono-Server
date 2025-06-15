@@ -665,7 +665,7 @@ const PORT = process.env.PORT || 4000;
 
 app.listen(PORT, () => {
     console.log(`🚀 API Gateway running on port ${PORT}`);
-    console.log(`📊 Health endpoint: http://46.62.142.3:${PORT}/api/gateway/health`);
+    console.log(`📊 Health endpoint: http://localhost:${PORT}/api/gateway/health`);
     console.log(`🔍 Error monitoring: http://46.62.142.3:${PORT}/api/gateway/errors`);
     console.log(`📈 Service status: http://46.62.142.3:${PORT}/api/gateway/services`);
 });
