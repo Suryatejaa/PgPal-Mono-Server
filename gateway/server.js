@@ -25,6 +25,12 @@ const corsOptions = {
             'http://127.0.0.1:5175',
             'ws://localhost:4011',
             'ws://127.0.0.1:4011',
+            'https://purple-pgs.space',
+            'https://www.purple-pgs.space',
+            'https://api.purple-pgs.space',
+            'https://owner.purple-pgs.space',
+            'https://tenant.purple-pgs.space',
+            'https://admin.purple-pgs.space',
             process.env.FRONTEND_URL || 'http://localhost:5173',
         ];
 
