@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo 'Tests not implemented yet' && exit 0",
-    "start": "nodemon index.js",
+    "start": "node index.js",
     "test:plan-restrictions": "node scripts/testPlanRestrictions.js",
     "test:plan-restrictions:dev": "BASE_URL=http://localhost:4002/api/property-service node scripts/testPlanRestrictions.js",
     "test:plan-restrictions:prod": "BASE_URL=https://your-production-url.com/api/property-service node scripts/testPlanRestrictions.js",
@@ -33,7 +33,7 @@
   "devDependencies": {
     "colors": "^1.4.0",
     "jest": "^29.7.0",
-    "nodemon": "^3.1.9",
+    "nodemon": "^3.1.10",
     "supertest": "^6.3.4"
   }
 }

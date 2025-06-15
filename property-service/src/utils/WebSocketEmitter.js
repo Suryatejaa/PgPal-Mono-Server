@@ -3,7 +3,7 @@ const Redis = require('ioredis');
 class WebSocketEmitter {
     constructor(serviceName) {
         this.serviceName = serviceName;
-        this.redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
+        this.redis = new Redis(process.env.REDIS);
         this.channel = `${serviceName}-events`;
     }
 

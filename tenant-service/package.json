@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo 'Tests not implemented yet' && exit 0",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "start": "node index.js"
   },
   "jest": {
     "testEnvironment": "node",
@@ -37,7 +38,7 @@
   },
   "devDependencies": {
     "jest": "^30.0.0",
-    "nodemon": "^3.1.9",
+    "nodemon": "^3.1.10",
     "supertest": "^7.1.1"
   }
 }

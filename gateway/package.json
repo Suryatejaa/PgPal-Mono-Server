@@ -6,8 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "websocket": "node webSocketGateway.js",
-    "dev": "nodemon server.js",
-    "dev:ws": "nodemon webSocketGateway.js",
+    "dev": "node server.js",
+    "dev:ws": "node webSocketGateway.js",
     "dev:both": "concurrently \"npm run dev\" \"npm run dev:ws\"",
     "test": "echo 'No tests specified' && exit 0"
   },
@@ -24,7 +24,7 @@
     "http-proxy-middleware": "^2.0.9",
     "ioredis": "^5.6.1",
     "morgan": "^1.10.0",
-    "nodemon": "^3.1.9",
+    "nodemon": "^3.1.10",
     "socket.io": "^4.8.1"
   }
 }

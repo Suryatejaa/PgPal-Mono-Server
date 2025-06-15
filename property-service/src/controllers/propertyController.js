@@ -329,17 +329,29 @@ module.exports = {
     },
 
     async getPropertyById(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
+        const userHeader = req.headers['x-user'];
+        if (!userHeader) {
+            return res.status(401).json({ error: 'Unauthorized: Missing user authentication' });
+        }
+
+        let currentUser;
+        try {
+            currentUser = JSON.parse(userHeader);
+        } catch (error) {
+            return res.status(401).json({ error: 'Unauthorized: Invalid user data format' });
+        }
+
         if (!currentUser) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
+        
         const cacheKey = '/api' + req.originalUrl; // Always add /api
         try {
             if (CacheHelper.isReady()) {
                 const cached = await CacheHelper.get(cacheKey);
                 if (cached) {
                     //console.log('Returning cached username availability');
-                    return res.status(200).json(cached);
+                    return res.status(200).send(cached);
                 }
             }
             const property = await Property.findById(req.params.id);

@@ -5,9 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo 'Tests not implemented yet' && exit 0",
-    "start": "nodemon src/index.js"
+    "start": "node index.js"
   },
-  
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -25,6 +24,6 @@
     "redis": "^4.7.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.9"
+    "nodemon": "^3.1.10"
   }
 }
