@@ -25,7 +25,7 @@ const io = new Server(server, {
             'http://localhost:5175',
             "http://127.0.0.1:5173",
             "http://127.0.0.1:5174",
-            "http://127.0.0.1:5175"
+            "http://127.0.0.1:5175",
             process.env.FRONTEND_URL
         ],
         credentials: true
@@ -72,8 +72,9 @@ io.on('connection', (socket) => {
     });
 });
 
-server.listen(4011, () => {
-    console.log('WebSocket Gateway running on port 4011');
+const WEBSOCKET_PORT = process.env.WEBSOCKET_PORT || 4011;
+server.listen(WEBSOCKET_PORT, () => {
+    console.log(`🚀 WebSocket Gateway running on port ${WEBSOCKET_PORT}`);
 });
 
 // Graceful shutdown

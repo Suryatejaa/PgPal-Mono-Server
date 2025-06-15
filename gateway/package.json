@@ -7,18 +7,23 @@
     "start": "node server.js",
     "websocket": "node webSocketGateway.js",
     "dev": "nodemon server.js",
+    "dev:ws": "nodemon webSocketGateway.js",
+    "dev:both": "concurrently \"npm run dev\" \"npm run dev:ws\"",
     "test": "echo 'No tests specified' && exit 0"
   },
   "dependencies": {
     "axios": "^1.4.0",
     "axios-no-proxy": "^0.15.3",
     "bootstrap": "^5.3.4",
+    "concurrently": "^9.1.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^4.18.2",
-    "http-proxy-middleware": "^2.0.6",
+    "helmet": "^8.1.0",
+    "http-proxy-middleware": "^2.0.9",
     "ioredis": "^5.6.1",
+    "morgan": "^1.10.0",
     "nodemon": "^3.1.9",
     "socket.io": "^4.8.1"
   }
