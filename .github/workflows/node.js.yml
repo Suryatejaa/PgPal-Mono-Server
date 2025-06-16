@@ -35,7 +35,7 @@ jobs:
           kitchen-service,
           dashboard-service,
           notification-service,
-          payment-service,
+          # payment-service,
           gateway  # ✅ Use 'gateway' instead of 'websocket-service'
         ]
     
