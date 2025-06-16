@@ -190,7 +190,6 @@ jobs:
             echo "🧹 Cleaning up..."
             docker container prune -f || true
             docker image prune -f || true
-          
             # Build and start services in detached mode
             echo "🔨 Building and starting services..."
             docker compose -f docker-compose.yml build --no-cache

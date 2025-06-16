@@ -74,6 +74,8 @@ app.options('*', cors(corsOptions)); // Enable pre-flight requests for all route
 app.use((req, res, next) => {
     // Override any wildcard CORS headers from downstream services
     const originalSetHeader = res.setHeader;
+    const originalEnd = res.end;
+    
     res.setHeader = function (name, value) {
         if (name.toLowerCase() === 'access-control-allow-origin' && value === '*') {
             // Replace wildcard with specific origin when credentials are used
@@ -93,11 +95,42 @@ app.use((req, res, next) => {
             ].filter(Boolean);
 
             if (origin && allowedOrigins.includes(origin)) {
+                console.log(`🔧 CORS Override: Replacing '*' with '${origin}'`);
                 return originalSetHeader.call(this, name, origin);
             }
         }
         return originalSetHeader.call(this, name, value);
     };
+    
+    // Ensure CORS headers are set before response ends
+    res.end = function(chunk, encoding) {
+        const origin = req.headers.origin;
+        const allowedOrigins = [
+            'https://purple-pgs.space',
+            'https://www.purple-pgs.space',
+            'https://api.purple-pgs.space',
+            'https://owner.purple-pgs.space',
+            'https://tenant.purple-pgs.space',
+            'https://admin.purple-pgs.space',
+            'http://localhost:5173',
+            'http://localhost:5174',
+            'http://localhost:5175',
+            process.env.FRONTEND_URL,
+            process.env.CLIENT_URL
+        ].filter(Boolean);
+
+        if (origin && allowedOrigins.includes(origin)) {
+            if (!res.getHeader('access-control-allow-origin')) {
+                res.setHeader('access-control-allow-origin', origin);
+            }
+            if (!res.getHeader('access-control-allow-credentials')) {
+                res.setHeader('access-control-allow-credentials', 'true');
+            }
+        }
+        
+        return originalEnd.call(this, chunk, encoding);
+    };
+    
     next();
 });
 // Enhanced Error Tracking System
@@ -604,6 +637,55 @@ app.use('/api/auth-service',
     createProxyMiddleware({
         target: 'http://auth-service:4001',
         changeOrigin: true,
+        timeout: 30000,
+        
+        onProxyRes: (proxyRes, req, res) => {
+            // Override CORS headers from auth service
+            const origin = req.headers.origin;
+            const allowedOrigins = [
+                'https://purple-pgs.space',
+                'https://www.purple-pgs.space',
+                'https://api.purple-pgs.space',
+                'https://owner.purple-pgs.space',
+                'https://tenant.purple-pgs.space',
+                'https://admin.purple-pgs.space',
+                'http://localhost:5173',
+                'http://localhost:5174',
+                'http://localhost:5175',
+                process.env.FRONTEND_URL,
+                process.env.CLIENT_URL
+            ].filter(Boolean);
+
+            if (origin && allowedOrigins.includes(origin)) {
+                proxyRes.headers['access-control-allow-origin'] = origin;
+                proxyRes.headers['access-control-allow-credentials'] = 'true';
+                proxyRes.headers['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
+                proxyRes.headers['access-control-allow-headers'] = 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cookie, Set-Cookie, x-user, x-internal-service';
+                proxyRes.headers['access-control-expose-headers'] = 'Authorization, Refresh-Token, Set-Cookie';
+                
+                console.log(`🔧 Auth CORS Override: Set origin to '${origin}'`);
+            }
+
+            // Remove any wildcard origins
+            if (proxyRes.headers['access-control-allow-origin'] === '*') {
+                delete proxyRes.headers['access-control-allow-origin'];
+                if (origin && allowedOrigins.includes(origin)) {
+                    proxyRes.headers['access-control-allow-origin'] = origin;
+                    console.log(`🔧 Auth CORS Override: Replaced '*' with '${origin}'`);
+                }
+            }
+        },
+
+        onError: (err, req, res) => {
+            console.error('🔥 [auth-service] PROXY ERROR:', err.message);
+            if (!res.headersSent) {
+                res.status(500).json({
+                    error: 'Auth service temporarily unavailable',
+                    service: 'auth-service',
+                    timestamp: new Date().toISOString()
+                });
+            }
+        }
     })
 );
 
