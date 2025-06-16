@@ -70,40 +70,10 @@ const corsOptions = {
 
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Enable pre-flight requests for all routes
-app.use((req, res, next) => {
-    // Override any wildcard CORS headers from downstream services
-    const originalSetHeader = res.setHeader;
-    const originalEnd = res.end;
-    
-    res.setHeader = function (name, value) {
-        if (name.toLowerCase() === 'access-control-allow-origin' && value === '*') {
-            // Replace wildcard with specific origin when credentials are used
-            const origin = req.headers.origin;
-            const allowedOrigins = [
-                'https://purple-pgs.space',
-                'https://www.purple-pgs.space',
-                'https://api.purple-pgs.space',
-                'https://owner.purple-pgs.space',
-                'https://tenant.purple-pgs.space',
-                'https://admin.purple-pgs.space',
-                'http://localhost:5173',
-                'http://localhost:5174',
-                'http://localhost:5175',
-                process.env.FRONTEND_URL,
-                process.env.CLIENT_URL
-            ].filter(Boolean);
 
-            if (origin && allowedOrigins.includes(origin)) {
-                console.log(`🔧 CORS Override: Replacing '*' with '${origin}'`);
-                return originalSetHeader.call(this, name, origin);
-            }
-        }
-        return originalSetHeader.call(this, name, value);
-    };
-    
-    // Ensure CORS headers are set before response ends
-    res.end = function(chunk, encoding) {
+// Enhanced preflight handler to override nginx CORS headers
+app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') {
         const origin = req.headers.origin;
         const allowedOrigins = [
             'https://purple-pgs.space',
@@ -120,17 +90,88 @@ app.use((req, res, next) => {
         ].filter(Boolean);
 
         if (origin && allowedOrigins.includes(origin)) {
-            if (!res.getHeader('access-control-allow-origin')) {
-                res.setHeader('access-control-allow-origin', origin);
-            }
-            if (!res.getHeader('access-control-allow-credentials')) {
-                res.setHeader('access-control-allow-credentials', 'true');
+            console.log(`🎯 Preflight: Setting specific origin '${origin}' for OPTIONS request`);
+            res.header('Access-Control-Allow-Origin', origin);
+            res.header('Access-Control-Allow-Credentials', 'true');
+            res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+            res.header('Access-Control-Allow-Headers', 'Authorization, Content-Type, x-user, x-debug, Accept, Origin, X-Requested-With');
+            res.header('Access-Control-Max-Age', '86400'); // 24 hours
+            return res.status(204).end();
+        }
+    }
+    next();
+});
+
+app.options('*', cors(corsOptions)); // Enable pre-flight requests for all routes
+app.use((req, res, next) => {
+    // Aggressive CORS override to handle nginx-level wildcard headers
+    const originalSetHeader = res.setHeader;
+    const originalEnd = res.end;
+    const originalWriteHead = res.writeHead;
+
+    const allowedOrigins = [
+        'https://purple-pgs.space',
+        'https://www.purple-pgs.space',
+        'https://api.purple-pgs.space',
+        'https://owner.purple-pgs.space',
+        'https://tenant.purple-pgs.space',
+        'https://admin.purple-pgs.space',
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'http://localhost:5175',
+        process.env.FRONTEND_URL,
+        process.env.CLIENT_URL
+    ].filter(Boolean);
+
+    const getValidOrigin = () => {
+        const origin = req.headers.origin;
+        return origin && allowedOrigins.includes(origin) ? origin : null;
+    };
+
+    // Override setHeader to prevent wildcard origins
+    res.setHeader = function (name, value) {
+        if (name.toLowerCase() === 'access-control-allow-origin') {
+            const validOrigin = getValidOrigin();
+            if (value === '*' && validOrigin) {
+                console.log(`🔧 CORS Override: Replacing '*' with '${validOrigin}'`);
+                return originalSetHeader.call(this, name, validOrigin);
+            } else if (validOrigin) {
+                return originalSetHeader.call(this, name, validOrigin);
             }
         }
-        
+        return originalSetHeader.call(this, name, value);
+    };
+
+    // Override writeHead to catch headers set at response time
+    res.writeHead = function (statusCode, statusMessage, headers) {
+        const validOrigin = getValidOrigin();
+        if (validOrigin) {
+            // Force correct CORS headers
+            if (!headers) headers = {};
+            headers['Access-Control-Allow-Origin'] = validOrigin;
+            headers['Access-Control-Allow-Credentials'] = 'true';
+            headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH';
+            headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, x-user, x-debug, Accept, Origin, X-Requested-With';
+            console.log(`🔧 CORS writeHead Override: Setting origin to '${validOrigin}'`);
+        }
+        return originalWriteHead.call(this, statusCode, statusMessage, headers);
+    };
+
+    // Final safety net before response ends
+    res.end = function (chunk, encoding) {
+        const validOrigin = getValidOrigin();
+        if (validOrigin) {
+            // Force override any existing headers
+            this.setHeader('Access-Control-Allow-Origin', validOrigin);
+            this.setHeader('Access-Control-Allow-Credentials', 'true');
+            this.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+            this.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, x-user, x-debug, Accept, Origin, X-Requested-With');
+            console.log(`🔧 CORS Final Override: Ensuring origin is '${validOrigin}'`);
+        }
+
         return originalEnd.call(this, chunk, encoding);
     };
-    
+
     next();
 });
 // Enhanced Error Tracking System
@@ -638,7 +679,7 @@ app.use('/api/auth-service',
         target: 'http://auth-service:4001',
         changeOrigin: true,
         timeout: 30000,
-        
+
         onProxyRes: (proxyRes, req, res) => {
             // Override CORS headers from auth service
             const origin = req.headers.origin;
@@ -662,7 +703,7 @@ app.use('/api/auth-service',
                 proxyRes.headers['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
                 proxyRes.headers['access-control-allow-headers'] = 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cookie, Set-Cookie, x-user, x-internal-service';
                 proxyRes.headers['access-control-expose-headers'] = 'Authorization, Refresh-Token, Set-Cookie';
-                
+
                 console.log(`🔧 Auth CORS Override: Set origin to '${origin}'`);
             }
 
