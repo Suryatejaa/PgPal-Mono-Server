@@ -21,29 +21,29 @@ jobs:
     name: Run Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    
+
     strategy:
       fail-fast: false
       matrix:
         node-version: [18.x]
         service: [
-          auth-service, 
-          property-service, 
-          room-service, 
-          tenant-service,
-          complaint-service,
-          kitchen-service,
-          dashboard-service,
-          notification-service,
-          # payment-service,
-          gateway  # ✅ Use 'gateway' instead of 'websocket-service'
-        ]
-    
+            auth-service,
+            property-service,
+            room-service,
+            tenant-service,
+            complaint-service,
+            kitchen-service,
+            dashboard-service,
+            notification-service,
+            # payment-service,
+            gateway, # ✅ Use 'gateway' instead of 'websocket-service'
+          ]
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         timeout-minutes: 5
-      
+
       - name: Check if service exists
         id: check-service
         run: |
@@ -54,23 +54,23 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
             echo "Service ${{ matrix.service }} does not exist or has no package.json"
           fi
-      
+
       - name: Setup Node.js ${{ matrix.node-version }}
         if: steps.check-service.outputs.exists == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm'
-          cache-dependency-path: '${{ matrix.service }}/package-lock.json'
+          cache: "npm"
+          cache-dependency-path: "${{ matrix.service }}/package-lock.json"
         timeout-minutes: 5
-      
+
       - name: Install dependencies
         if: steps.check-service.outputs.exists == 'true'
         working-directory: ./${{ matrix.service }}
         timeout-minutes: 10
         run: |
           npm ci --prefer-offline --audit-level=moderate || npm ci --force
-      
+
       - name: Run tests
         if: steps.check-service.outputs.exists == 'true'
         working-directory: ./${{ matrix.service }}
@@ -87,27 +87,59 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test]
     if: github.ref == 'refs/heads/main'
-    
+
     strategy:
       matrix:
         service-config: [
-          { name: auth-service, dockerfile: dockerfile, context: auth-service },
-          { name: property-service, dockerfile: dockerfile, context: property-service },
-          { name: room-service, dockerfile: dockerfile, context: room-service },
-          { name: tenant-service, dockerfile: dockerfile, context: tenant-service },
-          { name: complaint-service, dockerfile: dockerfile, context: complaint-service },
-          { name: kitchen-service, dockerfile: dockerfile, context: kitchen-service },
-          { name: dashboard-service, dockerfile: dockerfile, context: dashboard-service },
-          { name: notification-service, dockerfile: dockerfile, context: notification-service },
-          # { name: payment-service, dockerfile: dockerfile, context: payment-service },
-          { name: gateway, dockerfile: dockerfile, context: gateway },
-          # { name: websocket-service, dockerfile: dockerfile.websocket, context: gateway }
-        ]
-    
+            {
+              name: auth-service,
+              dockerfile: dockerfile,
+              context: auth-service,
+            },
+            {
+              name: property-service,
+              dockerfile: dockerfile,
+              context: property-service,
+            },
+            {
+              name: room-service,
+              dockerfile: dockerfile,
+              context: room-service,
+            },
+            {
+              name: tenant-service,
+              dockerfile: dockerfile,
+              context: tenant-service,
+            },
+            {
+              name: complaint-service,
+              dockerfile: dockerfile,
+              context: complaint-service,
+            },
+            {
+              name: kitchen-service,
+              dockerfile: dockerfile,
+              context: kitchen-service,
+            },
+            {
+              name: dashboard-service,
+              dockerfile: dockerfile,
+              context: dashboard-service,
+            },
+            {
+              name: notification-service,
+              dockerfile: dockerfile,
+              context: notification-service,
+            },
+            # { name: payment-service, dockerfile: dockerfile, context: payment-service },
+            { name: gateway, dockerfile: dockerfile, context: gateway },
+            # { name: websocket-service, dockerfile: dockerfile.websocket, context: gateway }
+          ]
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Check if service has Dockerfile
         id: check-dockerfile
         run: |
@@ -118,11 +150,11 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
             echo "No Dockerfile found for ${{ matrix.service-config.name }}"
           fi
-      
+
       - name: Set up Docker Buildx
         if: steps.check-dockerfile.outputs.exists == 'true'
         uses: docker/setup-buildx-action@v3
-      
+
       - name: Login to Container Registry
         if: steps.check-dockerfile.outputs.exists == 'true'
         uses: docker/login-action@v3
@@ -130,7 +162,7 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Extract metadata
         if: steps.check-dockerfile.outputs.exists == 'true'
         id: meta
@@ -141,7 +173,7 @@ jobs:
             type=ref,event=branch
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
-      
+
       - name: Build and push Docker image
         if: steps.check-dockerfile.outputs.exists == 'true'
         uses: docker/build-push-action@v5
@@ -161,11 +193,11 @@ jobs:
     needs: build-images
     if: github.ref == 'refs/heads/main'
     environment: production
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Deploy to production server
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -178,26 +210,54 @@ jobs:
             git pull origin main
             git reset --hard origin/main
             git pull origin main
-
-            # Backup current deployment
-            docker compose -f docker-compose.yml exec -T postgres pg_dump -U pgpaal_user pgpaal_db > backup-$(date +%Y%m%d-%H%M%S).sql
             
-             # Stop all services
+            # Backup current deployment
+            docker-compose -f docker-compose.yml exec -T postgres pg_dump -U pgpaal_user pgpaal_db > backup-$(date +%Y%m%d-%H%M%S).sql || echo "⚠️ Database backup failed"
+
+            # Fix nginx CORS configuration (remove wildcard headers)
+            echo "🔧 Fixing nginx CORS configuration..."
+
+            # Find existing nginx config files and update them
+            for config_file in /etc/nginx/sites-available/default /etc/nginx/sites-available/*.conf; do
+              if [ -f "$config_file" ]; then
+                echo "Processing $config_file"
+                sudo cp "$config_file" "$config_file.backup.$(date +%Y%m%d-%H%M%S)" || true
+                
+                # Remove CORS headers from this config file
+                sudo sed -i 's/add_header.*Access-Control-Allow-Origin.*/#&/' "$config_file" || true
+                sudo sed -i 's/add_header.*Access-Control-Allow-Methods.*/#&/' "$config_file" || true
+                sudo sed -i 's/add_header.*Access-Control-Allow-Headers.*/#&/' "$config_file" || true
+                sudo sed -i 's/add_header.*Access-Control-Allow-Credentials.*/#&/' "$config_file" || true
+                
+                echo "Updated $config_file"
+              fi
+            done
+
+            # Test and reload nginx
+            if sudo nginx -t; then
+              sudo systemctl reload nginx
+              echo "✅ Nginx configuration updated successfully"
+            else
+              echo "⚠️ Nginx configuration test failed, skipping nginx reload..."
+            fi
+
+            # Stop all services
             echo "🛑 Stopping services..."
-            docker compose -f docker-compose.yml down --remove-orphans --volumes || true
-          
+            docker-compose down --remove-orphans --volumes || true
+
             # Clean up old containers and images
             echo "🧹 Cleaning up..."
             docker container prune -f || true
             docker image prune -f || true
+            
             # Build and start services in detached mode
             echo "🔨 Building and starting services..."
-            docker compose -f docker-compose.yml build --no-cache
-            docker compose -f docker-compose.yml up -d --remove-orphans --force-recreate
-          
+            docker-compose build --no-cache
+            docker-compose up -d --remove-orphans --force-recreate
+
             # Wait for health checks
             sleep 30
-            
+
             # Verify deployment for all services
             echo "🔍 Running health checks..."
             curl -f http://localhost:4001/health || echo "❌ auth-service health check failed"
@@ -208,17 +268,16 @@ jobs:
             curl -f http://localhost:4007/health || echo "❌ kitchen-service health check failed"
             curl -f http://localhost:4008/health || echo "❌ dashboard-service health check failed"
             curl -f http://localhost:4009/health || echo "❌ notification-service health check failed"
-            # curl -f http://localhost:4010/health || echo "❌ payment-service health check failed"
             curl -f http://localhost:4000/api/gateway/health || echo "❌ gateway health check failed"
             curl -f http://localhost:4011/health || echo "❌ websocket health check failed"
-      
+
             # Show container status
             echo "📋 Container Status:"
-            docker compose -f docker-compose.yml ps
-      
+            docker-compose ps
+
             # Show recent logs for failed services
             echo "📝 Recent logs:"
-            docker compose -f docker-compose.yml logs --tail=10
+            docker-compose logs --tail=10
 
             # Cleanup old images
             docker system prune -f
@@ -226,29 +285,29 @@ jobs:
             echo "✅ Deployment completed!"
 
   # ✅ Notify deployment status
-    # ✅ Simple email notification
+  # ✅ Simple email notification
   # notify:
-    # name: Notify Deployment
-    # runs-on: ubuntu-latest
-    # needs: [deploy-production]
-    # if: always()
-    
-    # steps:
-    #   - name: Send email notification
-    #     uses: dawidd6/action-send-mail@v3
-    #     with:
-    #       server_address: smtp.gmail.com
-    #       server_port: 587
-    #       username: ${{ secrets.EMAIL_USERNAME }}
-    #       password: ${{ secrets.EMAIL_PASSWORD }}
-    #       subject: "PGPaal Deployment ${{ needs.deploy-production.result }}"
-    #       body: |
-    #         PGPaal deployment has completed with status: ${{ needs.deploy-production.result }}
-            
-    #         Repository: ${{ github.repository }}
-    #         Branch: ${{ github.ref_name }}
-    #         Commit: ${{ github.sha }}
-            
-    #         Check the deployment at: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-    #       to: your-email@example.com
-    #       from: noreply@yourproject.com
+  #   name: Notify Deployment
+  #   runs-on: ubuntu-latest
+  #   needs: [deploy-production]
+  #   if: always()
+
+  #   steps:
+  #     - name: Send email notification
+  #       uses: dawidd6/action-send-mail@v3
+  #       with:
+  #         server_address: smtp.gmail.com
+  #         server_port: 587
+  #         username: ${{ secrets.EMAIL_USERNAME }}
+  #         password: ${{ secrets.EMAIL_PASSWORD }}
+  #         subject: "PGPaal Deployment ${{ needs.deploy-production.result }}"
+  #         body: |
+  #           PGPaal deployment has completed with status: ${{ needs.deploy-production.result }}
+
+  #           Repository: ${{ github.repository }}
+  #           Branch: ${{ github.ref_name }}
+  #           Commit: ${{ github.sha }}
+
+  #           Check the deployment at: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  #         to: your-email@example.com
+  #         from: noreply@yourproject.com
