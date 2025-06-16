@@ -182,10 +182,20 @@ jobs:
             # Backup current deployment
             docker compose -f docker-compose.yml exec -T postgres pg_dump -U pgpaal_user pgpaal_db > backup-$(date +%Y%m%d-%H%M%S).sql
             
-            docker compose -f docker-compose.yml down --remove-orphans
-            docker compose -f docker-compose.yml pull
-            docker compose -f docker-compose.yml up --build --remove-orphans
-            
+             # Stop all services
+            echo "🛑 Stopping services..."
+            docker compose -f docker-compose.yml down --remove-orphans --volumes || true
+          
+            # Clean up old containers and images
+            echo "🧹 Cleaning up..."
+            docker container prune -f || true
+            docker image prune -f || true
+          
+            # Build and start services in detached mode
+            echo "🔨 Building and starting services..."
+            docker compose -f docker-compose.yml build --no-cache
+            docker compose -f docker-compose.yml up -d --remove-orphans --force-recreate
+          
             # Wait for health checks
             sleep 30
             
