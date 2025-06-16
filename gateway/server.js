@@ -58,7 +58,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
+app.options('*', cors(corsOptions)); // Enable pre-flight requests for all routes
 // Enhanced Error Tracking System
 // Enhanced Error Tracking System with Real Health Checks
 const errorTracker = {
