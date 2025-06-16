@@ -45,7 +45,7 @@ const corsOptions = {
             process.env.CLIENT_URL
         ].filter(Boolean); // Remove undefined values
 
-        console.log(`🌐 CORS Check - Origin: ${origin}, Allowed: ${allowedOrigins.includes(origin)}`);
+        // console.log(`🌐 CORS Check - Origin: ${origin}, Allowed: ${allowedOrigins.includes(origin)}`);
 
         if (allowedOrigins.includes(origin)) {
             callback(null, true);

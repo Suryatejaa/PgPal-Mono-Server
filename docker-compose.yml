@@ -155,22 +155,22 @@ services:
     #depends_on:
       # - mongo
 
-  payment-service:
-    build:
-      context: ./payment-service
-      dockerfile: dockerfile
-    image: ghcr.io/suryatejaa/pgpal-mono-server/payment-service:latest
-    ports:
-      - "4010:4010"
-    environment:
-      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_payment_service?retryWrites=true&w=majority
-      - REDIS=${REDIS}  # Use Railway Redis from .env
-      - NODE_ENV=${NODE_ENV}
-      - FRONTEND_URL=https://purple-pgs.space
-      - CLIENT_URL=https://purple-pgs.space
-      - COOKIE_DOMAIN=.purple-pgs.space
-    #depends_on:
-      # - mongo
+  # payment-service:
+  #   build:
+  #     context: ./payment-service
+  #     dockerfile: dockerfile
+  #   image: ghcr.io/suryatejaa/pgpal-mono-server/payment-service:latest
+  #   ports:
+  #     - "4010:4010"
+  #   environment:
+  #     - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_payment_service?retryWrites=true&w=majority
+  #     - REDIS=${REDIS}  # Use Railway Redis from .env
+  #     - NODE_ENV=${NODE_ENV}
+  #     - FRONTEND_URL=https://purple-pgs.space
+  #     - CLIENT_URL=https://purple-pgs.space
+  #     - COOKIE_DOMAIN=.purple-pgs.space
+  #   #depends_on:
+  #     # - mongo
 
   complaint-service:
     build:

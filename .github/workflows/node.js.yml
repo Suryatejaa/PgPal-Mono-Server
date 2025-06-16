@@ -99,7 +99,7 @@ jobs:
           { name: kitchen-service, dockerfile: dockerfile, context: kitchen-service },
           { name: dashboard-service, dockerfile: dockerfile, context: dashboard-service },
           { name: notification-service, dockerfile: dockerfile, context: notification-service },
-          { name: payment-service, dockerfile: dockerfile, context: payment-service },
+          # { name: payment-service, dockerfile: dockerfile, context: payment-service },
           { name: gateway, dockerfile: dockerfile, context: gateway },
           # { name: websocket-service, dockerfile: dockerfile.websocket, context: gateway }
         ]
@@ -184,7 +184,7 @@ jobs:
             
             docker compose -f docker-compose.yml down --remove-orphans
             docker compose -f docker-compose.yml pull
-            docker compose -f docker-compose.yml up -d --remove-orphans
+            docker compose -f docker-compose.yml up --build --remove-orphans
             
             # Wait for health checks
             sleep 30
@@ -199,7 +199,7 @@ jobs:
             curl -f http://localhost:4007/health || echo "❌ kitchen-service health check failed"
             curl -f http://localhost:4008/health || echo "❌ dashboard-service health check failed"
             curl -f http://localhost:4009/health || echo "❌ notification-service health check failed"
-            curl -f http://localhost:4010/health || echo "❌ payment-service health check failed"
+            # curl -f http://localhost:4010/health || echo "❌ payment-service health check failed"
             curl -f http://localhost:4000/api/gateway/health || echo "❌ gateway health check failed"
             curl -f http://localhost:4011/health || echo "❌ websocket health check failed"
       

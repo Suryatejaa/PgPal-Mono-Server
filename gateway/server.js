@@ -601,9 +601,9 @@ app.use('/api/rent-service', authenticate, attachUserHeader,
     createEnhancedProxy('http://tenant-service:4004', 'rent-service')
 );
 
-app.use('/api/payment-service', authenticate, attachUserHeader,
-    createEnhancedProxy('http://payment-service:4010', 'payment-service')
-);
+// app.use('/api/payment-service', authenticate, attachUserHeader,
+//     createEnhancedProxy('http://payment-service:4010', 'payment-service')
+// );
 
 app.use('/api/complaint-service', authenticate, attachUserHeader,
     createEnhancedProxy('http://complaint-service:4006', 'complaint-service')

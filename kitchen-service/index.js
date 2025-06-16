@@ -87,8 +87,6 @@ app.use('/api/kitchen-service/monitor', monitorRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
     tls: true,
     tlsAllowInvalidCertificates: false,
 })
