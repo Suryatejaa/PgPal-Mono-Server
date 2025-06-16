@@ -3,7 +3,7 @@ services:
     build: 
       context: ./auth-service
       dockerfile: dockerfile
-    image: ghcr.io/suryatejaa/pgpal-mono-server/auth-service:latest
+    # image: ghcr.io/suryatejaa/pgpal-mono-server/auth-service:latest
     ports:
       - "4001:4001"
     environment:
@@ -32,7 +32,7 @@ services:
     build:
       context: ./property-service
       dockerfile: dockerfile
-    image: ghcr.io/suryatejaa/pgpal-mono-server/property-service:latest
+    # image: ghcr.io/suryatejaa/pgpal-mono-server/property-service:latest
     ports:
       - "4002:4002"
     environment:
@@ -52,7 +52,7 @@ services:
     build:
       context: ./room-service
       dockerfile: dockerfile
-    image: ghcr.io/suryatejaa/pgpal-mono-server/room-service:latest
+    # image: ghcr.io/suryatejaa/pgpal-mono-server/room-service:latest
     ports:
       - "4003:4003"
     environment:
@@ -137,7 +137,7 @@ services:
     build:
       context: ./tenant-service
       dockerfile: dockerfile
-    image: ghcr.io/suryatejaa/pgpal-mono-server/tenant-service:latest
+    # image: ghcr.io/suryatejaa/pgpal-mono-server/tenant-service:latest
     ports:
       - "4004:4004"
     environment:
@@ -176,7 +176,7 @@ services:
     build:
       context: ./complaint-service
       dockerfile: dockerfile
-    image: ghcr.io/suryatejaa/pgpal-mono-server/complaint-service:latest
+    # image: ghcr.io/suryatejaa/pgpal-mono-server/complaint-service:latest
     ports:
       - "4006:4006"
     environment:
@@ -198,7 +198,7 @@ services:
     build:
       context: ./kitchen-service
       dockerfile: dockerfile
-    image: ghcr.io/suryatejaa/pgpal-mono-server/kitchen-service:latest
+    # image: ghcr.io/suryatejaa/pgpal-mono-server/kitchen-service:latest
     ports:
       - "4007:4007"
     environment:
@@ -218,7 +218,7 @@ services:
     build:
       context: ./dashboard-service
       dockerfile: dockerfile
-    image: ghcr.io/suryatejaa/pgpal-mono-server/dashboard-service:latest
+    # image: ghcr.io/suryatejaa/pgpal-mono-server/dashboard-service:latest
     ports:
       - "4008:4008"
     environment:
@@ -237,7 +237,7 @@ services:
     build:
       context: ./notification-service
       dockerfile: dockerfile
-    image: ghcr.io/suryatejaa/pgpal-mono-server/notification-service:latest
+    # image: ghcr.io/suryatejaa/pgpal-mono-server/notification-service:latest
     ports:
       - "4009:4009"
     environment:
@@ -256,7 +256,7 @@ services:
     build:
       context: ./notification-service
       dockerfile: dockerfile
-    image: ghcr.io/suryatejaa/pgpal-mono-server/notification-worker:latest
+    # image: ghcr.io/suryatejaa/pgpal-mono-server/notification-worker:latest
     command: node src/workers/notificationWorker.js
     environment:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_notification_service?retryWrites=true&w=majority
@@ -286,7 +286,7 @@ services:
     build:
       context: ./gateway
       dockerfile: dockerfile
-    image: ghcr.io/suryatejaa/pgpal-mono-server/gateway:latest
+    # image: ghcr.io/suryatejaa/pgpal-mono-server/gateway:latest
     ports:
       - "4000:4000"
       - "4011:4011"  # WebSocket port
