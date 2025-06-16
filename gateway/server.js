@@ -17,12 +17,12 @@ const corsOptions = {
         const allowedOrigins = [
             'http://localhost:5173',
             'http://localhost:5174',
+            'http://localhost:5175',
             'http://localhost:4000',
             'http://127.0.0.1:5173',
             'http://127.0.0.1:5174',
-            'http://127.0.0.1:4000',
-            'http://localhost:5175',
             'http://127.0.0.1:5175',
+            'http://127.0.0.1:4000',
             'ws://localhost:4011',
             'ws://127.0.0.1:4011',
             'https://purple-pgs.space',
@@ -31,13 +31,17 @@ const corsOptions = {
             'https://owner.purple-pgs.space',
             'https://tenant.purple-pgs.space',
             'https://admin.purple-pgs.space',
-            process.env.FRONTEND_URL || 'http://localhost:5173',
-        ];
+            process.env.FRONTEND_URL,
+            process.env.CLIENT_URL
+        ].filter(Boolean); // Remove undefined values
 
-        if (allowedOrigins.indexOf(origin) !== -1) {
+        console.log(`🌐 CORS Check - Origin: ${origin}, Allowed: ${allowedOrigins.includes(origin)}`);
+
+        if (allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
-            callback(new Error('Not allowed by CORS'));
+            console.warn(`❌ CORS blocked origin: ${origin}`);
+            callback(new Error(`Not allowed by CORS: ${origin}`));
         }
     },
     credentials: true, // This is crucial for cookies
@@ -49,16 +53,53 @@ const corsOptions = {
         'Content-Type',
         'Accept',
         'Authorization',
+        'Cookie',
+        'Set-Cookie',
         'x-user',
         'x-internal-service',
         'x-debug',
         'Connection',
         'Upgrade'
+    ],
+    exposedHeaders: [
+        'Authorization',
+        'Refresh-Token',
+        'Set-Cookie'
     ]
 };
 
+
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions)); // Enable pre-flight requests for all routes
+app.use((req, res, next) => {
+    // Override any wildcard CORS headers from downstream services
+    const originalSetHeader = res.setHeader;
+    res.setHeader = function (name, value) {
+        if (name.toLowerCase() === 'access-control-allow-origin' && value === '*') {
+            // Replace wildcard with specific origin when credentials are used
+            const origin = req.headers.origin;
+            const allowedOrigins = [
+                'https://purple-pgs.space',
+                'https://www.purple-pgs.space',
+                'https://api.purple-pgs.space',
+                'https://owner.purple-pgs.space',
+                'https://tenant.purple-pgs.space',
+                'https://admin.purple-pgs.space',
+                'http://localhost:5173',
+                'http://localhost:5174',
+                'http://localhost:5175',
+                process.env.FRONTEND_URL,
+                process.env.CLIENT_URL
+            ].filter(Boolean);
+
+            if (origin && allowedOrigins.includes(origin)) {
+                return originalSetHeader.call(this, name, origin);
+            }
+        }
+        return originalSetHeader.call(this, name, value);
+    };
+    next();
+});
 // Enhanced Error Tracking System
 // Enhanced Error Tracking System with Real Health Checks
 const errorTracker = {
@@ -123,7 +164,7 @@ const errorTracker = {
             'kitchen-service': 'http://kitchen-service:4007/api/kitchen-service/health',
             'dashboard-service': 'http://dashboard-service:4008/api/dashboard-service/health',
             'notification-service': 'http://notification-service:4009/api/notification-service/health',
-            'payment-service': 'http://payment-service:4010/api/payment-service/health'
+            // 'payment-service': 'http://payment-service:4010/api/payment-service/health'
         };
 
         const healthStatus = {};
@@ -203,7 +244,8 @@ const errorTracker = {
         const services = [
             'auth-service', 'property-service', 'room-service', 'tenant-service',
             'complaint-service', 'kitchen-service', 'dashboard-service',
-            'notification-service', 'payment-service'
+            'notification-service'
+            // 'payment-service'
         ];
 
         services.forEach(serviceName => {
@@ -529,7 +571,7 @@ app.get('/api/gateway/services', (req, res) => {
             'kitchen-service': { port: 4007, ...serviceHealth['kitchen-service'] },
             'dashboard-service': { port: 4008, ...serviceHealth['dashboard-service'] },
             'notification-service': { port: 4009, ...serviceHealth['notification-service'] },
-            'payment-service': { port: 4010, ...serviceHealth['payment-service'] }
+            // 'payment-service': { port: 4010, ...serviceHealth['payment-service'] }
         },
         timestamp: new Date().toISOString()
     });

@@ -710,6 +710,7 @@ const verifyOtp = async (req, res) => {
 
         res.cookie('token', token, getCookieOptions(15 * 60 * 1000)); // 15 minutes
         res.cookie('refreshToken', refreshToken, getCookieOptions(7 * 24 * 60 * 60 * 1000)); // 7 days
+
         res.setHeader('Authorization', `Bearer ${token}`);
         res.setHeader('Refresh-Token', refreshToken);
         setHeader(res, token);
@@ -1057,8 +1058,9 @@ const refreshToken = async (req, res) => {
 
         await User.findByIdAndUpdate(user._id, { refreshToken: newRefreshToken });
 
-        res.cookie('token', newToken, { httpOnly: true, sameSite: 'lax', maxAge: 15 * 60 * 1000, path: '/', secure: false }); // 5 mins
-        res.cookie('refreshToken', newRefreshToken, { httpOnly: true, sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/', secure: false }); // 7 days
+        res.cookie('token', token, getCookieOptions(15 * 60 * 1000)); // 15 minutes
+        res.cookie('refreshToken', refreshToken, getCookieOptions(7 * 24 * 60 * 60 * 1000)); // 7 days
+
         res.setHeader('Authorization', `Bearer ${newToken}`);
         res.setHeader('Refresh-Token', newRefreshToken);
         setHeader(res, newToken);
