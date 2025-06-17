@@ -140,6 +140,7 @@ services:
     # image: ghcr.io/suryatejaa/pgpal-mono-server/tenant-service:latest
     ports:
       - "4004:4004"
+    command: ["node", "index.js"]
     environment:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_tenant_service?retryWrites=true&w=majority
       - REDIS=${REDIS}  # Use Railway Redis from .env
@@ -152,6 +153,28 @@ services:
       - FRONTEND_URL=https://purple-pgs.space
       - CLIENT_URL=https://purple-pgs.space
       - COOKIE_DOMAIN=.purple-pgs.space
+    
+  rent-service:
+    build:
+      context: ./tenant-service
+      dockerfile: dockerfile
+    # image: ghcr.io/suryatejaa/pgpal-mono-server/rent-service:latest
+    ports:
+      - "4005:4005"
+    command: ["node", "rent-index.js"]
+    environment:
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_tenant_service?retryWrites=true&w=majority
+      - REDIS=${REDIS}  # Use Railway Redis from .env
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=4005
+      - EMAIL=${EMAIL}
+      - WEBSOCKET_URL=ws://gateway:4011
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - NODE_ENV=${NODE_ENV}
+      - FRONTEND_URL=https://purple-pgs.space
+      - CLIENT_URL=https://purple-pgs.space
+      - COOKIE_DOMAIN=.purple-pgs.space
+    
     #depends_on:
       # - mongo
 
