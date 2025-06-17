@@ -5,6 +5,8 @@ const roomRoutes = require('./src/routes/roomRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
 const monitorRoutes = require('./src/routes/monitoringRoutes');
 const cookieParser = require('cookie-parser');
+const ServiceHealthMonitor = require('../shared/utils/ServiceHealthMonitor');
+const healthMonitor = new ServiceHealthMonitor('room-service', 4003);
 
 
 // Load environment variables
@@ -21,10 +23,33 @@ app.use(cookieParser());
 app.use('/api/room-service', roomRoutes);
 app.use('/api/room-service/admin', adminRoutes);
 app.use('/api/room-service/monitor', monitorRoutes);
-// app.use('/', roomRoutes);
-// app.use('/admin', adminRoutes);
-// app.use('/monitor', monitorRoutes);
 
+// property-service/index.js
+
+// Add the same health endpoints and monitoring as auth-service
+app.get('/health', async (req, res) => {
+    try {
+        const health = await healthMonitor.getHealth();
+        
+        // Add service-specific metrics
+        const Room = require('./src/models/roomModel');
+        const roomCount = await Room.countDocuments();
+
+        health.serviceMetrics = {
+            totalRooms: roomCount,
+            // Add more service-specific metrics
+        };
+        
+        const statusCode = health.status === 'healthy' ? 200 : 503;
+        res.status(statusCode).json(health);
+    } catch (error) {
+        res.status(503).json({
+            service: 'property-service',
+            status: 'unhealthy',
+            error: error.message
+        });
+    }
+});
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
@@ -33,10 +58,7 @@ mongoose.connect(process.env.MONGO_URI, {
 })
     .then(() => console.log('Connected to MongoDB'));
 
-// Routes
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'healthy', service: 'room-service' });
-});
+
 app.get('/', (req, res) => {
     res.send('Room Service is running');
 });

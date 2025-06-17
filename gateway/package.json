@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "websocket": "node webSocketGateway.js",
-    "dev": "node server.js",
+    "dev": "nodemon server.js",
     "dev:ws": "node webSocketGateway.js",
     "dev:both": "concurrently \"npm run dev\" \"npm run dev:ws\"",
     "test": "echo 'No tests specified' && exit 0"

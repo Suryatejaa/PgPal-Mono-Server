@@ -1,0 +1,58 @@
+<!-- test-cors.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CORS Test</title>
+</head>
+<body>
+    <h1>Local CORS Testing</h1>
+    <button onclick="testLogin()">Test Login</button>
+    <button onclick="testHealth()">Test Health</button>
+    <div id="results"></div>
+
+    <script>
+        const API_BASE = 'http://api.purple-pgs.space:4000';
+        
+        async function testLogin() {
+            try {
+                const response = await fetch(`${API_BASE}/api/auth-service/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        credential: 'isha',
+                        password: 'Surya@123',
+                        role: 'tenant'
+                    })
+                });
+                
+                const data = await response.json();
+                document.getElementById('results').innerHTML = 
+                    `<h3>Login Result:</h3><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    
+            } catch (error) {
+                document.getElementById('results').innerHTML = 
+                    `<h3>Login Error:</h3><pre>${error.message}</pre>`;
+            }
+        }
+        
+        async function testHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/api/gateway/health`, {
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                document.getElementById('results').innerHTML = 
+                    `<h3>Health Result:</h3><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    
+            } catch (error) {
+                document.getElementById('results').innerHTML = 
+                    `<h3>Health Error:</h3><pre>${error.message}</pre>`;
+            }
+        }
+    </script>
+</body>
+</html>

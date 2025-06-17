@@ -4,10 +4,30 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const { ALLOWED_ORIGINS } = require('./cors-config'); // Assuming you have a config file for allowed origins
-
+const https = require('https');
+const fs = require('fs');
 const app = express();
 
-// CORS Middleware
+
+const PORT = process.env.PORT || 4000;
+const USE_HTTPS = process.env.USE_HTTPS === 'true';
+
+if (USE_HTTPS && fs.existsSync('./cert.pem') && fs.existsSync('./key.pem')) {
+    const httpsOptions = {
+        key: fs.readFileSync('./key.pem'),
+        cert: fs.readFileSync('./cert.pem')
+    };
+
+    https.createServer(httpsOptions, app).listen(PORT, () => {
+        console.log(`🚀 API Gateway running on HTTPS port ${PORT}`);
+        console.log(`📊 Health endpoint: https://api.purple-pgs.space:${PORT}/api/gateway/health`);
+    });
+} else {
+    app.listen(PORT, () => {
+        console.log(`🚀 API Gateway running on HTTP port ${PORT}`);
+        console.log(`📊 Health endpoint: http://api.purple-pgs.space:${PORT}/api/gateway/health`);
+    });
+}
 
 
 const corsOptions = {
@@ -197,75 +217,64 @@ const errorTracker = {
             // 'payment-service': 'http://payment-service:4010/health'
         };
 
+        const healthResults = await Promise.allSettled(
+            Object.entries(services).map(async ([serviceName, healthUrl]) => {
+                const startTime = Date.now();
+
+                try {
+                    const response = await axios.get(healthUrl, {
+                        timeout: 5000,
+                        headers: {
+                            'x-internal-service': true,
+                            'User-Agent': 'Gateway-Health-Check'
+                        }
+                    });
+
+                    const responseTime = Date.now() - startTime;
+
+                    return {
+                        service: serviceName,
+                        status: response.data.status || 'healthy',
+                        responseTime: `${responseTime}ms`,
+                        port: response.data.port,
+                        uptime: response.data.uptime,
+                        memory: response.data.memory,
+                        database: response.data.database,
+                        lastCheck: new Date().toISOString(),
+                        data: response.data
+                    };
+
+                } catch (error) {
+                    const responseTime = Date.now() - startTime;
+
+                    return {
+                        service: serviceName,
+                        status: 'offline',
+                        responseTime: `${responseTime}ms (timeout)`,
+                        error: error.message,
+                        code: error.code,
+                        lastCheck: new Date().toISOString(),
+                        offline: true
+                    };
+                }
+            })
+        );
+
         const healthStatus = {};
-
-        for (const [serviceName, healthUrl] of Object.entries(services)) {
-            const stats = errorTracker.serviceHealth[serviceName] || {
-                errors: 0,
-                requests: 0,
-                lastSeen: null,
-                isOnline: false
-            };
-
-            try {
-                // ✅ Actual health check ping
-                const response = await axios.get(healthUrl, {
-                    timeout: 5000,
-                    headers: { 'x-internal-service': true }
-                });
-
-                const errorRate = stats.requests > 0 ? (stats.errors / stats.requests * 100) : 0;
-                const isRecentlyActive = stats.lastSeen && (Date.now() - stats.lastSeen.getTime()) < 300000; // 5 minutes
-
-                healthStatus[serviceName] = {
-                    status: 'healthy',
-                    isOnline: true,
-                    responseTime: response.headers['x-response-time'] || 'N/A',
-                    errorRate: errorRate.toFixed(2),
-                    requests: stats.requests,
-                    errors: stats.errors,
-                    lastSeen: stats.lastSeen,
-                    isRecentlyActive,
-                    healthCheckTime: new Date().toISOString()
+        healthResults.forEach((result, index) => {
+            const serviceName = Object.keys(services)[index];
+            healthStatus[serviceName] = result.status === 'fulfilled'
+                ? result.value
+                : {
+                    service: serviceName,
+                    status: 'error',
+                    error: result.reason?.message || 'Unknown error',
+                    lastCheck: new Date().toISOString()
                 };
-
-                // Update tracking
-                errorTracker.serviceHealth[serviceName] = {
-                    ...stats,
-                    isOnline: true,
-                    lastHealthCheck: new Date()
-                };
-
-            } catch (error) {
-                // ✅ Service is actually offline
-                const errorRate = stats.requests > 0 ? (stats.errors / stats.requests * 100) : 0;
-                const isRecentlyActive = stats.lastSeen && (Date.now() - stats.lastSeen.getTime()) < 300000;
-
-                healthStatus[serviceName] = {
-                    status: 'offline',
-                    isOnline: false,
-                    responseTime: 'timeout',
-                    errorRate: errorRate.toFixed(2),
-                    requests: stats.requests,
-                    errors: stats.errors,
-                    lastSeen: stats.lastSeen,
-                    isRecentlyActive,
-                    healthCheckTime: new Date().toISOString(),
-                    healthCheckError: error.code || error.message
-                };
-
-                // Update tracking
-                errorTracker.serviceHealth[serviceName] = {
-                    ...stats,
-                    isOnline: false,
-                    lastHealthCheck: new Date()
-                };
-
-                console.error(`🔴 [HEALTH CHECK] ${serviceName} is offline: ${error.message}`);
-            }
-        }
+        });
 
         return healthStatus;
+
     },
 
     // ✅ Lightweight service health for frequent checks
@@ -488,23 +497,14 @@ const createCORSProxy = (target, serviceName, requireAuth = true) => {
             changeOrigin: true,
             timeout: 30000,
 
-            // pathRewrite: function (path, req) {
-            //     // For auth service, don't rewrite the path since it expects /api/auth-service
-            //     if (serviceName === 'auth-service') {
-            //         console.log(`🔧 [${serviceName}] Path preserved: ${path}`);
-            //         return path; // Keep full path for auth service
-            //     }
-                
-            //     // For other services, strip the API prefix if needed
-            //     const newPath = path.replace(`/api/${serviceName}`, '');
-            //     console.log(`🔧 [${serviceName}] Path rewrite: ${path} → ${newPath}`);
-            //     return path;
-            // },
-
             onProxyReq: (proxyReq, req, res) => {
                 // Track request
                 errorTracker.addRequest(serviceName);
 
+                const origin = req.headers.origin;
+                if (origin && ALLOWED_ORIGINS.includes(origin)) {
+                    proxyReq.setHeader('Access-Control-Request-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+                }
                 // Add request metadata
                 proxyReq.setHeader('X-Gateway-Request-Id', `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
                 proxyReq.setHeader('X-Gateway-Timestamp', new Date().toISOString());
@@ -540,18 +540,13 @@ const createCORSProxy = (target, serviceName, requireAuth = true) => {
 
                 // Log response details
                 if (proxyRes.statusCode >= 400) {
-                    console.error(`🚨 [${serviceName}] ERROR ${proxyRes.statusCode}: ${req.method} ${req.originalUrl} (${duration}ms)`);
-
+                    console.error(`🚨 [${serviceName}] ERROR ${proxyRes.statusCode}: ${req.method} ${req.originalUrl}`);
                     errorTracker.addError({
                         service: serviceName,
                         method: req.method,
                         url: req.originalUrl,
                         status: proxyRes.statusCode,
-                        duration,
-                        userAgent: req.headers['user-agent'],
-                        userId: req.user?.data?.user?._id || 'anonymous',
-                        userRole: req.user?.data?.user?.role || 'unknown',
-                        ip: req.ip || req.connection.remoteAddress
+                        duration
                     });
                 }
             },
@@ -594,6 +589,49 @@ const createCORSProxy = (target, serviceName, requireAuth = true) => {
 
     return middlewares;
 };
+
+// Add to gateway/server.js
+app.get('/api/gateway/dashboard', async (req, res) => {
+    try {
+        const serviceHealth = await errorTracker.getServiceHealth();
+        const stats = errorTracker.getErrorStats();
+
+        const summary = {
+            overallStatus: 'healthy',
+            totalServices: Object.keys(serviceHealth).length,
+            healthyServices: 0,
+            offlineServices: 0,
+            unhealthyServices: 0,
+            services: serviceHealth,
+            errorStats: stats,
+            timestamp: new Date().toISOString()
+        };
+
+        // Calculate summary stats
+        Object.values(serviceHealth).forEach(service => {
+            if (service.status === 'healthy') {
+                summary.healthyServices++;
+            } else if (service.status === 'offline') {
+                summary.offlineServices++;
+                summary.overallStatus = 'degraded';
+            } else {
+                summary.unhealthyServices++;
+                summary.overallStatus = 'degraded';
+            }
+        });
+
+        if (summary.offlineServices > summary.healthyServices) {
+            summary.overallStatus = 'critical';
+        }
+
+        res.json(summary);
+    } catch (error) {
+        res.status(500).json({
+            error: 'Failed to get dashboard data',
+            message: error.message
+        });
+    }
+});
 
 // Gateway monitoring and health endpoints
 app.get('/api/gateway/health', async (req, res) => {
@@ -640,8 +678,8 @@ app.get('/api/gateway/errors/stats', (req, res) => {
     res.json(errorTracker.getErrorStats());
 });
 
-app.get('/api/gateway/services', (req, res) => {
-    const serviceHealth = errorTracker.getServiceHealth();
+app.get('/api/gateway/services', async (req, res) => {
+    const serviceHealth = await errorTracker.getServiceHealth();
 
     res.json({
         services: {
@@ -754,14 +792,6 @@ app.use('*', (req, res) => {
 });
 
 // Start the API Gateway
-const PORT = process.env.PORT || 4000;
-
-app.listen(PORT, () => {
-    console.log(`🚀 API Gateway running on port ${PORT}`);
-    console.log(`📊 Health endpoint: http://localhost:${PORT}/api/gateway/health`);
-    console.log(`🔍 Error monitoring: http://46.62.142.3:${PORT}/api/gateway/errors`);
-    console.log(`📈 Service status: http://46.62.142.3:${PORT}/api/gateway/services`);
-});
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

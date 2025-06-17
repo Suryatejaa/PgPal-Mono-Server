@@ -8,6 +8,8 @@ const cookieParser = require('cookie-parser');
 const VacateTenantsJob = require('./src/jobs/vacateTenantsJob');
 const JobScheduler = require('./src/jobs/JobScheduler');
 const RentReminderJob = require('./src/jobs/RentReminderJob');
+const ServiceHealthMonitor = require('../shared/utils/ServiceHealthMonitor');
+const healthMonitor = new ServiceHealthMonitor('tenant-service', 4004);
 
 // Load environment variables
 dotenv.config();
@@ -23,17 +25,9 @@ app.use(cookieParser());
 const jobScheduler = new JobScheduler();
 jobScheduler.startAllJobs();
 
-process.on('SIGTERM', () => {
-    console.log('Shutting down gracefully...');
-    jobScheduler.stopAllJobs();
-    process.exit(0);
-});
 
 app.use('/api/tenant-service', tenantRoutes);
 app.use('/api/tenant-service/monitor', monitorRoutes);
-// app.use('/api/rent-service', paymentRoutes);
-// app.use('/', tenantRoutes);
-// app.use('/monitor', monitorRoutes);
 
 app.post('/api/tenant-service/manual-vacate-job', async (req, res) => {
     try {
@@ -79,6 +73,35 @@ app.post('/api/tenant-service/debug/remind-tenant/:tenantId', async (req, res) =
     }
 });
 
+// property-service/index.js
+
+// Add the same health endpoints and monitoring as auth-service
+app.get('/health', async (req, res) => {
+    try {
+        const health = await healthMonitor.getHealth();
+
+        // Add service-specific metrics
+        const Tenant = require('./src/models/tenantModel');
+        const tenantCount = await Tenant.countDocuments();
+
+        health.serviceMetrics = {
+            totalTenants: tenantCount,
+            // Add more service-specific metrics
+        };
+
+        const statusCode = health.status === 'healthy' ? 200 : 503;
+        res.status(statusCode).json(health);
+    } catch (error) {
+        res.status(503).json({
+            service: 'property-service',
+            status: 'unhealthy',
+            error: error.message
+        });
+    }
+});
+
+// Add ready and live endpoints...
+
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
     tls: true,
@@ -86,10 +109,6 @@ mongoose.connect(process.env.MONGO_URI, {
 })
     .then(() => console.log('Connected to MongoDB'));
 
-// Routes
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'healthy', service: 'tenant-service' });
-});
 app.get('/', (req, res) => {
     res.send('Tenant Service is running');
 });
@@ -97,4 +116,10 @@ app.get('/', (req, res) => {
 // Start the server
 app.listen(PORT, () => {
     console.log(`Tenant Service is running on port ${PORT}`);
+});
+
+process.on('SIGTERM', () => {
+    console.log('Shutting down gracefully...');
+    jobScheduler.stopAllJobs();
+    process.exit(0);
 });

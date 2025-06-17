@@ -6,6 +6,8 @@ const adminRoutes = require('./src/routes/adminRoutes');
 const simpleAdminRoutes = require('./src/routes/simpleAdminRoutes');
 const monitorRoutes = require('./src/routes/monitoringRoutes');
 const cookieParser = require('cookie-parser');
+const ServiceHealthMonitor = require('../shared/utils/ServiceHealthMonitor');
+const healthMonitor = new ServiceHealthMonitor('property-service', 4002);
 
 
 // Load environment variables
@@ -35,11 +37,7 @@ app.use('/simple-admin', simpleAdminRoutes);
 app.use('/api/property-service', propertyRoutes);
 app.use('/api/property-service/admin', adminRoutes);
 app.use('/api/property-service/monitor', monitorRoutes);
-// app.use('/admin', adminRoutes);
-// app.use('/', propertyRoutes);
-// app.use('/monitor', monitorRoutes);
 
-// Simple admin test route for debugging
 app.get('/admin-test', (req, res) => {
     console.log('🧪 Admin test route accessed');
     res.json({
@@ -48,6 +46,36 @@ app.get('/admin-test', (req, res) => {
         success: true
     });
 });
+
+
+// property-service/index.js
+
+// Add the same health endpoints and monitoring as auth-service
+app.get('/health', async (req, res) => {
+    try {
+        const health = await healthMonitor.getHealth();
+
+        // Add service-specific metrics
+        const Property = require('./src/models/propertyModel');
+        const propertyCount = await Property.countDocuments();
+
+        health.serviceMetrics = {
+            totalProperties: propertyCount,
+            // Add more service-specific metrics
+        };
+
+        const statusCode = health.status === 'healthy' ? 200 : 503;
+        res.status(statusCode).json(health);
+    } catch (error) {
+        res.status(503).json({
+            service: 'property-service',
+            status: 'unhealthy',
+            error: error.message
+        });
+    }
+});
+
+// Add ready and live endpoints...
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
@@ -59,10 +87,6 @@ mongoose.connect(process.env.MONGO_URI, {
     .then(() => console.log('MongoDB Connected'))
     .catch((err) => console.log('MongoDB connection error', err));
 
-// Routes
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'healthy', service: 'property-service' });
-});
 app.get('/', (req, res) => {
     res.send('Property Service is running');
 });

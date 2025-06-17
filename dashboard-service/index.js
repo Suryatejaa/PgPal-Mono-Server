@@ -4,22 +4,48 @@ const mongoose = require('mongoose');
 const dashboardRoutes = require('./src/routes/dashboardRoutes');
 const monitorRoutes = require('./src/routes/monitoringRoutes');
 const cookieParser = require('cookie-parser');
+const ServiceHealthMonitor = require('../shared/utils/ServiceHealthMonitor');
+const healthMonitor = new ServiceHealthMonitor('dashboard-service', 4008);
 
-// Load environment variables
+
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 4008;
 
-// Middleware
+
 app.use(express.json());
-// ...existing code...
-// ...existing code...
+
 app.use(cookieParser());
 app.use('/api/dashboard-service', dashboardRoutes);
 app.use('/api/dashboard-service/monitor', monitorRoutes);
-// app.use('/', dashboardRoutes);
-// app.use('/monitor', monitorRoutes);
+
+
+
+app.get('/health', async (req, res) => {
+    try {
+        const health = await healthMonitor.getHealth();
+
+        // Add service-specific metrics
+        const Dashboard = require('./src/models/dashboardModel');
+        const dashboardCount = await Dashboard.countDocuments();
+
+        health.serviceMetrics = {
+            totalDashboards: dashboardCount,
+            // Add more service-specific metrics
+        };
+
+        const statusCode = health.status === 'healthy' ? 200 : 503;
+        res.status(statusCode).json(health);
+    } catch (error) {
+        res.status(503).json({
+            service: 'property-service',
+            status: 'unhealthy',
+            error: error.message
+        });
+    }
+});
+
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
@@ -31,10 +57,6 @@ mongoose.connect(process.env.MONGO_URI, {
     .then(() => console.log('MongoDB Connected'))
     .catch((err) => console.log('MongoDB connection error', err));
 
-// Health check route
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'healthy', service: 'dashboard-service' });
-});
 
 // Routes
 app.get('/', (req, res) => {

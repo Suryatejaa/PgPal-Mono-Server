@@ -5,8 +5,8 @@ const passwordController = require('../controllers/passwordController');
 const authenticate = require('../utils/authenticate');
 const { validateRequest, updateUserValidation } = require('../utils/validateRequest');
 const validateLogin = require('../utils/validatelogin');
-const passport = require('../controllers/googleLogin');
-const updateProfileGoogle = require('../controllers/updateProfileGoogle');
+// const passport = require('../controllers/googleLogin');
+// const updateProfileGoogle = require('../controllers/updateProfileGoogle');
 const cacheMiddleware = require('../utils/cacheMiddleware');
 
 // const ProfileController = require('../Apis/Profile.api');
@@ -49,51 +49,51 @@ router.get('/test-auth', authenticate, (req, res) => {
     );
 });
 
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+// router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
-// Google callback URL
-router.get(
-    '/google/callback',
-    passport.authenticate('google', { failureRedirect: '/login' }),
-    (req, res) => {
-        // Successful authentication
-        const { token, refreshToken } = req.user;
+// // Google callback URL
+// router.get(
+//     '/google/callback',
+//     passport.authenticate('google', { failureRedirect: '/login' }),
+//     (req, res) => {
+//         // Successful authentication
+//         const { token, refreshToken } = req.user;
 
-        // Set tokens in cookies
-        res.cookie('token', token, { httpOnly: true, secure: false, sameSite: 'lax', maxAge: 5 * 60 * 1000 }); // 5 minutes
-        res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: false, sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000 }); // 7 days
+//         // Set tokens in cookies
+//         res.cookie('token', token, { httpOnly: true, secure: false, sameSite: 'lax', maxAge: 5 * 60 * 1000 }); // 5 minutes
+//         res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: false, sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000 }); // 7 days
 
-        res.status(200).json({
-            message: 'Login successful',
-            user: req.user,
-        });
-    }
-);
+//         res.status(200).json({
+//             message: 'Login successful',
+//             user: req.user,
+//         });
+//     }
+// );
 
-router.post('/google/logout', async (req, res) => {
-    try {
-        const refreshToken = req.cookies.refreshToken;
+// router.post('/google/logout', async (req, res) => {
+//     try {
+//         const refreshToken = req.cookies.refreshToken;
 
-        // Clear cookies
-        res.clearCookie('token', { httpOnly: true, sameSite: 'lax', secure: false, });
-        res.clearCookie('refreshToken', { httpOnly: true, sameSite: 'lax', secure: false, });
+//         // Clear cookies
+//         res.clearCookie('token', { httpOnly: true, sameSite: 'lax', secure: false, });
+//         res.clearCookie('refreshToken', { httpOnly: true, sameSite: 'lax', secure: false, });
 
-        // Remove refresh token from the database
-        if (refreshToken) {
-            const user = await GoogleUser.findOne({ refreshToken });
-            if (user) {
-                user.refreshToken = null; // Invalidate the refresh token
-                await user.save();
-            }
-        }
+//         // Remove refresh token from the database
+//         if (refreshToken) {
+//             const user = await GoogleUser.findOne({ refreshToken });
+//             if (user) {
+//                 user.refreshToken = null; // Invalidate the refresh token
+//                 await user.save();
+//             }
+//         }
 
-        res.status(200).json({ message: 'Logged out successfully' });
-    } catch (error) {
-        res.status(500).json({ message: 'Failed to log out', error: error.message });
-    }
-});
+//         res.status(200).json({ message: 'Logged out successfully' });
+//     } catch (error) {
+//         res.status(500).json({ message: 'Failed to log out', error: error.message });
+//     }
+// });
 
-router.get('/update-profile', authenticate, updateProfileGoogle);
+// router.get('/update-profile', authenticate, updateProfileGoogle);
 
 router.get('/check-usernames', UserController.checkUsernameAvailability);
 router.get('/check-email', UserController.checkEmailAvailability);
