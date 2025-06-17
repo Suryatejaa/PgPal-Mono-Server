@@ -26,9 +26,9 @@ mongoose.connect(process.env.MONGO_URI, {
 
 // Routes
 app.use('/api/auth-service', authRoutes);  // For gateway requests
-app.use('/', authRoutes);                  // For direct requests
 app.use('/api/auth-service/admin', adminRoutes);
-app.use('/admin', adminRoutes);
+// app.use('/', authRoutes);                  // For direct requests
+// app.use('/admin', adminRoutes);
 
 app.get('/health', (req, res) => {
     res.json({

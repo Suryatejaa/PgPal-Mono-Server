@@ -33,11 +33,11 @@ app.use('/simple-admin', simpleAdminRoutes);
 
 // Mount general property routes
 app.use('/api/property-service', propertyRoutes);
-app.use('/', propertyRoutes);
 app.use('/api/property-service/admin', adminRoutes);
-app.use('/admin', adminRoutes);
 app.use('/api/property-service/monitor', monitorRoutes);
-app.use('/monitor', monitorRoutes);
+// app.use('/admin', adminRoutes);
+// app.use('/', propertyRoutes);
+// app.use('/monitor', monitorRoutes);
 
 // Simple admin test route for debugging
 app.get('/admin-test', (req, res) => {

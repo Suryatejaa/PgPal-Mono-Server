@@ -13,8 +13,9 @@ const PORT = process.env.PORT || 4005;
 // Middleware
 app.use(express.json());
 app.use(cookieParser());
+
 app.use('/api/payment-service', paymentRoutes);
-app.use('/', paymentRoutes);
+// app.use('/', paymentRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {

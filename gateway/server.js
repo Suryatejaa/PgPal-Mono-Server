@@ -488,10 +488,18 @@ const createCORSProxy = (target, serviceName, requireAuth = true) => {
             changeOrigin: true,
             timeout: 30000,
 
-            pathRewrite: function (path, req) {
-                console.log(`🔧 [${serviceName}] Path preserved: ${path}`);
-                return path; // Keep full path for ALL services
-            },
+            // pathRewrite: function (path, req) {
+            //     // For auth service, don't rewrite the path since it expects /api/auth-service
+            //     if (serviceName === 'auth-service') {
+            //         console.log(`🔧 [${serviceName}] Path preserved: ${path}`);
+            //         return path; // Keep full path for auth service
+            //     }
+                
+            //     // For other services, strip the API prefix if needed
+            //     const newPath = path.replace(`/api/${serviceName}`, '');
+            //     console.log(`🔧 [${serviceName}] Path rewrite: ${path} → ${newPath}`);
+            //     return path;
+            // },
 
             onProxyReq: (proxyReq, req, res) => {
                 // Track request
@@ -521,14 +529,14 @@ const createCORSProxy = (target, serviceName, requireAuth = true) => {
                 }
 
                 // Remove any wildcard origins from downstream services
-                if (proxyRes.headers['access-control-allow-origin'] === '*') {
-                    delete proxyRes.headers['access-control-allow-origin'];
-                    if (origin && ALLOWED_ORIGINS.includes(origin)) {
-                        proxyRes.headers['access-control-allow-origin'] = origin;
-                        proxyRes.headers['access-control-allow-credentials'] = 'true';
-                        console.log(`🔧 [${serviceName}] CORS Override: Replaced '*' with '${origin}'`);
-                    }
-                }
+                // if (proxyRes.headers['access-control-allow-origin'] === '*') {
+                //     delete proxyRes.headers['access-control-allow-origin'];
+                //     if (origin && ALLOWED_ORIGINS.includes(origin)) {
+                //         proxyRes.headers['access-control-allow-origin'] = origin;
+                //         proxyRes.headers['access-control-allow-credentials'] = 'true';
+                //         console.log(`🔧 [${serviceName}] CORS Override: Replaced '*' with '${origin}'`);
+                //     }
+                // }
 
                 // Log response details
                 if (proxyRes.statusCode >= 400) {

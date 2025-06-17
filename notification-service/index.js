@@ -17,9 +17,9 @@ app.use(express.json());
 
 app.use(cookieParser());
 app.use('/api/notification-service', notificationRoutes);
-app.use('/', notificationRoutes);
 app.use('/api/notification-service/monitor', monitorRoutes);
-app.use('/monitor', monitorRoutes);
+// app.use('/', notificationRoutes);
+// app.use('/monitor', monitorRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {

@@ -17,9 +17,9 @@ app.use(express.json());
 // ...existing code...
 app.use(cookieParser());
 app.use('/api/dashboard-service', dashboardRoutes);
-app.use('/', dashboardRoutes);
 app.use('/api/dashboard-service/monitor', monitorRoutes);
-app.use('/monitor', monitorRoutes);
+// app.use('/', dashboardRoutes);
+// app.use('/monitor', monitorRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {

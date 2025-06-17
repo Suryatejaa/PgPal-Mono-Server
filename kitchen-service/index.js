@@ -17,9 +17,9 @@ app.use(express.json());
 
 app.use(cookieParser());
 app.use('/api/kitchen-service', kitchenRoutes);
-app.use('/', kitchenRoutes);
 app.use('/api/kitchen-service/monitor', monitorRoutes);
-app.use('/monitor', monitorRoutes);
+// app.use('/', kitchenRoutes);
+// app.use('/monitor', monitorRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {

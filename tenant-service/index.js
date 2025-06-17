@@ -30,10 +30,10 @@ process.on('SIGTERM', () => {
 });
 
 app.use('/api/tenant-service', tenantRoutes);
-app.use('/', tenantRoutes);
-// app.use('/api/rent-service', paymentRoutes);
 app.use('/api/tenant-service/monitor', monitorRoutes);
-app.use('/monitor', monitorRoutes);
+// app.use('/api/rent-service', paymentRoutes);
+// app.use('/', tenantRoutes);
+// app.use('/monitor', monitorRoutes);
 
 app.post('/api/tenant-service/manual-vacate-job', async (req, res) => {
     try {
