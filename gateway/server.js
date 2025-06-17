@@ -82,6 +82,12 @@ app.use((req, res, next) => {
             'https://owner.purple-pgs.space',
             'https://tenant.purple-pgs.space',
             'https://admin.purple-pgs.space',
+            'http://purple-pgs.space',
+            'http://www.purple-pgs.space',
+            'http://api.purple-pgs.space',
+            'http://owner.purple-pgs.space',
+            'http://tenant.purple-pgs.space',
+            'http://admin.purple-pgs.space',
             'http://localhost:5173',
             'http://localhost:5174',
             'http://localhost:5175',
@@ -97,6 +103,8 @@ app.use((req, res, next) => {
             res.header('Access-Control-Allow-Headers', 'Authorization, Content-Type, x-user, x-debug, Accept, Origin, X-Requested-With');
             res.header('Access-Control-Max-Age', '86400'); // 24 hours
             return res.status(204).end();
+        } else {
+            console.warn(`❌ Preflight blocked origin: ${origin}`);
         }
     }
     next();
@@ -116,9 +124,23 @@ app.use((req, res, next) => {
         'https://owner.purple-pgs.space',
         'https://tenant.purple-pgs.space',
         'https://admin.purple-pgs.space',
+
+        'http://purple-pgs.space',
+        'http://www.purple-pgs.space',
+        'http://api.purple-pgs.space',
+        'http://owner.purple-pgs.space',
+        'http://tenant.purple-pgs.space',
+        'http://admin.purple-pgs.space',
+
         'http://localhost:5173',
         'http://localhost:5174',
         'http://localhost:5175',
+        'http://localhost:4000',
+        'http://127.0.0.1:5173',
+        'http://127.0.0.1:5174',
+        'http://127.0.0.1:5175',
+        'http://127.0.0.1:4000',
+
         process.env.FRONTEND_URL,
         process.env.CLIENT_URL
     ].filter(Boolean);
@@ -690,9 +712,23 @@ app.use('/api/auth-service',
                 'https://owner.purple-pgs.space',
                 'https://tenant.purple-pgs.space',
                 'https://admin.purple-pgs.space',
+
+                'http://purple-pgs.space',
+                'http://www.purple-pgs.space',
+                'http://api.purple-pgs.space',
+                'http://owner.purple-pgs.space',
+                'http://tenant.purple-pgs.space',
+                'http://admin.purple-pgs.space',
+
+                // Local development
                 'http://localhost:5173',
                 'http://localhost:5174',
                 'http://localhost:5175',
+                'http://localhost:4000',
+                'http://127.0.0.1:5173',
+                'http://127.0.0.1:5174',
+                'http://127.0.0.1:5175',
+                'http://127.0.0.1:4000',
                 process.env.FRONTEND_URL,
                 process.env.CLIENT_URL
             ].filter(Boolean);
@@ -712,6 +748,7 @@ app.use('/api/auth-service',
                 delete proxyRes.headers['access-control-allow-origin'];
                 if (origin && allowedOrigins.includes(origin)) {
                     proxyRes.headers['access-control-allow-origin'] = origin;
+                    proxyRes.headers['access-control-allow-credentials'] = 'true';
                     console.log(`🔧 Auth CORS Override: Replaced '*' with '${origin}'`);
                 }
             }
@@ -720,6 +757,22 @@ app.use('/api/auth-service',
         onError: (err, req, res) => {
             console.error('🔥 [auth-service] PROXY ERROR:', err.message);
             if (!res.headersSent) {
+                // Set CORS headers even on error
+                const origin = req.headers.origin;
+                const allowedOrigins = [
+                    'https://purple-pgs.space', 'https://www.purple-pgs.space', 'https://api.purple-pgs.space',
+                    'https://owner.purple-pgs.space', 'https://tenant.purple-pgs.space', 'https://admin.purple-pgs.space',
+                    'http://purple-pgs.space', 'http://www.purple-pgs.space', 'http://api.purple-pgs.space',
+                    'http://owner.purple-pgs.space', 'http://tenant.purple-pgs.space', 'http://admin.purple-pgs.space',
+                    'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175',
+                    process.env.FRONTEND_URL, process.env.CLIENT_URL
+                ].filter(Boolean);
+
+                if (origin && allowedOrigins.includes(origin)) {
+                    res.setHeader('Access-Control-Allow-Origin', origin);
+                    res.setHeader('Access-Control-Allow-Credentials', 'true');
+                }
+
                 res.status(500).json({
                     error: 'Auth service temporarily unavailable',
                     service: 'auth-service',
