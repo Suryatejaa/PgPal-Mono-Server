@@ -18,8 +18,8 @@ const PORT = process.env.PORT || 4007;
 app.use(express.json());
 
 app.use(cookieParser());
-app.use('/api/kitchen-service', kitchenRoutes);
-app.use('/api/kitchen-service/monitor', monitorRoutes);
+app.use('/', kitchenRoutes);
+app.use('/monitor', monitorRoutes);
 
 
 app.get('/health', async (req, res) => {

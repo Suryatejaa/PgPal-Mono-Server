@@ -18,8 +18,8 @@ const PORT = process.env.PORT || 4009;
 app.use(express.json());
 
 app.use(cookieParser());
-app.use('/api/notification-service', notificationRoutes);
-app.use('/api/notification-service/monitor', monitorRoutes);
+app.use('/', notificationRoutes);
+app.use('/monitor', monitorRoutes);
 
 // property-service/index.js
 

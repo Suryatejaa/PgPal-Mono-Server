@@ -20,9 +20,9 @@ const PORT = process.env.PORT || 4003;
 app.use(express.json());
 
 app.use(cookieParser());
-app.use('/api/room-service', roomRoutes);
-app.use('/api/room-service/admin', adminRoutes);
-app.use('/api/room-service/monitor', monitorRoutes);
+app.use('/', roomRoutes);
+app.use('/admin', adminRoutes);
+app.use('/monitor', monitorRoutes);
 
 // property-service/index.js
 

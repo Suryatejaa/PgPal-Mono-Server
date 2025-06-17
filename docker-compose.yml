@@ -317,6 +317,7 @@ services:
       - NODE_ENV=${NODE_ENV}
       - REDIS=${REDIS}  # Use Railway Redis from .env
       - PORT=4000
+      - USE_HTTPS=true
       - WEBSOCKET_PORT=4011
       - FRONTEND_URL=https://purple-pgs.space
       - CLIENT_URL=https://purple-pgs.space

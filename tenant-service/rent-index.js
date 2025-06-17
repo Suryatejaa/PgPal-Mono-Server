@@ -47,7 +47,7 @@ mongoose.connect(process.env.MONGO_URI, {
     .catch((err) => console.log('Rent Service - MongoDB connection error', err));
 
 // Routes - No CORS needed (gateway handles it)
-app.use('/api/rent-service', paymentRoutes);  // Handles /update, /payments, etc.
+app.use('/', paymentRoutes);  // Handles /update, /payments, etc.
 
 // Health check
 const PORT = process.env.PORT || 4005;

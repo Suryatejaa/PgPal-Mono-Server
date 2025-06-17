@@ -17,8 +17,8 @@ const PORT = process.env.PORT || 4006;
 app.use(express.json());
 
 app.use(cookieParser());
-app.use('/api/complaint-service', complainRoutes);
-app.use('/api/complaint-service/monitor', monitorRoutes);
+app.use('/', complainRoutes);
+app.use('/monitor', monitorRoutes);
 // app.use('/', complainRoutes);
 // app.use('/monitor', monitorRoutes);
 

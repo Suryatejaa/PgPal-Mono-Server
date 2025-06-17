@@ -26,10 +26,10 @@ const jobScheduler = new JobScheduler();
 jobScheduler.startAllJobs();
 
 
-app.use('/api/tenant-service', tenantRoutes);
-app.use('/api/tenant-service/monitor', monitorRoutes);
+app.use('/', tenantRoutes);
+app.use('/monitor', monitorRoutes);
 
-app.post('/api/tenant-service/manual-vacate-job', async (req, res) => {
+app.post('/manual-vacate-job', async (req, res) => {
     try {
         const result = await jobScheduler.runJob('VacateTenantsJob');
         res.status(200).json({
@@ -53,7 +53,7 @@ app.post('/debug/hello-job', async (req, res) => {
     }
 });
 
-app.post('/api/tenant-service/debug/remind-tenant/:tenantId', async (req, res) => {
+app.post('/debug/remind-tenant/:tenantId', async (req, res) => {
     try {
         const { tenantId } = req.params;
         const rentReminderJob = new RentReminderJob();

@@ -5,19 +5,12 @@ const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const https = require('https');
 const fs = require('fs');
+const {ALLOWED_ORIGINS} = require('./cors-config'); // Import allowed origins from separate config file
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 const USE_HTTPS = process.env.USE_HTTPS === 'true';
 
-// Configuration
-const ALLOWED_ORIGINS = [
-    'https://purple-pgs.space',
-    'https://www.purple-pgs.space',
-    'https://tenant.purple-pgs.space',
-    'http://localhost:3000',
-    'http://localhost:3001'
-];
 
 const SERVICES = {
     'auth-service': { url: 'http://auth-service:4001', port: 4001, requireAuth: false },
@@ -165,7 +158,7 @@ const corsOptions = {
         'Origin', 'X-Requested-With', 'Content-Type', 'Accept',
         'Authorization', 'Cookie', 'x-user', 'x-internal-service'
     ],
-    exposedHeaders: ['Authorization', 'Set-Cookie']
+    exposedHeaders: ['Authorization', 'Set-Cookie', 'Refresh-Token']
 };
 
 // Middleware Setup
@@ -209,6 +202,8 @@ app.use((req, res, next) => {
 
         if (res.statusCode >= 400) {
             console.error(`[${logLevel}] ${req.method} ${req.originalUrl} - ${res.statusCode} (${duration}ms)`);
+        } else {
+            console.log(`[${logLevel}] ${req.method} ${req.originalUrl} - ${res.statusCode} (${duration}ms)`);
         }
     });
 
@@ -259,22 +254,27 @@ const createServiceProxy = (serviceName, serviceConfig) => {
             target: serviceConfig.url,
             changeOrigin: true,
             timeout: 30000,
-            logLevel: 'debug',
+            proxyTimeout: 30000,
+            logLevel: 'warn', // Reduced log level to avoid spam
 
-            onProxyReq: (proxyReq, req) => {
+            pathRewrite: {
+                [`^/api/${serviceName}`]: '' // Remove /api/service-name prefix
+            },
+
+            onProxyReq: (proxyReq, req, res) => {
                 errorTracker.addRequest(serviceName);
-                console.log(`🔧 [${serviceName}] Proxying ${req.method} ${req.originalUrl} to ${serviceConfig.url}${req.url}`);
+                console.log(`🔧 [${serviceName}] Proxying ${req.method} ${req.originalUrl} to ${serviceConfig.url}${proxyReq.path}`);
 
-                // Log request details for debugging
-                console.log(`🔍 [${serviceName}] Headers:`, JSON.stringify(req.headers, null, 2));
-
-                // Ensure content-type is preserved
-                if (req.headers['content-type']) {
-                    proxyReq.setHeader('Content-Type', req.headers['content-type']);
+                // Ensure body is forwarded correctly for POST/PUT requests
+                if (req.body && (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH')) {
+                    const bodyData = JSON.stringify(req.body);
+                    proxyReq.setHeader('Content-Type', 'application/json');
+                    proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+                    proxyReq.write(bodyData);
                 }
             },
 
-            onProxyRes: (proxyRes, req) => {
+            onProxyRes: (proxyRes, req, res) => {
                 const origin = req.headers.origin;
 
                 // Ensure CORS headers on proxy response
@@ -283,12 +283,20 @@ const createServiceProxy = (serviceName, serviceConfig) => {
                     proxyRes.headers['access-control-allow-credentials'] = 'true';
                 }
 
+                // Forward important headers from auth service
+                if (proxyRes.headers['set-cookie']) {
+                    res.setHeader('Set-Cookie', proxyRes.headers['set-cookie']);
+                }
+                if (proxyRes.headers['authorization']) {
+                    res.setHeader('Authorization', proxyRes.headers['authorization']);
+                }
+                if (proxyRes.headers['refresh-token']) {
+                    res.setHeader('Refresh-Token', proxyRes.headers['refresh-token']);
+                }
+
                 const duration = Date.now() - req.startTime;
                 const status = proxyRes.statusCode >= 400 ? 'ERROR' : 'SUCCESS';
                 console.log(`${status === 'ERROR' ? '🚨' : '✅'} [${serviceName}] ${proxyRes.statusCode} (${duration}ms)`);
-
-                // Log response details for debugging
-                console.log(`🔍 [${serviceName}] Response headers:`, JSON.stringify(proxyRes.headers, null, 2));
 
                 if (proxyRes.statusCode >= 400) {
                     errorTracker.addError({
@@ -303,7 +311,8 @@ const createServiceProxy = (serviceName, serviceConfig) => {
 
             onError: (err, req, res) => {
                 console.error(`🔥 [${serviceName}] PROXY ERROR:`, err.message);
-                console.error(`🔥 [${serviceName}] Error details:`, err);
+                console.error(`🔥 [${serviceName}] Request URL: ${req.originalUrl}`);
+                console.error(`🔥 [${serviceName}] Target URL: ${serviceConfig.url}`);
 
                 errorTracker.addError({
                     service: serviceName,
@@ -486,6 +495,7 @@ if (USE_HTTPS && fs.existsSync('./cert.pem') && fs.existsSync('./key.pem')) {
     app.listen(PORT, () => {
         console.log(`🚀 API Gateway running on HTTP port ${PORT}`);
         console.log(`📊 Health: http://api.purple-pgs.space:${PORT}/api/gateway/health`);
+        console.log(`🧪 Test: http://localhost:${PORT}/api/gateway/test`);
     });
 }
 

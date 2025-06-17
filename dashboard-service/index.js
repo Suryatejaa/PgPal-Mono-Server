@@ -17,8 +17,8 @@ const PORT = process.env.PORT || 4008;
 app.use(express.json());
 
 app.use(cookieParser());
-app.use('/api/dashboard-service', dashboardRoutes);
-app.use('/api/dashboard-service/monitor', monitorRoutes);
+app.use('/', dashboardRoutes);
+app.use('/monitor', monitorRoutes);
 
 
 
