@@ -5,7 +5,7 @@ const roomRoutes = require('./src/routes/roomRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
 const monitorRoutes = require('./src/routes/monitoringRoutes');
 const cookieParser = require('cookie-parser');
-const ServiceHealthMonitor = require('../shared/utils/ServiceHealthMonitor');
+const ServiceHealthMonitor = require('./shared/utils/ServiceHealthMonitor');
 const healthMonitor = new ServiceHealthMonitor('room-service', 4003);
 
 
@@ -30,7 +30,7 @@ app.use('/api/room-service/monitor', monitorRoutes);
 app.get('/health', async (req, res) => {
     try {
         const health = await healthMonitor.getHealth();
-        
+
         // Add service-specific metrics
         const Room = require('./src/models/roomModel');
         const roomCount = await Room.countDocuments();
@@ -39,7 +39,7 @@ app.get('/health', async (req, res) => {
             totalRooms: roomCount,
             // Add more service-specific metrics
         };
-        
+
         const statusCode = health.status === 'healthy' ? 200 : 503;
         res.status(statusCode).json(health);
     } catch (error) {

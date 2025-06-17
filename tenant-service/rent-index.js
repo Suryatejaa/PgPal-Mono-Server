@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cookieParser = require('cookie-parser');
 const paymentRoutes = require('./src/routes/paymentRoutes');
-const ServiceHealthMonitor = require('../shared/utils/ServiceHealthMonitor');
+const ServiceHealthMonitor = require('./shared/utils/ServiceHealthMonitor');
 const healthMonitor = new ServiceHealthMonitor('rent-service', 4005);
 
 dotenv.config();
@@ -17,7 +17,7 @@ app.use(cookieParser());
 app.get('/health', async (req, res) => {
     try {
         const health = await healthMonitor.getHealth();
-        
+
         // Add service-specific metrics
         const Tenant = require('./src/models/tenantModel');
         const tenantCount = await Tenant.countDocuments();
@@ -26,7 +26,7 @@ app.get('/health', async (req, res) => {
             totalRent: tenantCount,
             // Add more service-specific metrics
         };
-        
+
         const statusCode = health.status === 'healthy' ? 200 : 503;
         res.status(statusCode).json(health);
     } catch (error) {

@@ -6,7 +6,7 @@ const authRoutes = require('./src/routes/authRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
 // const passport = require('./src/controllers/googleLogin');
 const cookieParser = require('cookie-parser');
-const ServiceHealthMonitor = require('../shared/utils/ServiceHealthMonitor');
+const ServiceHealthMonitor = require('./shared/utils/ServiceHealthMonitor');
 
 
 dotenv.config();
@@ -37,27 +37,50 @@ app.use((req, res, next) => {
 });
 
 // MongoDB connection
+// auth-service/app.js - Update MongoDB connection section
+// MongoDB connection with health monitoring
 mongoose.connect(process.env.MONGO_URI, {
-    serverSelectionTimeoutMS: 10000, // Increase timeout to 30s
+    serverSelectionTimeoutMS: 10000,
+    maxPoolSize: 10,
+    minPoolSize: 2,
     tls: true,
-    tlsAllowInvalidCertificates: false, // Allow invalid certificates for local development
-}).then(() => console.log('MongoDB Connected'))
-    .catch((err) => console.log('MongoDB connection error', err));
+    tlsAllowInvalidCertificates: false
+}).then(() => {
+    console.log('✅ MongoDB Connected');
+    healthMonitor.markHealthy();
+}).catch((err) => {
+    console.error('❌ MongoDB connection error:', err);
+    healthMonitor.markUnhealthy('Database connection failed');
+});
 
+// Monitor MongoDB connection status
+mongoose.connection.on('disconnected', () => {
+    console.error('❌ MongoDB disconnected');
+    healthMonitor.markUnhealthy('Database disconnected');
+});
 
-app.get('/health', async (req, res) => {
-    try {
-        const health = await healthMonitor.getHealth();
-        const statusCode = health.status === 'healthy' ? 200 : 503;
-        res.status(statusCode).json(health);
-    } catch (error) {
-        res.status(503).json({
-            service: 'auth-service',
-            status: 'unhealthy',
-            error: error.message,
-            timestamp: new Date().toISOString()
-        });
-    }
+mongoose.connection.on('reconnected', () => {
+    console.log('✅ MongoDB reconnected');
+    healthMonitor.markHealthy();
+});
+
+mongoose.connection.on('error', (error) => {
+    console.error('❌ MongoDB error:', error);
+    healthMonitor.markUnhealthy(`Database error: ${error.message}`);
+});
+
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        service: 'auth-service',
+        status: 'healthy',
+        port: 4001,
+        uptime: Math.floor(process.uptime()),
+        database: {
+            status: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+            readyState: mongoose.connection.readyState
+        },
+        timestamp: new Date().toISOString()
+    });
 });
 
 // Ready check for container orchestration

@@ -1,4 +1,3 @@
-// shared/utils/ServiceHealthMonitor.js
 const mongoose = require('mongoose');
 
 class ServiceHealthMonitor {
@@ -8,7 +7,6 @@ class ServiceHealthMonitor {
         this.startTime = Date.now();
         this.requestCount = 0;
         this.errorCount = 0;
-        this.isHealthy = true;
     }
 
     async getHealth() {
@@ -16,26 +14,27 @@ class ServiceHealthMonitor {
         const uptime = process.uptime();
 
         let dbStatus = 'unknown';
+        let dbHealthy = false;
+        const res = `Checking health for service: ${mongoose.connection}`;
         try {
             if (mongoose.connection.readyState === 1) {
                 await mongoose.connection.db.admin().ping();
                 dbStatus = 'connected';
-                this.isHealthy = true;
+                dbHealthy = true;
             } else {
                 dbStatus = 'disconnected';
-                this.isHealthy = false;
             }
         } catch (error) {
             dbStatus = 'error';
-            this.isHealthy = false;
         }
 
         const errorRate = this.requestCount > 0 ? (this.errorCount / this.requestCount * 100) : 0;
-        const status = this.isHealthy && dbStatus === 'connected' && errorRate < 10 ? 'healthy' : 'unhealthy';
+        const status = (dbHealthy && errorRate < 10) ? 'healthy' : 'unhealthy';
 
         return {
             service: this.serviceName,
             status,
+            res,
             port: this.servicePort,
             uptime: Math.floor(uptime),
             memory: {
@@ -65,12 +64,12 @@ class ServiceHealthMonitor {
     }
 
     markUnhealthy(reason) {
-        this.isHealthy = false;
+        // Optional: can be used for manual override if you want
         console.error(`🔴 ${this.serviceName} marked unhealthy: ${reason}`);
     }
 
     markHealthy() {
-        this.isHealthy = true;
+        // Optional: can be used for manual override if you want
         console.log(`🟢 ${this.serviceName} marked healthy`);
     }
 }

@@ -1,4 +1,4 @@
-// shared/utils/ServiceHealthMonitor.js
+// auth-service/shared/utils/ServiceHealthMonitor.js
 const mongoose = require('mongoose');
 
 class ServiceHealthMonitor {

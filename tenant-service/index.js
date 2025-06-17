@@ -8,7 +8,7 @@ const cookieParser = require('cookie-parser');
 const VacateTenantsJob = require('./src/jobs/vacateTenantsJob');
 const JobScheduler = require('./src/jobs/JobScheduler');
 const RentReminderJob = require('./src/jobs/RentReminderJob');
-const ServiceHealthMonitor = require('../shared/utils/ServiceHealthMonitor');
+const ServiceHealthMonitor = require('./shared/utils/ServiceHealthMonitor');
 const healthMonitor = new ServiceHealthMonitor('tenant-service', 4004);
 
 // Load environment variables

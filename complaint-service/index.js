@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const complainRoutes = require('./src/routes/complaintRoutes');
 const monitorRoutes = require('./src/routes/monitoringRoutes');
 const cookieParser = require('cookie-parser');
-const ServiceHealthMonitor = require('../shared/utils/ServiceHealthMonitor');
+const ServiceHealthMonitor = require('./shared/utils/ServiceHealthMonitor');
 const healthMonitor = new ServiceHealthMonitor('complaint-service', 4006);
 
 // Load environment variables

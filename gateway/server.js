@@ -3,440 +3,221 @@ const axios = require('axios');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
-const { ALLOWED_ORIGINS } = require('./cors-config'); // Assuming you have a config file for allowed origins
 const https = require('https');
 const fs = require('fs');
+
 const app = express();
-
-
 const PORT = process.env.PORT || 4000;
 const USE_HTTPS = process.env.USE_HTTPS === 'true';
 
-if (USE_HTTPS && fs.existsSync('./cert.pem') && fs.existsSync('./key.pem')) {
-    const httpsOptions = {
-        key: fs.readFileSync('./key.pem'),
-        cert: fs.readFileSync('./cert.pem')
-    };
+// Configuration
+const ALLOWED_ORIGINS = [
+    'https://purple-pgs.space',
+    'https://www.purple-pgs.space',
+    'https://tenant.purple-pgs.space',
+    'http://localhost:3000',
+    'http://localhost:3001'
+];
 
-    https.createServer(httpsOptions, app).listen(PORT, () => {
-        console.log(`🚀 API Gateway running on HTTPS port ${PORT}`);
-        console.log(`📊 Health endpoint: https://api.purple-pgs.space:${PORT}/api/gateway/health`);
-    });
-} else {
-    app.listen(PORT, () => {
-        console.log(`🚀 API Gateway running on HTTP port ${PORT}`);
-        console.log(`📊 Health endpoint: http://api.purple-pgs.space:${PORT}/api/gateway/health`);
-    });
-}
-
-
-const corsOptions = {
-    origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) return callback(null, true);
-
-        console.log(`🌐 CORS Check - Origin: ${origin}, Allowed: ${ALLOWED_ORIGINS.includes(origin)}`);
-
-        if (ALLOWED_ORIGINS.includes(origin)) {
-            callback(null, true);
-        } else {
-            console.warn(`❌ CORS blocked origin: ${origin}`);
-            callback(new Error(`Not allowed by CORS: ${origin}`));
-        }
-    },
-    credentials: true, // This is crucial for cookies
-    optionsSuccessStatus: 200,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: [
-        'Origin',
-        'X-Requested-With',
-        'Content-Type',
-        'Accept',
-        'Authorization',
-        'Cookie',
-        'Set-Cookie',
-        'x-user',
-        'x-internal-service',
-        'x-debug',
-        'Connection',
-        'Upgrade'
-    ],
-    exposedHeaders: [
-        'Authorization',
-        'Refresh-Token',
-        'Set-Cookie'
-    ]
+const SERVICES = {
+    'auth-service': { url: 'http://auth-service:4001', port: 4001, requireAuth: false },
+    'property-service': { url: 'http://property-service:4002', port: 4002, requireAuth: true },
+    'room-service': { url: 'http://room-service:4003', port: 4003, requireAuth: true },
+    'tenant-service': { url: 'http://tenant-service:4004', port: 4004, requireAuth: true },
+    'rent-service': { url: 'http://rent-service:4005', port: 4005, requireAuth: true },
+    'complaint-service': { url: 'http://complaint-service:4006', port: 4006, requireAuth: true },
+    'kitchen-service': { url: 'http://kitchen-service:4007', port: 4007, requireAuth: true },
+    'dashboard-service': { url: 'http://dashboard-service:4008', port: 4008, requireAuth: true },
+    'notification-service': { url: 'http://notification-service:4009', port: 4009, requireAuth: true }
 };
 
-
-app.use(cors(corsOptions));
-
-// Enhanced preflight handler to override nginx CORS headers
-app.use((req, res, next) => {
-    if (req.method === 'OPTIONS') {
-        const origin = req.headers.origin;
-
-        if (origin && ALLOWED_ORIGINS.includes(origin)) {
-            console.log(`🎯 Preflight: Setting specific origin '${origin}' for OPTIONS request`);
-            res.header('Access-Control-Allow-Origin', origin);
-            res.header('Access-Control-Allow-Credentials', 'true');
-            res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-            res.header('Access-Control-Allow-Headers', 'Authorization, Content-Type, x-user, x-debug, Accept, Origin, X-Requested-With');
-            res.header('Access-Control-Max-Age', '86400'); // 24 hours
-            return res.status(204).end();
-        } else {
-            console.warn(`❌ Preflight blocked origin: ${origin}`);
-        }
+// Error Tracking System
+class ErrorTracker {
+    constructor() {
+        this.errors = [];
+        this.requestCount = 0;
+        this.serviceHealth = {};
+        this.maxErrors = 1000;
     }
-    next();
-});
 
-app.options('*', cors(corsOptions)); // Enable pre-flight requests for all routes
-app.use((req, res, next) => {
-    // Aggressive CORS override to handle nginx-level wildcard headers
-    const originalSetHeader = res.setHeader;
-    const originalEnd = res.end;
-    const originalWriteHead = res.writeHead;
-
-    const getValidOrigin = () => {
-        const origin = req.headers.origin;
-        return origin && ALLOWED_ORIGINS.includes(origin) ? origin : null;
-    };
-
-    // Override setHeader to prevent wildcard origins
-    res.setHeader = function (name, value) {
-        if (name.toLowerCase() === 'access-control-allow-origin') {
-            const validOrigin = getValidOrigin();
-            if (value === '*' && validOrigin) {
-                console.log(`🔧 CORS Override: Replacing '*' with '${validOrigin}'`);
-                return originalSetHeader.call(this, name, validOrigin);
-            } else if (validOrigin) {
-                return originalSetHeader.call(this, name, validOrigin);
-            }
-        }
-        return originalSetHeader.call(this, name, value);
-    };
-
-    // Override writeHead to catch headers set at response time
-    res.writeHead = function (statusCode, statusMessage, headers) {
-        const validOrigin = getValidOrigin();
-        if (validOrigin) {
-            // Force correct CORS headers
-            if (!headers) headers = {};
-            headers['Access-Control-Allow-Origin'] = validOrigin;
-            headers['Access-Control-Allow-Credentials'] = 'true';
-            headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH';
-            headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, x-user, x-debug, Accept, Origin, X-Requested-With';
-            console.log(`🔧 CORS writeHead Override: Setting origin to '${validOrigin}'`);
-        }
-        return originalWriteHead.call(this, statusCode, statusMessage, headers);
-    };
-
-    // Final safety net before response ends
-    res.end = function (chunk, encoding) {
-        const validOrigin = getValidOrigin();
-        if (validOrigin) {
-            // Force override any existing headers
-            this.setHeader('Access-Control-Allow-Origin', validOrigin);
-            this.setHeader('Access-Control-Allow-Credentials', 'true');
-            this.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-            this.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, x-user, x-debug, Accept, Origin, X-Requested-With');
-            console.log(`🔧 CORS Final Override: Ensuring origin is '${validOrigin}'`);
-        }
-
-        return originalEnd.call(this, chunk, encoding);
-    };
-
-    next();
-});
-// Enhanced Error Tracking System
-// Enhanced Error Tracking System with Real Health Checks
-const errorTracker = {
-    errors: [],
-    requestCount: 0,
-    serviceHealth: {},
-    lastHealthCheck: {},
-    healthCheckInterval: 30000, // 30 seconds
-
-    addError: (error) => {
-        errorTracker.errors.push({
+    addError(error) {
+        this.errors.push({
             id: `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             timestamp: new Date().toISOString(),
             ...error
         });
 
-        // Keep only last 1000 errors
-        if (errorTracker.errors.length > 1000) {
-            errorTracker.errors.shift();
+        if (this.errors.length > this.maxErrors) {
+            this.errors.shift();
         }
 
-        // Update service health
-        if (!errorTracker.serviceHealth[error.service]) {
-            errorTracker.serviceHealth[error.service] = {
-                errors: 0,
-                requests: 0,
-                lastSeen: new Date(),
-                isOnline: true
-            };
-        }
-        errorTracker.serviceHealth[error.service].errors++;
+        this.updateServiceHealth(error.service, false);
 
-        // Send alert for critical errors
         if (error.status >= 500) {
-            sendErrorAlert(error);
+            this.sendAlert(error);
         }
-    },
+    }
 
-    addRequest: (service) => {
-        errorTracker.requestCount++;
-        if (!errorTracker.serviceHealth[service]) {
-            errorTracker.serviceHealth[service] = {
+    addRequest(service) {
+        this.requestCount++;
+        this.updateServiceHealth(service, true);
+    }
+
+    updateServiceHealth(service, isSuccess) {
+        if (!this.serviceHealth[service]) {
+            this.serviceHealth[service] = {
                 errors: 0,
                 requests: 0,
                 lastSeen: new Date(),
                 isOnline: true
             };
         }
-        errorTracker.serviceHealth[service].requests++;
-        errorTracker.serviceHealth[service].lastSeen = new Date();
-        errorTracker.serviceHealth[service].isOnline = true;
-    },
 
-    // ✅ Enhanced service health check with actual ping
-    getServiceHealth: async () => {
-        const services = {
-            'auth-service': 'http://auth-service:4001/health',
-            'property-service': 'http://property-service:4002/health',
-            'room-service': 'http://room-service:4003/health',
-            'tenant-service': 'http://tenant-service:4004/health',
-            'complaint-service': 'http://complaint-service:4006/health',
-            'kitchen-service': 'http://kitchen-service:4007/health',
-            'dashboard-service': 'http://dashboard-service:4008/health',
-            'notification-service': 'http://notification-service:4009/health',
-            'rent-service': 'http://rent-service:4005/health'
-            // 'payment-service': 'http://payment-service:4010/health'
-        };
+        this.serviceHealth[service].requests++;
+        this.serviceHealth[service].lastSeen = new Date();
 
-        const healthResults = await Promise.allSettled(
-            Object.entries(services).map(async ([serviceName, healthUrl]) => {
-                const startTime = Date.now();
+        if (!isSuccess) {
+            this.serviceHealth[service].errors++;
+        }
+    }
 
-                try {
-                    const response = await axios.get(healthUrl, {
-                        timeout: 5000,
-                        headers: {
-                            'x-internal-service': true,
-                            'User-Agent': 'Gateway-Health-Check'
-                        }
-                    });
+    async checkServiceHealth() {
+        const healthResults = {};
 
-                    const responseTime = Date.now() - startTime;
+        for (const [serviceName, config] of Object.entries(SERVICES)) {
+            const startTime = Date.now();
 
-                    return {
-                        service: serviceName,
-                        status: response.data.status || 'healthy',
-                        responseTime: `${responseTime}ms`,
-                        port: response.data.port,
-                        uptime: response.data.uptime,
-                        memory: response.data.memory,
-                        database: response.data.database,
-                        lastCheck: new Date().toISOString(),
-                        data: response.data
-                    };
+            try {
+                const response = await axios.get(`${config.url}/health`, {
+                    timeout: 5000,
+                    headers: { 'x-internal-service': 'true' }
+                });
 
-                } catch (error) {
-                    const responseTime = Date.now() - startTime;
-
-                    return {
-                        service: serviceName,
-                        status: 'offline',
-                        responseTime: `${responseTime}ms (timeout)`,
-                        error: error.message,
-                        code: error.code,
-                        lastCheck: new Date().toISOString(),
-                        offline: true
-                    };
-                }
-            })
-        );
-
-        const healthStatus = {};
-        healthResults.forEach((result, index) => {
-            const serviceName = Object.keys(services)[index];
-            healthStatus[serviceName] = result.status === 'fulfilled'
-                ? result.value
-                : {
-                    service: serviceName,
-                    status: 'error',
-                    error: result.reason?.message || 'Unknown error',
+                healthResults[serviceName] = {
+                    status: 'healthy',
+                    responseTime: `${Date.now() - startTime}ms`,
+                    data: response.data,
                     lastCheck: new Date().toISOString()
                 };
-        });
-
-        return healthStatus;
-
-    },
-
-    // ✅ Lightweight service health for frequent checks
-    getServiceHealthCached: () => {
-        const healthStatus = {};
-        const services = [
-            'auth-service', 'property-service', 'room-service', 'tenant-service', 'rent-service',
-            'complaint-service', 'kitchen-service', 'dashboard-service',
-            'notification-service'
-            // 'payment-service'
-        ];
-
-        services.forEach(serviceName => {
-            const stats = errorTracker.serviceHealth[serviceName] || {
-                errors: 0,
-                requests: 0,
-                lastSeen: null,
-                isOnline: false
-            };
-
-            const errorRate = stats.requests > 0 ? (stats.errors / stats.requests * 100) : 0;
-            const isRecentlyActive = stats.lastSeen && (Date.now() - stats.lastSeen.getTime()) < 300000; // 5 minutes
-
-            // Determine status based on multiple factors
-            let status = 'unknown';
-            if (stats.isOnline === false) {
-                status = 'offline';
-            } else if (errorRate > 15) {
-                status = 'unhealthy';
-            } else if (errorRate > 8) {
-                status = 'degraded';
-            } else if (isRecentlyActive || stats.requests > 0) {
-                status = 'healthy';
-            } else {
-                status = 'idle'; // No recent activity but not confirmed offline
+            } catch (error) {
+                healthResults[serviceName] = {
+                    status: 'offline',
+                    responseTime: `${Date.now() - startTime}ms`,
+                    error: error.message,
+                    lastCheck: new Date().toISOString()
+                };
             }
-
-            healthStatus[serviceName] = {
-                status,
-                isOnline: stats.isOnline,
-                errorRate: errorRate.toFixed(2),
-                requests: stats.requests,
-                errors: stats.errors,
-                lastSeen: stats.lastSeen,
-                isRecentlyActive,
-                lastHealthCheck: stats.lastHealthCheck
-            };
-        });
-
-        return healthStatus;
-    },
-
-    // ... rest of existing methods
-    getErrors: (filters = {}) => {
-        let errors = [...errorTracker.errors];
-
-        if (filters.service) {
-            errors = errors.filter(e => e.service === filters.service);
         }
 
-        if (filters.status) {
-            errors = errors.filter(e => e.status == filters.status);
-        }
+        return healthResults;
+    }
 
-        if (filters.since) {
-            const since = new Date(filters.since);
-            errors = errors.filter(e => new Date(e.timestamp) >= since);
-        }
-
-        return errors.reverse();
-    },
-
-    getErrorStats: () => {
+    getStats() {
         const now = new Date();
-        const last24h = errorTracker.errors.filter(e =>
+        const last24h = this.errors.filter(e =>
             now - new Date(e.timestamp) < 24 * 60 * 60 * 1000
-        );
-        const lastHour = errorTracker.errors.filter(e =>
-            now - new Date(e.timestamp) < 60 * 60 * 1000
         );
 
         const byService = {};
         const byStatus = {};
-        const byEndpoint = {};
 
         last24h.forEach(error => {
             byService[error.service] = (byService[error.service] || 0) + 1;
             byStatus[error.status] = (byStatus[error.status] || 0) + 1;
-            const endpoint = `${error.method} ${error.url}`;
-            byEndpoint[endpoint] = (byEndpoint[endpoint] || 0) + 1;
-        });
-
-        const serviceErrorRates = {};
-        Object.keys(errorTracker.serviceHealth).forEach(service => {
-            const health = errorTracker.serviceHealth[service];
-            serviceErrorRates[service] = {
-                errorRate: health.requests > 0 ? (health.errors / health.requests * 100).toFixed(2) : 0,
-                totalRequests: health.requests,
-                totalErrors: health.errors,
-                isOnline: health.isOnline,
-                lastSeen: health.lastSeen
-            };
         });
 
         return {
             total24h: last24h.length,
-            totalLastHour: lastHour.length,
-            totalRequests: errorTracker.requestCount,
-            overallErrorRate: errorTracker.requestCount > 0 ?
-                (errorTracker.errors.length / errorTracker.requestCount * 100).toFixed(2) : 0,
+            totalRequests: this.requestCount,
+            overallErrorRate: this.requestCount > 0
+                ? ((this.errors.length / this.requestCount) * 100).toFixed(2)
+                : 0,
             byService,
             byStatus,
-            topFailingEndpoints: Object.entries(byEndpoint)
-                .sort(([, a], [, b]) => b - a)
-                .slice(0, 10)
-                .map(([endpoint, count]) => ({ endpoint, count })),
-            serviceErrorRates,
             recentErrors: last24h.slice(-5).reverse()
         };
     }
-};
 
-// Alert system for critical errors
-const sendErrorAlert = async (error) => {
-    try {
-        console.error(`🚨 CRITICAL ERROR ALERT 🚨`);
-        console.error(`Service: ${error.service}`);
-        console.error(`Status: ${error.status}`);
-        console.error(`Endpoint: ${error.method} ${error.url}`);
-        console.error(`Time: ${error.timestamp}`);
-        console.error(`User: ${error.userId || 'anonymous'}`);
-
-        // You can integrate with external monitoring services here
-        // await sendToSlack(error);
-        // await sendToDatadog(error);
-        // await sendEmail(error);
-
-    } catch (alertError) {
-        console.error('Failed to send error alert:', alertError.message);
+    sendAlert(error) {
+        console.error(`🚨 CRITICAL ERROR: ${error.service} - ${error.status} - ${error.url}`);
+        // Add external alerting here (Slack, email, etc.)
     }
+}
+
+const errorTracker = new ErrorTracker();
+
+// CORS Configuration
+const corsOptions = {
+    origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl)
+        if (!origin) return callback(null, true);
+
+        if (ALLOWED_ORIGINS.includes(origin)) {
+            callback(null, true);
+        } else {
+            console.warn(`❌ CORS blocked: ${origin}`);
+            callback(new Error(`Not allowed by CORS: ${origin}`));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: [
+        'Origin', 'X-Requested-With', 'Content-Type', 'Accept',
+        'Authorization', 'Cookie', 'x-user', 'x-internal-service'
+    ],
+    exposedHeaders: ['Authorization', 'Set-Cookie']
 };
 
-// Enhanced logging middleware
+// Middleware Setup
+app.use(cors(corsOptions));
+app.use(cookieParser());
+app.use(express.json());
+
+// Enhanced CORS middleware for better handling
+app.use((req, res, next) => {
+    console.log(`🌍 Request: ${req.method} ${req.originalUrl} from origin: ${req.headers.origin}`);
+
+    const origin = req.headers.origin;
+
+    if (origin && ALLOWED_ORIGINS.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Access-Control-Allow-Credentials', 'true');
+        console.log(`✅ CORS allowed for origin: ${origin}`);
+    } else if (origin) {
+        console.log(`❌ CORS blocked for origin: ${origin}`);
+    }
+
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+        res.header('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(', '));
+        res.header('Access-Control-Max-Age', '86400');
+        console.log(`🎯 Preflight response sent for ${req.originalUrl}`);
+        return res.status(204).end();
+    }
+
+    next();
+});
+
+// Request logging
 app.use((req, res, next) => {
     req.startTime = Date.now();
 
     res.on('finish', () => {
         const duration = Date.now() - req.startTime;
         const logLevel = res.statusCode >= 400 ? 'ERROR' : 'INFO';
+
         if (res.statusCode >= 400) {
-            console.error(`[${logLevel}] [${new Date().toISOString()}] ${req.method} ${req.originalUrl} - ${res.statusCode} (${duration}ms)`);
-        }// } else {
-        //     // console.log(`[${logLevel}] [${new Date().toISOString()}] ${req.method} ${req.originalUrl} - ${res.statusCode} (${duration}ms)`);
-        // }        
+            console.error(`[${logLevel}] ${req.method} ${req.originalUrl} - ${res.statusCode} (${duration}ms)`);
+        }
     });
 
     next();
 });
 
-app.use(cookieParser());
-
+// Authentication middleware
 const authenticate = async (req, res, next) => {
+    // Skip auth for internal service calls
     if (req.headers['x-internal-service']) {
         return next();
     }
@@ -446,141 +227,105 @@ const authenticate = async (req, res, next) => {
         return res.status(401).json({ message: 'Missing token' });
     }
 
-    console.log(`🔐 Authenticating request with token: ${token}`);
-
     try {
         const response = await axios.post('http://auth-service:4001/api/auth-service/protected', {}, {
-            headers: {
-                Authorization: `Bearer ${token}`,
-            },
-            withCredentials: true,
+            headers: { Authorization: `Bearer ${token}` },
+            withCredentials: true
         });
 
         if (response.status === 200) {
             req.user = { data: response.data, token };
+            req.headers['x-user'] = JSON.stringify(req.user);
             return next();
-        } else {
-            return res.status(401).json({ error: 'Unauthorized' });
         }
     } catch (error) {
-        console.error('Error during authentication:', error);
-        if (error.response && error.response.status === 401) {
-            return res.status(401).json({ error: 'Unauthorized' });
-        }
-        return res.status(500).json({ error: error.response?.data || 'Internal Server Error' });
+        console.error('Authentication failed:', error.message);
+        return res.status(401).json({ error: 'Unauthorized' });
     }
 };
 
-function attachUserHeader(req, res, next) {
-    if (req.headers['x-internal-service']) return next();
-    if (req.user) {
-        req.headers['x-user'] = JSON.stringify(req.user);
-        return next();
-    }
-    return res.status(401).json({ error: 'Unauthorized: Missing user context' });
-}
-
-// Enhanced proxy middleware with error tracking
-
-const createCORSProxy = (target, serviceName, requireAuth = true) => {
+// Proxy middleware factory
+const createServiceProxy = (serviceName, serviceConfig) => {
     const middlewares = [];
 
     // Add authentication if required
-    if (requireAuth) {
-        middlewares.push(authenticate, attachUserHeader);
+    if (serviceConfig.requireAuth) {
+        middlewares.push(authenticate);
     }
 
-    // Add the proxy middleware with CORS handling
+    // Add proxy middleware
     middlewares.push(
         createProxyMiddleware({
-            target,
+            target: serviceConfig.url,
             changeOrigin: true,
             timeout: 30000,
+            logLevel: 'debug',
 
-            onProxyReq: (proxyReq, req, res) => {
-                // Track request
+            onProxyReq: (proxyReq, req) => {
                 errorTracker.addRequest(serviceName);
+                console.log(`🔧 [${serviceName}] Proxying ${req.method} ${req.originalUrl} to ${serviceConfig.url}${req.url}`);
 
-                const origin = req.headers.origin;
-                if (origin && ALLOWED_ORIGINS.includes(origin)) {
-                    proxyReq.setHeader('Access-Control-Request-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+                // Log request details for debugging
+                console.log(`🔍 [${serviceName}] Headers:`, JSON.stringify(req.headers, null, 2));
+
+                // Ensure content-type is preserved
+                if (req.headers['content-type']) {
+                    proxyReq.setHeader('Content-Type', req.headers['content-type']);
                 }
-                // Add request metadata
-                proxyReq.setHeader('X-Gateway-Request-Id', `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
-                proxyReq.setHeader('X-Gateway-Timestamp', new Date().toISOString());
-                proxyReq.setHeader('X-Internal-Service', 'true'); // Tell downstream services this is internal
             },
 
-            onProxyRes: (proxyRes, req, res) => {
-                const duration = Date.now() - req.startTime;
+            onProxyRes: (proxyRes, req) => {
                 const origin = req.headers.origin;
 
-                // **UNIFIED CORS HANDLING FOR ALL SERVICES**
+                // Ensure CORS headers on proxy response
                 if (origin && ALLOWED_ORIGINS.includes(origin)) {
-                    // Override any existing CORS headers from downstream services
                     proxyRes.headers['access-control-allow-origin'] = origin;
                     proxyRes.headers['access-control-allow-credentials'] = 'true';
-                    proxyRes.headers['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
-                    proxyRes.headers['access-control-allow-headers'] = 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cookie, Set-Cookie, x-user, x-internal-service, x-debug';
-                    proxyRes.headers['access-control-expose-headers'] = 'Authorization, Refresh-Token, Set-Cookie, Content-Disposition';
-                    proxyRes.headers['access-control-max-age'] = '86400';
-
-                    console.log(`🔧 [${serviceName}] CORS Override: Set origin to '${origin}'`);
                 }
 
-                // Remove any wildcard origins from downstream services
-                // if (proxyRes.headers['access-control-allow-origin'] === '*') {
-                //     delete proxyRes.headers['access-control-allow-origin'];
-                //     if (origin && ALLOWED_ORIGINS.includes(origin)) {
-                //         proxyRes.headers['access-control-allow-origin'] = origin;
-                //         proxyRes.headers['access-control-allow-credentials'] = 'true';
-                //         console.log(`🔧 [${serviceName}] CORS Override: Replaced '*' with '${origin}'`);
-                //     }
-                // }
+                const duration = Date.now() - req.startTime;
+                const status = proxyRes.statusCode >= 400 ? 'ERROR' : 'SUCCESS';
+                console.log(`${status === 'ERROR' ? '🚨' : '✅'} [${serviceName}] ${proxyRes.statusCode} (${duration}ms)`);
 
-                // Log response details
+                // Log response details for debugging
+                console.log(`🔍 [${serviceName}] Response headers:`, JSON.stringify(proxyRes.headers, null, 2));
+
                 if (proxyRes.statusCode >= 400) {
-                    console.error(`🚨 [${serviceName}] ERROR ${proxyRes.statusCode}: ${req.method} ${req.originalUrl}`);
                     errorTracker.addError({
                         service: serviceName,
                         method: req.method,
                         url: req.originalUrl,
                         status: proxyRes.statusCode,
-                        duration
+                        userId: req.user?.data?.user?._id || 'anonymous'
                     });
                 }
             },
 
             onError: (err, req, res) => {
-                const duration = Date.now() - req.startTime;
-                console.error(`🔥 [${serviceName}] PROXY ERROR (${duration}ms):`, err.message);
+                console.error(`🔥 [${serviceName}] PROXY ERROR:`, err.message);
+                console.error(`🔥 [${serviceName}] Error details:`, err);
 
                 errorTracker.addError({
                     service: serviceName,
                     method: req.method,
                     url: req.originalUrl,
-                    status: 500,
-                    duration,
+                    status: 502,
                     error: err.message,
-                    type: 'proxy_error',
                     userId: req.user?.data?.user?._id || 'anonymous'
                 });
 
                 if (!res.headersSent) {
-                    // **ENSURE CORS HEADERS EVEN ON ERROR**
                     const origin = req.headers.origin;
                     if (origin && ALLOWED_ORIGINS.includes(origin)) {
-                        res.setHeader('Access-Control-Allow-Origin', origin);
-                        res.setHeader('Access-Control-Allow-Credentials', 'true');
-                        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-                        res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cookie, Set-Cookie, x-user, x-internal-service');
+                        res.header('Access-Control-Allow-Origin', origin);
+                        res.header('Access-Control-Allow-Credentials', 'true');
                     }
 
-                    res.status(500).json({
+                    res.status(502).json({
                         error: `${serviceName} temporarily unavailable`,
                         service: serviceName,
-                        timestamp: new Date().toISOString(),
-                        requestId: `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+                        message: err.message,
+                        timestamp: new Date().toISOString()
                     });
                 }
             }
@@ -590,179 +335,115 @@ const createCORSProxy = (target, serviceName, requireAuth = true) => {
     return middlewares;
 };
 
-// Add to gateway/server.js
+// Gateway Health Endpoints
+app.get('/api/gateway/health', async (req, res) => {
+    try {
+        const serviceHealth = await errorTracker.checkServiceHealth();
+        const stats = errorTracker.getStats();
+
+        const healthyServices = Object.values(serviceHealth).filter(s => s.status === 'healthy').length;
+        const totalServices = Object.keys(serviceHealth).length;
+
+        const overallStatus = healthyServices === totalServices ? 'healthy' :
+            healthyServices > totalServices / 2 ? 'degraded' : 'critical';
+
+        res.json({
+            status: overallStatus,
+            timestamp: new Date().toISOString(),
+            uptime: process.uptime(),
+            memory: process.memoryUsage(),
+            services: serviceHealth,
+            stats,
+            version: '2.0.0'
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Health check failed', message: error.message });
+    }
+});
+
 app.get('/api/gateway/dashboard', async (req, res) => {
     try {
-        const serviceHealth = await errorTracker.getServiceHealth();
-        const stats = errorTracker.getErrorStats();
+        const serviceHealth = await errorTracker.checkServiceHealth();
+        const stats = errorTracker.getStats();
 
         const summary = {
-            overallStatus: 'healthy',
             totalServices: Object.keys(serviceHealth).length,
-            healthyServices: 0,
-            offlineServices: 0,
-            unhealthyServices: 0,
+            healthyServices: Object.values(serviceHealth).filter(s => s.status === 'healthy').length,
+            offlineServices: Object.values(serviceHealth).filter(s => s.status === 'offline').length,
             services: serviceHealth,
             errorStats: stats,
             timestamp: new Date().toISOString()
         };
 
-        // Calculate summary stats
-        Object.values(serviceHealth).forEach(service => {
-            if (service.status === 'healthy') {
-                summary.healthyServices++;
-            } else if (service.status === 'offline') {
-                summary.offlineServices++;
-                summary.overallStatus = 'degraded';
-            } else {
-                summary.unhealthyServices++;
-                summary.overallStatus = 'degraded';
-            }
-        });
-
-        if (summary.offlineServices > summary.healthyServices) {
-            summary.overallStatus = 'critical';
-        }
+        summary.overallStatus = summary.healthyServices === summary.totalServices ? 'healthy' :
+            summary.offlineServices > summary.healthyServices ? 'critical' : 'degraded';
 
         res.json(summary);
     } catch (error) {
-        res.status(500).json({
-            error: 'Failed to get dashboard data',
-            message: error.message
-        });
+        res.status(500).json({ error: 'Dashboard data failed', message: error.message });
     }
 });
 
-// Gateway monitoring and health endpoints
-app.get('/api/gateway/health', async (req, res) => {
-    const stats = errorTracker.getErrorStats();
-    const serviceHealth = await errorTracker.getServiceHealth(); // Real health check
-
-    const overallStatus = Object.values(serviceHealth).every(s => s.status === 'healthy')
-        ? 'healthy'
-        : Object.values(serviceHealth).some(s => s.status === 'offline')
-            ? 'degraded'
-            : 'partial';
-
-    res.json({
-        status: overallStatus,
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
-        errorStats: stats,
-        serviceHealth,
-        version: '1.0.0',
-        environment: process.env.NODE_ENV || 'development'
-    });
-});
-
 app.get('/api/gateway/errors', (req, res) => {
-    const { limit = 50, service, status, since } = req.query;
+    const { limit = 50, service, status } = req.query;
+    let errors = [...errorTracker.errors];
 
-    const filters = {};
-    if (service) filters.service = service;
-    if (status) filters.status = status;
-    if (since) filters.since = since;
-
-    const errors = errorTracker.getErrors(filters);
+    if (service) errors = errors.filter(e => e.service === service);
+    if (status) errors = errors.filter(e => e.status == status);
 
     res.json({
-        errors: errors.slice(0, parseInt(limit)),
+        errors: errors.reverse().slice(0, parseInt(limit)),
         total: errors.length,
-        filters,
-        stats: errorTracker.getErrorStats()
+        stats: errorTracker.getStats()
     });
 });
 
-app.get('/api/gateway/errors/stats', (req, res) => {
-    res.json(errorTracker.getErrorStats());
-});
-
-app.get('/api/gateway/services', async (req, res) => {
-    const serviceHealth = await errorTracker.getServiceHealth();
-
-    res.json({
-        services: {
-            'auth-service': { port: 4001, ...serviceHealth['auth-service'] },
-            'property-service': { port: 4002, ...serviceHealth['property-service'] },
-            'room-service': { port: 4003, ...serviceHealth['room-service'] },
-            'tenant-service': { port: 4004, ...serviceHealth['tenant-service'] },
-            'rent-service': { port: 4005, ...serviceHealth['rent-service'] },
-            'complaint-service': { port: 4006, ...serviceHealth['complaint-service'] },
-            'kitchen-service': { port: 4007, ...serviceHealth['kitchen-service'] },
-            'dashboard-service': { port: 4008, ...serviceHealth['dashboard-service'] },
-            'notification-service': { port: 4009, ...serviceHealth['notification-service'] },
-            // 'payment-service': { port: 4010, ...serviceHealth['payment-service'] }
-        },
-        timestamp: new Date().toISOString()
-    });
-});
-
-// Clear errors endpoint (for maintenance)
 app.delete('/api/gateway/errors', (req, res) => {
-    const { confirm } = req.query;
-
-    if (confirm === 'true') {
+    if (req.query.confirm === 'true') {
         const clearedCount = errorTracker.errors.length;
         errorTracker.errors = [];
         errorTracker.serviceHealth = {};
         errorTracker.requestCount = 0;
 
         res.json({
-            message: 'Error logs cleared successfully',
+            message: 'Error logs cleared',
             clearedCount,
             timestamp: new Date().toISOString()
         });
     } else {
         res.status(400).json({
-            error: 'Confirmation required. Add ?confirm=true to clear all error logs.'
+            error: 'Add ?confirm=true to clear all error logs'
         });
     }
 });
 
-// Service routes with enhanced monitoring
-// 🔐 Auth Service (No authentication required for login/register)
-app.use('/api/auth-service', (req, res, next) => {
-    console.log(`🔍 [DEBUG] Auth route hit: ${req.method} ${req.originalUrl}`);
-    console.log(`🔍 [DEBUG] Request URL: ${req.url}`);
-    console.log(`🔍 [DEBUG] Will proxy to: http://auth-service:4001${req.url}`);
-    next();
-}, ...createCORSProxy('http://auth-service:4001', 'auth-service', false));
+// Test route to verify gateway is working
+app.get('/api/gateway/test', (req, res) => {
+    console.log('🧪 Test route hit');
+    res.json({
+        message: 'Gateway is working!',
+        timestamp: new Date().toISOString(),
+        origin: req.headers.origin
+    });
+});
 
-// 🏠 Property Service
-app.use('/api/property-service', ...createCORSProxy('http://property-service:4002', 'property-service'));
-app.use('/api/property-service/monitor', ...createCORSProxy('http://property-service:4002', 'property-service-monitor'));
-app.use('/api/admin/property-service', ...createCORSProxy('http://property-service:4002', 'admin-property-service'));
+// Dynamic service route setup
+Object.entries(SERVICES).forEach(([serviceName, config]) => {
+    console.log(`🔧 Setting up routes for ${serviceName} -> ${config.url}`);
 
-// 🏠 Room Service
-app.use('/api/room-service', ...createCORSProxy('http://room-service:4003', 'room-service'));
-app.use('/api/room-service/monitor', ...createCORSProxy('http://room-service:4003', 'room-service-monitor'));
-app.use('/api/admin/room-service', ...createCORSProxy('http://room-service:4003', 'admin-room-service'));
+    // Main service route
+    app.use(`/api/${serviceName}`, ...createServiceProxy(serviceName, config));
 
-// 👥 Tenant Service
-app.use('/api/tenant-service', ...createCORSProxy('http://tenant-service:4004', 'tenant-service'));
-app.use('/api/tenant-service/monitor', ...createCORSProxy('http://tenant-service:4004', 'tenant-service-monitor'));
+    // Monitor routes (if needed)
+    app.use(`/api/${serviceName}/monitor`, ...createServiceProxy(`${serviceName}-monitor`, config));
 
-app.use('/api/rent-service', ...createCORSProxy('http://rent-service:4005', 'rent-service'));
-// 💰 Payment Service (uncomment when ready)
-// app.use('/api/payment-service', ...createCORSProxy('http://payment-service:4010', 'payment-service'));
+    // Admin routes for property and room services
+    if (['property-service', 'room-service'].includes(serviceName)) {
+        app.use(`/api/admin/${serviceName}`, ...createServiceProxy(`admin-${serviceName}`, config));
+    }
+});
 
-// 📝 Complaint Service
-app.use('/api/complaint-service', ...createCORSProxy('http://complaint-service:4006', 'complaint-service'));
-app.use('/api/complaint-service/monitor', ...createCORSProxy('http://complaint-service:4006', 'complaint-service-monitor'));
-
-// 🍽️ Kitchen Service
-app.use('/api/kitchen-service', ...createCORSProxy('http://kitchen-service:4007', 'kitchen-service'));
-app.use('/api/kitchen-service/monitor', ...createCORSProxy('http://kitchen-service:4007', 'kitchen-service-monitor'));
-
-// 📊 Dashboard Service
-app.use('/api/dashboard-service', ...createCORSProxy('http://dashboard-service:4008', 'dashboard-service'));
-app.use('/api/dashboard-service/monitor', ...createCORSProxy('http://dashboard-service:4008', 'dashboard-service-monitor'));
-
-// 🔔 Notification Service
-app.use('/api/notification-service', ...createCORSProxy('http://notification-service:4009', 'notification-service'));
-app.use('/api/notification-service/monitor', ...createCORSProxy('http://notification-service:4009', 'notification-service-monitor'));
-// Error handling middleware
+// Error handling
 app.use((err, req, res, next) => {
     console.error('Gateway Error:', err);
 
@@ -772,7 +453,6 @@ app.use((err, req, res, next) => {
         url: req.originalUrl,
         status: 500,
         error: err.message,
-        type: 'gateway_error',
         userId: req.user?.data?.user?._id || 'anonymous'
     });
 
@@ -791,15 +471,29 @@ app.use('*', (req, res) => {
     });
 });
 
-// Start the API Gateway
+// Server startup
+if (USE_HTTPS && fs.existsSync('./cert.pem') && fs.existsSync('./key.pem')) {
+    const httpsOptions = {
+        key: fs.readFileSync('./key.pem'),
+        cert: fs.readFileSync('./cert.pem')
+    };
+
+    https.createServer(httpsOptions, app).listen(PORT, () => {
+        console.log(`🚀 API Gateway running on HTTPS port ${PORT}`);
+        console.log(`📊 Health: https://api.purple-pgs.space:${PORT}/api/gateway/health`);
+    });
+} else {
+    app.listen(PORT, () => {
+        console.log(`🚀 API Gateway running on HTTP port ${PORT}`);
+        console.log(`📊 Health: http://api.purple-pgs.space:${PORT}/api/gateway/health`);
+    });
+}
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+const shutdown = () => {
     console.log('Gateway shutting down gracefully...');
     process.exit(0);
-});
+};
 
-process.on('SIGINT', () => {
-    console.log('Gateway shutting down gracefully...');
-    process.exit(0);
-});
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

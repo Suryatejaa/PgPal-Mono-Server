@@ -6,7 +6,7 @@ const adminRoutes = require('./src/routes/adminRoutes');
 const simpleAdminRoutes = require('./src/routes/simpleAdminRoutes');
 const monitorRoutes = require('./src/routes/monitoringRoutes');
 const cookieParser = require('cookie-parser');
-const ServiceHealthMonitor = require('../shared/utils/ServiceHealthMonitor');
+const ServiceHealthMonitor = require('./shared/utils/ServiceHealthMonitor');
 const healthMonitor = new ServiceHealthMonitor('property-service', 4002);
 
 

@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const notificationRoutes = require('./src/routes/notificationRoutes');
 const monitorRoutes = require('./src/routes/monitoringRoutes');
 const cookieParser = require('cookie-parser');
-const ServiceHealthMonitor = require('../shared/utils/ServiceHealthMonitor');
+const ServiceHealthMonitor = require('./shared/utils/ServiceHealthMonitor');
 const healthMonitor = new ServiceHealthMonitor('notification-service', 4009);
 
 

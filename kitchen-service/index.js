@@ -5,7 +5,7 @@ const kitchenRoutes = require('./src/routes/kitchenRoutes');
 const monitorRoutes = require('./src/routes/monitoringRoutes');
 const cookieParser = require('cookie-parser');
 const { scheduleNotifications } = require('./src/jobs/scheduleNotifications');
-const ServiceHealthMonitor = require('../shared/utils/ServiceHealthMonitor');
+const ServiceHealthMonitor = require('./shared/utils/ServiceHealthMonitor');
 const healthMonitor = new ServiceHealthMonitor('kitchen-service', 4007);
 
 // Load environment variables
@@ -25,7 +25,7 @@ app.use('/api/kitchen-service/monitor', monitorRoutes);
 app.get('/health', async (req, res) => {
     try {
         const health = await healthMonitor.getHealth();
-        
+
         // Add service-specific metrics
         const Kitchen = require('./src/models/kitchenMenuModel');
         const kitchenCount = await Kitchen.countDocuments();
@@ -34,7 +34,7 @@ app.get('/health', async (req, res) => {
             totalKitchens: kitchenCount,
             // Add more service-specific metrics
         };
-        
+
         const statusCode = health.status === 'healthy' ? 200 : 503;
         res.status(statusCode).json(health);
     } catch (error) {

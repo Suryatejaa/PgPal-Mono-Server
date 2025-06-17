@@ -1,6 +1,4 @@
 # docker-compose.test.yml
-version: '3.8'
-
 services:
   gateway:
     build: ./gateway
@@ -13,7 +11,7 @@ services:
       - ./gateway:/app
       - /app/node_modules
     working_dir: /app
-    command: npm run dev
+    command: npx nodemon server.js  # ✅ Use npx
     depends_on:
       - auth-service
 
@@ -24,14 +22,16 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=4001
-      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_auth_service?retryWrites=true&w=majority
-
+      - MONGO_URI=mongodb+srv://purplepgstays:azx2n5xCf55NcFNM@cluster0.g9pxhyr.mongodb.net/pgpaal_auth_service?retryWrites=true&w=majority
+      - REDIS=redis://default:olSyNYOqffHjLRrsMWcnBVqQrRNOkCdL@nozomi.proxy.rlwy.net:33219
+      - JWT_SECRET=${JWT_SECRET}
+      - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET}
+      - EMAIL=${EMAIL}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}   
     volumes:
       - ./auth-service:/app
+      - ./shared:/app/shared
       - /app/node_modules
     working_dir: /app
-    command: npm run dev
-
-networks:
-  default:
-    name: pgpaal-test-network
+    command: npx nodemon app.js  # ✅ Use npx instead of npm run dev
+    restart: unless-stopped
