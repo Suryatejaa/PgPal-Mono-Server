@@ -30,9 +30,10 @@ process.on('SIGTERM', () => {
 });
 
 app.use('/api/tenant-service', tenantRoutes);
+app.use('/', tenantRoutes);
 // app.use('/api/rent-service', paymentRoutes);
 app.use('/api/tenant-service/monitor', monitorRoutes);
-
+app.use('/monitor', monitorRoutes);
 
 app.post('/api/tenant-service/manual-vacate-job', async (req, res) => {
     try {
@@ -84,7 +85,11 @@ mongoose.connect(process.env.MONGO_URI, {
     tlsAllowInvalidCertificates: false,
 })
     .then(() => console.log('Connected to MongoDB'));
+
 // Routes
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'healthy', service: 'tenant-service' });
+});
 app.get('/', (req, res) => {
     res.send('Tenant Service is running');
 });

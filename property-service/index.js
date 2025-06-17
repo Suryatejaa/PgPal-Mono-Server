@@ -33,8 +33,11 @@ app.use('/simple-admin', simpleAdminRoutes);
 
 // Mount general property routes
 app.use('/api/property-service', propertyRoutes);
+app.use('/', propertyRoutes);
 app.use('/api/property-service/admin', adminRoutes);
+app.use('/admin', adminRoutes);
 app.use('/api/property-service/monitor', monitorRoutes);
+app.use('/monitor', monitorRoutes);
 
 // Simple admin test route for debugging
 app.get('/admin-test', (req, res) => {
@@ -57,6 +60,9 @@ mongoose.connect(process.env.MONGO_URI, {
     .catch((err) => console.log('MongoDB connection error', err));
 
 // Routes
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'healthy', service: 'property-service' });
+});
 app.get('/', (req, res) => {
     res.send('Property Service is running');
 });

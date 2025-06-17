@@ -17,7 +17,9 @@ app.use(express.json());
 
 app.use(cookieParser());
 app.use('/api/kitchen-service', kitchenRoutes);
+app.use('/', kitchenRoutes);
 app.use('/api/kitchen-service/monitor', monitorRoutes);
+app.use('/monitor', monitorRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
@@ -30,6 +32,10 @@ mongoose.connect(process.env.MONGO_URI, {
     })
     .catch(err => console.error('MongoDB connection error:', err));
 
+
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'healthy', service: 'kitchen-service' });
+});
 
 // Routes
 app.get('/', (req, res) => {

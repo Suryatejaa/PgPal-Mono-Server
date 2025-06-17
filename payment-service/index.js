@@ -14,6 +14,7 @@ const PORT = process.env.PORT || 4005;
 app.use(express.json());
 app.use(cookieParser());
 app.use('/api/payment-service', paymentRoutes);
+app.use('/', paymentRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
@@ -25,6 +26,9 @@ mongoose.connect(process.env.MONGO_URI, {
     .then(() => console.log('Connected to MongoDB'));
 
 // Routes
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'healthy', service: 'payment-service' });
+});
 app.get('/', (req, res) => {
     res.send('Payment Service is running');
 });

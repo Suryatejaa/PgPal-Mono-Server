@@ -18,7 +18,9 @@ app.use(express.json());
 
 app.use(cookieParser());
 app.use('/api/complaint-service', complainRoutes);
+app.use('/', complainRoutes);
 app.use('/api/complaint-service/monitor', monitorRoutes);
+app.use('/monitor', monitorRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
@@ -26,6 +28,10 @@ mongoose.connect(process.env.MONGO_URI, {
     tlsAllowInvalidCertificates: false,
 })
     .then(() => console.log('Connected to MongoDB'));
+
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'healthy', service: 'complaint-service' });
+});
 
 // Routes
 app.get('/', (req, res) => {

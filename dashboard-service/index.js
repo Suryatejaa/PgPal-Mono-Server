@@ -17,7 +17,9 @@ app.use(express.json());
 // ...existing code...
 app.use(cookieParser());
 app.use('/api/dashboard-service', dashboardRoutes);
+app.use('/', dashboardRoutes);
 app.use('/api/dashboard-service/monitor', monitorRoutes);
+app.use('/monitor', monitorRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
@@ -28,6 +30,11 @@ mongoose.connect(process.env.MONGO_URI, {
 )
     .then(() => console.log('MongoDB Connected'))
     .catch((err) => console.log('MongoDB connection error', err));
+
+// Health check route
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'healthy', service: 'dashboard-service' });
+});
 
 // Routes
 app.get('/', (req, res) => {

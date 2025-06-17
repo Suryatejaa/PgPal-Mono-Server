@@ -489,16 +489,8 @@ const createCORSProxy = (target, serviceName, requireAuth = true) => {
             timeout: 30000,
 
             pathRewrite: function (path, req) {
-                // For auth service, don't rewrite the path since it expects /api/auth-service
-                if (serviceName === 'auth-service') {
-                    console.log(`🔧 [${serviceName}] Path preserved: ${path}`);
-                    return path; // Keep full path for auth service
-                }
-
-                // For other services, strip the API prefix if needed
-                const newPath = path.replace(`/api/${serviceName}`, '');
-                console.log(`🔧 [${serviceName}] Path rewrite: ${path} → ${newPath}`);
-                return newPath;
+                console.log(`🔧 [${serviceName}] Path preserved: ${path}`);
+                return path; // Keep full path for ALL services
             },
 
             onProxyReq: (proxyReq, req, res) => {

@@ -17,7 +17,9 @@ app.use(express.json());
 
 app.use(cookieParser());
 app.use('/api/notification-service', notificationRoutes);
+app.use('/', notificationRoutes);
 app.use('/api/notification-service/monitor', monitorRoutes);
+app.use('/monitor', monitorRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
@@ -29,6 +31,10 @@ mongoose.connect(process.env.MONGO_URI, {
     .then(() => console.log('MongoDB Connected'))
     .catch((err) => console.log('MongoDB connection error', err));
 
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'healthy', service: 'notification-service' });
+});
+    
 // Routes
 app.get('/', (req, res) => {
     res.send('Notification Service is running');
