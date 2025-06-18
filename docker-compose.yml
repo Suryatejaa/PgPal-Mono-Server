@@ -4,6 +4,12 @@ services:
       context: ./auth-service
       dockerfile: dockerfile
     # image: ghcr.io/suryatejaa/pgpal-mono-server/auth-service:latest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     ports:
       - "4001:4001"
     environment:
@@ -33,6 +39,12 @@ services:
       context: ./property-service
       dockerfile: dockerfile
     # image: ghcr.io/suryatejaa/pgpal-mono-server/property-service:latest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     ports:
       - "4002:4002"
     environment:
@@ -53,6 +65,12 @@ services:
       context: ./room-service
       dockerfile: dockerfile
     # image: ghcr.io/suryatejaa/pgpal-mono-server/room-service:latest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     ports:
       - "4003:4003"
     environment:
@@ -138,6 +156,12 @@ services:
       context: ./tenant-service
       dockerfile: dockerfile
     # image: ghcr.io/suryatejaa/pgpal-mono-server/tenant-service:latest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     ports:
       - "4004:4004"
     command: ["node", "index.js"]
@@ -159,6 +183,12 @@ services:
       context: ./tenant-service
       dockerfile: dockerfile
     # image: ghcr.io/suryatejaa/pgpal-mono-server/rent-service:latest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     ports:
       - "4005:4005"
     command: ["node", "rent-index.js"]
@@ -200,6 +230,12 @@ services:
       context: ./complaint-service
       dockerfile: dockerfile
     # image: ghcr.io/suryatejaa/pgpal-mono-server/complaint-service:latest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     ports:
       - "4006:4006"
     environment:
@@ -222,6 +258,12 @@ services:
       context: ./kitchen-service
       dockerfile: dockerfile
     # image: ghcr.io/suryatejaa/pgpal-mono-server/kitchen-service:latest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4007/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     ports:
       - "4007:4007"
     environment:
@@ -242,6 +284,12 @@ services:
       context: ./dashboard-service
       dockerfile: dockerfile
     # image: ghcr.io/suryatejaa/pgpal-mono-server/dashboard-service:latest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     ports:
       - "4008:4008"
     environment:
@@ -261,6 +309,12 @@ services:
       context: ./notification-service
       dockerfile: dockerfile
     # image: ghcr.io/suryatejaa/pgpal-mono-server/notification-service:latest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4009/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     ports:
       - "4009:4009"
     environment:
@@ -280,6 +334,12 @@ services:
       context: ./notification-service
       dockerfile: dockerfile
     # image: ghcr.io/suryatejaa/pgpal-mono-server/notification-worker:latest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4009/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     command: node src/workers/notificationWorker.js
     environment:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_notification_service?retryWrites=true&w=majority
@@ -310,6 +370,12 @@ services:
       context: ./gateway
       dockerfile: dockerfile
     # image: ghcr.io/suryatejaa/pgpal-mono-server/gateway:latest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     ports:
       - "4000:4000"
       - "4011:4011"  # WebSocket port
@@ -317,7 +383,7 @@ services:
       - NODE_ENV=${NODE_ENV}
       - REDIS=${REDIS}  # Use Railway Redis from .env
       - PORT=4000
-      - USE_HTTPS=true
+      - USE_HTTPS=false
       - WEBSOCKET_PORT=4011
       - FRONTEND_URL=https://purple-pgs.space
       - CLIENT_URL=https://purple-pgs.space

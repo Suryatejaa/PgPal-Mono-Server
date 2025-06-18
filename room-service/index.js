@@ -19,12 +19,22 @@ const PORT = process.env.PORT || 4003;
 
 app.use(express.json());
 
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+    console.error('Unhandled Rejection:', err);
+});
+
 app.use(cookieParser());
 app.use('/', roomRoutes);
 app.use('/admin', adminRoutes);
 app.use('/monitor', monitorRoutes);
 
 // property-service/index.js
+
 
 // Add the same health endpoints and monitoring as auth-service
 app.get('/health', async (req, res) => {

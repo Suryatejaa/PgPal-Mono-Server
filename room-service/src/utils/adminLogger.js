@@ -1,7 +1,11 @@
 const mongoose = require('mongoose');
 
 const AdminLogSchema = new mongoose.Schema({
-    userId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: false, // Changed from true to false
+        default: null    // Allow null for system events
+    },
     userEmail: { type: String, required: true },
     action: { type: String, required: true },
     resource: { type: String, required: true }, // room, property, user, etc.
@@ -16,6 +20,7 @@ const AdminLogSchema = new mongoose.Schema({
 });
 
 AdminLogSchema.index({ userId: 1, timestamp: -1 });
+AdminLogSchema.index({ isSystemEvent: 1, timestamp: -1 });
 AdminLogSchema.index({ action: 1, timestamp: -1 });
 AdminLogSchema.index({ resource: 1, timestamp: -1 });
 
@@ -24,12 +29,38 @@ const AdminLog = mongoose.model('AdminLog', AdminLogSchema);
 class AdminLogger {
     static async log(logData) {
         try {
+            // Handle system events
+            if (logData.userId === 'system' || !logData.userId) {
+                logData.userId = null;
+                logData.userEmail = logData.userEmail || 'system';
+                logData.isSystemEvent = true;
+                logData.systemEventType = logData.systemEventType || 'automated';
+            }
+
+            // Validate userId if provided
+            if (logData.userId && !mongoose.Types.ObjectId.isValid(logData.userId)) {
+                console.warn(`Invalid userId provided to AdminLogger: ${logData.userId}`);
+                logData.userId = null;
+                logData.isSystemEvent = true;
+            }
+
             const log = new AdminLog(logData);
             await log.save();
             return log;
         } catch (error) {
             console.error('Admin logging error:', error);
+            // Don't throw - logging failures shouldn't break the application
         }
+    }
+
+    static async logSystemEvent(eventData) {
+        return this.log({
+            ...eventData,
+            userId: null,
+            userEmail: 'system',
+            isSystemEvent: true,
+            systemEventType: eventData.systemEventType || 'automated'
+        });
     }
 
     static createLogMiddleware() {
@@ -88,7 +119,18 @@ class AdminLogger {
 
     static async getRecentLogs(userId, limit = 50) {
         try {
-            return await AdminLog.find({ userId })
+            const query = userId ? { userId } : {};
+
+            // Include system events if requested
+            if (includeSystem && userId) {
+                query.$or = [{ userId }, { isSystemEvent: true }];
+            } else if (includeSystem && !userId) {
+                // Return all logs including system events
+            } else if (!includeSystem) {
+                query.isSystemEvent = { $ne: true };
+            }
+
+            return await AdminLog.find(query)
                 .sort({ timestamp: -1 })
                 .limit(limit)
                 .lean();

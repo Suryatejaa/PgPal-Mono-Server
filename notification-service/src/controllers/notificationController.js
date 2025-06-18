@@ -5,8 +5,14 @@ const { getTenantConfirmation } = require('./internalApis');
 exports.sendNotification = async (req, res) => {
     try {
 
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const { tenantId, title, message, type, method } = req.body;
@@ -216,8 +222,14 @@ exports.deleteAllNotifications = async (req, res) => {
 
 exports.sendBulkNotifications = async (req, res) => {
     try {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const createdBy = currentUser?.data?.user?.pgpalId || 'system';

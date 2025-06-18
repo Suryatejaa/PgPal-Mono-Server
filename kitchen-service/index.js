@@ -17,6 +17,15 @@ const PORT = process.env.PORT || 4007;
 // Middleware
 app.use(express.json());
 
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+    console.error('Unhandled Rejection:', err);
+});
+
 app.use(cookieParser());
 app.use('/', kitchenRoutes);
 app.use('/monitor', monitorRoutes);

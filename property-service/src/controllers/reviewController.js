@@ -8,8 +8,14 @@ const { PLAN_LIMITS } = require('../middleware/planValidates.js');
 
 module.exports = {
     async addReview(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const id = currentUser.data.user._id;
@@ -80,8 +86,14 @@ module.exports = {
     },
 
     async editReview(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const id = currentUser.data.user._id;
@@ -187,8 +199,14 @@ module.exports = {
     },
 
     async deleteReview(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const id = currentUser.data.user._id;
@@ -234,8 +252,14 @@ module.exports = {
     },
 
     async getPropertyReviews(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 

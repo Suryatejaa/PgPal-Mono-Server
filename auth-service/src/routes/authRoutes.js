@@ -103,7 +103,8 @@ router.post('/update-plan', authenticate, UserController.updateCurrentPlan);
 router.post('/cancel-plan', authenticate, UserController.cancelSubscription);
 router.get('/get-current-plan', authenticate, UserController.checkPlanStatus);
 
-router.post('/protected', authenticate, (req, res) => {
+router.post('/protected', restrictToInternal, authenticate, (req, res) => {
+
     res.status(200).json({
         message: 'Protected route accessed!',
         user: req.user

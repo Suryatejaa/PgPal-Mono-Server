@@ -10,8 +10,14 @@ const sendMail = require('../utils/sendMail');
 
 exports.addTenant = async (req, res) => {
     try {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const role = currentUser.data.user.role;

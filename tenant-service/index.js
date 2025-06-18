@@ -25,6 +25,14 @@ app.use(cookieParser());
 const jobScheduler = new JobScheduler();
 jobScheduler.startAllJobs();
 
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+    console.error('Unhandled Rejection:', err);
+});
 
 app.use('/', tenantRoutes);
 app.use('/monitor', monitorRoutes);

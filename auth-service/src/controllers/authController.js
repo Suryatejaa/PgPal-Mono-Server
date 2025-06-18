@@ -441,12 +441,19 @@ const sendOtpEmail = require('../utils/sendOtpEmail');
 
 
 const updateUser = async (req, res) => {
-    const currentUser = JSON.parse(req.headers['x-user']) || {};
-    if (!currentUser) {
+    const xUserHeader = req.headers['x-user'];
+    if (!xUserHeader) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
+    let currentUser;
     try {
-        const userId = req.user._id;
+        currentUser = JSON.parse(xUserHeader);
+    } catch (e) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    try {
+        const userId = currentUser.data.user._id;
         const { username, email, phoneNumber, currentPassword, newPassword, confirmNewPassword } = req.body;
         const updateFields = {};
 

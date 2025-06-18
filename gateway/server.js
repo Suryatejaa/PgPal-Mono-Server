@@ -5,12 +5,30 @@ const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const https = require('https');
 const fs = require('fs');
-const {ALLOWED_ORIGINS} = require('./cors-config'); // Import allowed origins from separate config file
+const { ALLOWED_ORIGINS } = require('./cors-config'); // Import allowed origins from separate config file
 
 const app = express();
+
+// ⚠️ CRITICAL FIX: Move body parsing middleware AFTER proxy setup
+// This prevents Express from consuming the request body before proxy can handle it
+app.use(cookieParser());
+
 const PORT = process.env.PORT || 4000;
 const USE_HTTPS = process.env.USE_HTTPS === 'true';
 
+process.on('uncaughtException', (err, origin) => {
+    console.error('🔥🔥🔥 GATEWAY CRASH! UNCAUGHT EXCEPTION!');
+    console.error(`Caught exception: ${err}\n` + `Exception origin: ${origin}`);
+    console.error(err.stack);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('🔥🔥🔥 GATEWAY CRASH! UNHANDLED REJECTION!');
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    console.error(reason.stack || reason);
+    process.exit(1);
+});
 
 const SERVICES = {
     'auth-service': { url: 'http://auth-service:4001', port: 4001, requireAuth: false },
@@ -164,34 +182,7 @@ const corsOptions = {
 // Middleware Setup
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions)); // Preflight CORS requests
-app.use(cookieParser());
-app.use(express.json());
 
-// Enhanced CORS middleware for better handling
-// app.use((req, res, next) => {
-//     console.log(`🌍 Request: ${req.method} ${req.originalUrl} from origin: ${req.headers.origin}`);
-
-//     const origin = req.headers.origin;
-
-//     if (origin && ALLOWED_ORIGINS.includes(origin)) {
-//         res.header('Access-Control-Allow-Origin', origin);
-//         res.header('Access-Control-Allow-Credentials', 'true');
-//         console.log(`✅ CORS allowed for origin: ${origin}`);
-//     } else if (origin) {
-//         console.log(`❌ CORS blocked for origin: ${origin}`);
-//     }
-
-//     // Handle preflight requests
-//     if (req.method === 'OPTIONS') {
-//         res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-//         res.header('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(', '));
-//         res.header('Access-Control-Max-Age', '86400');
-//         console.log(`🎯 Preflight response sent for ${req.originalUrl}`);
-//         return res.status(204).end();
-//     }
-
-//     next();
-// });
 
 // Request logging
 app.use((req, res, next) => {
@@ -224,13 +215,21 @@ const authenticate = async (req, res, next) => {
     }
 
     try {
-        const response = await axios.post('http://auth-service:4001/api/auth-service/protected', {}, {
-            headers: { Authorization: `Bearer ${token}` },
+        const response = await axios.post('http://auth-service:4001/protected', {}, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'x-internal-service': 'true' // Indicate this is an internal service call
+            },
             withCredentials: true
         });
 
         if (response.status === 200) {
-            req.user = { data: response.data, token };
+            req.user = {
+                data: {
+                    user: response.data.user
+                },
+                token
+            };
             req.headers['x-user'] = JSON.stringify(req.user);
             return next();
         }
@@ -240,110 +239,126 @@ const authenticate = async (req, res, next) => {
     }
 };
 
-// Proxy middleware factory
-const createServiceProxy = (serviceName, serviceConfig) => {
-    const middlewares = [];
+// 🔧 FIXED: Improved proxy middleware factory
+function createServiceProxy(serviceName, serviceConfig) {
+    return createProxyMiddleware({
+        target: serviceConfig.url,
+        changeOrigin: true,
+        pathRewrite: {
+            [`^/api/${serviceName}`]: '',
+        },
+        selfHandleResponse: false,
+        parseReqBody: false,
 
-    // Add authentication if required
-    if (serviceConfig.requireAuth) {
-        middlewares.push(authenticate);
-    }
+        onProxyReq: (proxyReq, req, res) => {
+            console.log(`🔄 [Gateway] -> [${serviceName}]: ${req.method} ${req.path}`);
+            console.log(`🔍 [Gateway] Headers:`, {
+                'x-user': req.headers['x-user'] ? 'Present' : 'Missing',
+                'cookie': req.headers.cookie ? 'Present' : 'Missing',
+                'content-type': req.headers['content-type']
+            });
 
-    // Add proxy middleware
-    middlewares.push(
-        createProxyMiddleware({
-            target: serviceConfig.url,
-            changeOrigin: true,
-            timeout: 30000,
-            proxyTimeout: 30000,
-            logLevel: 'warn', // Reduced log level to avoid spam
-
-            pathRewrite: {
-                [`^/api/${serviceName}`]: '' // Remove /api/service-name prefix
-            },
-
-            onProxyReq: (proxyReq, req, res) => {
-                errorTracker.addRequest(serviceName);
-                console.log(`🔧 [${serviceName}] Proxying ${req.method} ${req.originalUrl} to ${serviceConfig.url}${proxyReq.path}`);
-
-                // Ensure body is forwarded correctly for POST/PUT requests
-                if (req.body && (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH')) {
-                    const bodyData = JSON.stringify(req.body);
-                    proxyReq.setHeader('Content-Type', 'application/json');
-                    proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
-                    proxyReq.write(bodyData);
-                }
-            },
-
-            onProxyRes: (proxyRes, req, res) => {
-                const origin = req.headers.origin;
-
-                // Ensure CORS headers on proxy response
-                if (origin && ALLOWED_ORIGINS.includes(origin)) {
-                    proxyRes.headers['access-control-allow-origin'] = origin;
-                    proxyRes.headers['access-control-allow-credentials'] = 'true';
-                }
-
-                // Forward important headers from auth service
-                if (proxyRes.headers['set-cookie']) {
-                    res.setHeader('Set-Cookie', proxyRes.headers['set-cookie']);
-                }
-                if (proxyRes.headers['authorization']) {
-                    res.setHeader('Authorization', proxyRes.headers['authorization']);
-                }
-                if (proxyRes.headers['refresh-token']) {
-                    res.setHeader('Refresh-Token', proxyRes.headers['refresh-token']);
-                }
-
-                const duration = Date.now() - req.startTime;
-                const status = proxyRes.statusCode >= 400 ? 'ERROR' : 'SUCCESS';
-                console.log(`${status === 'ERROR' ? '🚨' : '✅'} [${serviceName}] ${proxyRes.statusCode} (${duration}ms)`);
-
-                if (proxyRes.statusCode >= 400) {
-                    errorTracker.addError({
-                        service: serviceName,
-                        method: req.method,
-                        url: req.originalUrl,
-                        status: proxyRes.statusCode,
-                        userId: req.user?.data?.user?._id || 'anonymous'
-                    });
-                }
-            },
-
-            onError: (err, req, res) => {
-                console.error(`🔥 [${serviceName}] PROXY ERROR:`, err.message);
-                console.error(`🔥 [${serviceName}] Request URL: ${req.originalUrl}`);
-                console.error(`🔥 [${serviceName}] Target URL: ${serviceConfig.url}`);
-
-                errorTracker.addError({
-                    service: serviceName,
-                    method: req.method,
-                    url: req.originalUrl,
-                    status: 502,
-                    error: err.message,
-                    userId: req.user?.data?.user?._id || 'anonymous'
+            // Add user data if available
+            if (req.user) {
+                const userData = JSON.stringify(req.user);
+                proxyReq.setHeader('x-user', userData);
+                proxyReq.setHeader('x-internal-service', 'true');
+                console.log(`✅ [Gateway] User attached:`, {
+                    userId: req.user.data?.user?._id || req.user._id,
+                    role: req.user.data?.user?.role || req.user.role
                 });
-
-                if (!res.headersSent) {
-                    const origin = req.headers.origin;
-                    if (origin && ALLOWED_ORIGINS.includes(origin)) {
-                        res.header('Access-Control-Allow-Origin', origin);
-                        res.header('Access-Control-Allow-Credentials', 'true');
-                    }
-
-                    res.status(502).json({
-                        error: `${serviceName} temporarily unavailable`,
-                        service: serviceName,
-                        message: err.message,
-                        timestamp: new Date().toISOString()
-                    });
-                }
+            } else {
+                console.log(`⚠️  [Gateway] No user data available for ${req.path}`);
             }
-        })
-    );
 
-    return middlewares;
-};
+            // Forward cookies
+            if (req.headers.cookie) {
+                proxyReq.setHeader('Cookie', req.headers.cookie);
+                console.log(`🍪 [Gateway] Forwarding cookies`);
+            }
+
+            // Log body size for POST/PUT/PATCH
+            if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+                const bodySize = req.headers['content-length'] || 'unknown';
+                console.log(`📦 [Gateway] Body size: ${bodySize} bytes`);
+            }
+        },
+
+        onProxyRes: (proxyRes, req, res) => {
+
+            console.log(`✅ [Gateway] <- [${serviceName}]: ${proxyRes.statusCode} ${req.path}`);
+
+            // Log response details
+            if (proxyRes.statusCode >= 400) {
+                console.error(`❌ [Gateway] Error response from ${serviceName}:`, {
+                    status: proxyRes.statusCode,
+                    path: req.path,
+                    method: req.method
+                });
+            }
+
+            // Set CORS headers on proxy response
+            const origin = req.headers.origin;
+            if (origin && ALLOWED_ORIGINS.includes(origin)) {
+                proxyRes.headers['Access-Control-Allow-Origin'] = origin;
+                proxyRes.headers['Access-Control-Allow-Credentials'] = 'true';
+            }
+
+            console.log(`[Gateway] <- [${serviceName}]: ${proxyRes.statusCode} ${req.path}`);
+
+            // Track successful requests
+            errorTracker.addRequest(serviceName);
+        },
+
+        onError: (err, req, res) => {
+            console.error(`[Gateway] Proxy Error for ${serviceName}:`, {
+                error: err.message,
+                code: err.code,
+                path: req.path,
+                method: req.method
+            });
+
+            // Track errors
+            errorTracker.addError({
+                service: serviceName,
+                method: req.method,
+                url: req.originalUrl,
+                status: 502,
+                error: err.message,
+                userId: req.user?.data?.user?._id || 'anonymous'
+            });
+
+            if (!res.headersSent) {
+                const origin = req.headers.origin;
+                if (origin && ALLOWED_ORIGINS.includes(origin)) {
+                    res.setHeader('Access-Control-Allow-Origin', origin);
+                    res.setHeader('Access-Control-Allow-Credentials', 'true');
+                }
+                res.status(502).json({
+                    error: 'Bad Gateway',
+                    message: `The service '${serviceName}' is currently unavailable.`,
+                    code: err.code,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        },
+
+        // ⚠️ CRITICAL: Increase timeouts to prevent aborted requests
+        timeout: 30000, // 30 seconds
+        proxyTimeout: 30000, // 30 seconds
+
+        // ⚠️ CRITICAL: Handle keep-alive properly
+        agent: undefined, // Use default agent
+        headers: {
+            'Connection': 'keep-alive'
+        }
+    });
+}
+
+// 🔧 FIXED: Add body parsing middleware for gateway-specific routes only
+// This prevents conflicts with proxy middleware
+app.use('/api/gateway', express.json({ limit: '10mb' }));
+app.use('/api/gateway', express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Gateway Health Endpoints
 app.get('/api/gateway/health', async (req, res) => {
@@ -364,7 +379,7 @@ app.get('/api/gateway/health', async (req, res) => {
             memory: process.memoryUsage(),
             services: serviceHealth,
             stats,
-            version: '2.0.0'
+            version: '2.1.0'
         });
     } catch (error) {
         res.status(500).json({ error: 'Health check failed', message: error.message });
@@ -437,19 +452,31 @@ app.get('/api/gateway/test', (req, res) => {
     });
 });
 
-// Dynamic service route setup
+// 🔧 FIXED: Setup service routes with proper middleware order
 Object.entries(SERVICES).forEach(([serviceName, config]) => {
     console.log(`🔧 Setting up routes for ${serviceName} -> ${config.url}`);
 
-    // Main service route
-    app.use(`/api/${serviceName}`, ...createServiceProxy(serviceName, config));
+    if (serviceName === 'auth-service') {
+        // Create a conditional auth middleware for auth-service
+        const conditionalAuth = (req, res, next) => {
+            // Skip auth for login, register, health
+            const publicPaths = ['/login', '/register', '/health'];
+            const isPublicPath = publicPaths.some(path => req.path.includes(path));
 
-    // Monitor routes (if needed)
-    app.use(`/api/${serviceName}/monitor`, ...createServiceProxy(`${serviceName}-monitor`, config));
+            if (isPublicPath) {
+                console.log(`🔓 [${serviceName}] Public route: ${req.path}`);
+                return next();
+            }
 
-    // Admin routes for property and room services
-    if (['property-service', 'room-service'].includes(serviceName)) {
-        app.use(`/api/admin/${serviceName}`, ...createServiceProxy(`admin-${serviceName}`, config));
+            // Apply authentication for protected auth routes like /me, /protected
+            console.log(`🔒 [${serviceName}] Protected route: ${req.path}`);
+            return authenticate(req, res, next);
+        };
+
+        app.use(`/api/${serviceName}`, conditionalAuth, createServiceProxy(serviceName, config));
+    } else {
+        // Other services need authentication for all routes
+        app.use(`/api/${serviceName}`, authenticate, createServiceProxy(serviceName, config));
     }
 });
 
@@ -466,10 +493,12 @@ app.use((err, req, res, next) => {
         userId: req.user?.data?.user?._id || 'anonymous'
     });
 
-    res.status(500).json({
-        error: 'Gateway error occurred',
-        timestamp: new Date().toISOString()
-    });
+    if (!res.headersSent) {
+        res.status(500).json({
+            error: 'Gateway error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
 });
 
 // 404 handler

@@ -65,7 +65,7 @@ class AdminScheduledReports {
                 } catch (error) {
                     console.error(`❌ Failed scheduled task: ${name}`, error);
                     // Log the error for admin review
-                    await AdminLogger.log({
+                    await AdminLogger.logSystemEvent({
                         userId: 'system',
                         userEmail: 'system@pgpaal.com',
                         action: `SCHEDULED_TASK_FAILED`,
@@ -128,7 +128,7 @@ class AdminScheduledReports {
             await this.notificationSystem.sendReport('daily', reportData);
 
             // Log the report generation
-            await AdminLogger.log({
+            await AdminLogger.logSystemEvent({
                 userId: 'system',
                 userEmail: 'system@pgpaal.com',
                 action: 'DAILY_REPORT_GENERATED',
@@ -186,7 +186,7 @@ class AdminScheduledReports {
             await this.notificationSystem.sendReport('weekly', reportData);
 
             // Log the report generation
-            await AdminLogger.log({
+            await AdminLogger.logSystemEvent({
                 userId: 'system',
                 userEmail: 'system@pgpaal.com',
                 action: 'WEEKLY_REPORT_GENERATED',
@@ -246,7 +246,7 @@ class AdminScheduledReports {
             await this.notificationSystem.sendReport('monthly', reportData);
 
             // Log the report generation
-            await AdminLogger.log({
+            await AdminLogger.logSystemEvent({
                 userId: 'system',
                 userEmail: 'system@pgpaal.com',
                 action: 'MONTHLY_REPORT_GENERATED',
@@ -314,7 +314,7 @@ class AdminScheduledReports {
             }
 
             // Log health check
-            await AdminLogger.log({
+            await AdminLogger.logSystemEvent({
                 userId: 'system',
                 userEmail: 'system@pgpaal.com',
                 action: 'SYSTEM_HEALTH_CHECK',
@@ -363,7 +363,7 @@ class AdminScheduledReports {
             cleanupCount += logCleanup;
 
             // Log cleanup activity
-            await AdminLogger.log({
+            await AdminLogger.logSystemEvent({
                 userId: 'system',
                 userEmail: 'system@pgpaal.com',
                 action: 'DATA_CLEANUP',

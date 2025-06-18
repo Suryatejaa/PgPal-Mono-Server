@@ -6,8 +6,14 @@ const { getActiveTenantsForProperty } = require('./internalApis');
 
 module.exports = {
     async getAmenities(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         try {
@@ -36,8 +42,14 @@ module.exports = {
     },
 
     async addAmenity(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const id = currentUser.data.user._id;
@@ -165,8 +177,14 @@ module.exports = {
     },
 
     async deleteAmenity(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const id = currentUser.data.user._id;

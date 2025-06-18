@@ -27,6 +27,15 @@ app.use((req, res, next) => {
 
 app.use(cookieParser());
 
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+    console.error('Unhandled Rejection:', err);
+});
+
 // Test simple admin routes first
 console.log('🔧 Registering simple admin routes at /simple-admin');
 app.use('/simple-admin', simpleAdminRoutes);

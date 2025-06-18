@@ -38,12 +38,14 @@ const retryTenantService = async (tenantPayload, currentUser, retries = 3, delay
 exports.addRooms = async (req, res) => {
     try {
         // ✅ 1. User authentication and authorization
-        if (!req.headers['x-user']) {
-            return res.status(400).json({ error: 'Missing x-user header' });
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
         }
-
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser?.data?.user) {
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 

@@ -16,6 +16,15 @@ const PORT = process.env.PORT || 4008;
 
 app.use(express.json());
 
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+    console.error('Unhandled Rejection:', err);
+});
+
 app.use(cookieParser());
 app.use('/', dashboardRoutes);
 app.use('/monitor', monitorRoutes);

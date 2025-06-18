@@ -16,12 +16,21 @@ const app = express();
 const healthMonitor = new ServiceHealthMonitor('auth-service', 4001);
 
 
+
 app.use(express.json());
 app.use(cookieParser());
 app.use(session({ secret: 'your-session-secret', resave: false, saveUninitialized: true }));
 // app.use(passport.initialize());
 // app.use(passport.session());
 
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+    console.error('Unhandled Rejection:', err);
+});
 
 app.use((req, res, next) => {
     healthMonitor.trackRequest();
@@ -86,7 +95,7 @@ app.get('/health', (req, res) => {
 // Ready check for container orchestration
 app.get('/ready', async (req, res) => {
     try {
-        const health = await healthMonitor.getHealth();
+         const health = await healthMonitor.getHealth();
         if (health.database.status === 'connected') {
             res.json({ status: 'ready', service: 'auth-service' });
         } else {

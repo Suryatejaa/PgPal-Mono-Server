@@ -104,8 +104,14 @@ module.exports = {
     },
 
     async getRules(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const cacheKey = '/api' + req.originalUrl; // Always add /api

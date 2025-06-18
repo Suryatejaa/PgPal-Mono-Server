@@ -12,7 +12,7 @@ const {
     getActiveTenantsForProperty,
     getStayRecordsFromTenantService,
     removeAllTenantsFromProperty
- } = require('./internalApis');
+} = require('./internalApis');
 const PlanHelper = require('../utils/planHelper');
 const PlanLimits = require('../config/planLimits.js');
 const WebSocketEmitter = require('../utils/WebSocketEmitter.js');
@@ -36,8 +36,14 @@ const increaseViewCount = async (id) => {
 
 module.exports = {
     async addProperty(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
@@ -60,7 +66,7 @@ module.exports = {
 
         if (planLimits.maxProperties !== -1 && totalOwnedProperties >= planLimits.maxProperties) {
             return res.status(403).json({
-                code:'PROPERTY_LIMIT_REACHED',
+                code: 'PROPERTY_LIMIT_REACHED',
                 error: `Property limit reached. Your ${planType} plan allows ${planLimits.maxProperties} properties.`,
                 currentCount: totalOwnedProperties,
                 maxAllowed: planLimits.maxProperties,
@@ -171,7 +177,7 @@ module.exports = {
                     ownerId: property.ownerId
                 }
             }, currentUser.data.user._id);
-            
+
             res.status(201).json(property);
 
 
@@ -182,8 +188,14 @@ module.exports = {
     },
 
     async updateMaxRoomsnBeds(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const id = currentUser.data.user._id;
@@ -220,7 +232,7 @@ module.exports = {
             const propertyPpid = updatedProperty.pgpalId;
             await invalidateCacheByPattern(`*${propertyPpid}*`);
             await invalidateCacheByPattern(`*${property._id}*`);
-            
+
 
             res.status(200).json(updatedProperty);
         } catch (error) {
@@ -230,12 +242,19 @@ module.exports = {
 
     async getProperties(req, res) {
         try {
-            const currentUser = JSON.parse(req.headers['x-user']) || {};
-            if (!currentUser) {
+            const xUserHeader = req.headers['x-user'];
+            // Check if x-user header is present
+            console.log('🔍 [getProperties] x-user header:', xUserHeader);
+            if (!xUserHeader) {
+                return res.status(401).json({ error: 'User header not found' });
+            }
+            let currentUser;
+            try {
+                currentUser = JSON.parse(xUserHeader);
+            } catch (e) {
+                console.error('Error parsing x-user header:', e);
                 return res.status(401).json({ error: 'Unauthorized' });
             }
-
-        
 
             // Log user structure for debugging
             if (req.headers['x-debug']) {
@@ -344,7 +363,7 @@ module.exports = {
         if (!currentUser) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
-        
+
         const cacheKey = '/api' + req.originalUrl; // Always add /api
         try {
             if (CacheHelper.isReady()) {
@@ -371,8 +390,14 @@ module.exports = {
     },
 
     async getPropertyForRoom(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const id = req.params.id;
@@ -403,8 +428,14 @@ module.exports = {
     },
 
     async getPropertyByPpid(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const ppid = req.params.ppid;
@@ -472,8 +503,14 @@ module.exports = {
     },
 
     async getAllProperties(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const cacheKey = '/api' + req.originalUrl; // Always add /api
@@ -538,8 +575,14 @@ module.exports = {
 
 
     async updateProperty(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const id = currentUser.data.user._id;
@@ -605,8 +648,14 @@ module.exports = {
     },
 
     async deleteProperty(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const id = currentUser.data.user._id;
@@ -752,8 +801,14 @@ module.exports = {
     },
 
     async getAvailability(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const cacheKey = '/api' + req.originalUrl; // Always add /api
@@ -894,13 +949,19 @@ module.exports = {
 
     async updateTotalBeds(req, res) {
         //console.log('method called');
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const id = currentUser.data.user._id;
         const role = currentUser.data.user.role;
-        const plan = currentUser.data.user.currentPlan
+        const plan = currentUser.data.user.currentPlan;
 
         console.log(currentUser.data.user);
         console.log(plan);
@@ -925,7 +986,7 @@ module.exports = {
             }
 
             // Check plan limits for rooms and beds per property
-           
+
             const planLimits = PLAN_LIMITS[plan];
 
             if (planLimits.maxRoomsPerProperty !== -1 && totalRooms > planLimits.maxRoomsPerProperty) {
@@ -965,8 +1026,14 @@ module.exports = {
     },
 
     async updateLocation(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const id = currentUser.data.user._id;
@@ -1042,8 +1109,14 @@ module.exports = {
     },
 
     async occupancyTrend(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const id = currentUser.data.user._id;
@@ -1117,8 +1190,14 @@ module.exports = {
     },
 
     async getPlanInfo(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
@@ -1136,8 +1215,14 @@ module.exports = {
     },
 
     async getPlanUsage(req, res) {
-        const currentUser = JSON.parse(req.headers['x-user']) || {};
-        if (!currentUser) {
+        const xUserHeader = req.headers['x-user'];
+        if (!xUserHeader) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        let currentUser;
+        try {
+            currentUser = JSON.parse(xUserHeader);
+        } catch (e) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
