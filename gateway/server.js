@@ -163,34 +163,35 @@ const corsOptions = {
 
 // Middleware Setup
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Preflight CORS requests
 app.use(cookieParser());
 app.use(express.json());
 
 // Enhanced CORS middleware for better handling
-app.use((req, res, next) => {
-    console.log(`🌍 Request: ${req.method} ${req.originalUrl} from origin: ${req.headers.origin}`);
+// app.use((req, res, next) => {
+//     console.log(`🌍 Request: ${req.method} ${req.originalUrl} from origin: ${req.headers.origin}`);
 
-    const origin = req.headers.origin;
+//     const origin = req.headers.origin;
 
-    if (origin && ALLOWED_ORIGINS.includes(origin)) {
-        res.header('Access-Control-Allow-Origin', origin);
-        res.header('Access-Control-Allow-Credentials', 'true');
-        console.log(`✅ CORS allowed for origin: ${origin}`);
-    } else if (origin) {
-        console.log(`❌ CORS blocked for origin: ${origin}`);
-    }
+//     if (origin && ALLOWED_ORIGINS.includes(origin)) {
+//         res.header('Access-Control-Allow-Origin', origin);
+//         res.header('Access-Control-Allow-Credentials', 'true');
+//         console.log(`✅ CORS allowed for origin: ${origin}`);
+//     } else if (origin) {
+//         console.log(`❌ CORS blocked for origin: ${origin}`);
+//     }
 
-    // Handle preflight requests
-    if (req.method === 'OPTIONS') {
-        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-        res.header('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(', '));
-        res.header('Access-Control-Max-Age', '86400');
-        console.log(`🎯 Preflight response sent for ${req.originalUrl}`);
-        return res.status(204).end();
-    }
+//     // Handle preflight requests
+//     if (req.method === 'OPTIONS') {
+//         res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+//         res.header('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(', '));
+//         res.header('Access-Control-Max-Age', '86400');
+//         console.log(`🎯 Preflight response sent for ${req.originalUrl}`);
+//         return res.status(204).end();
+//     }
 
-    next();
-});
+//     next();
+// });
 
 // Request logging
 app.use((req, res, next) => {
