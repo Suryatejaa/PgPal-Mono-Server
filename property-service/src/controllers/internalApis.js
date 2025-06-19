@@ -193,7 +193,7 @@ const makeInternalApiCall = async (
 
 // Enhanced API functions with monitoring
 const getTenantConfirmation = async (tenantId, currentUser) => {
-    const url = `http://tenant-service:4004/api/tenant-service/tenants?ppid=${tenantId}`;
+    const url = `http://tenant-service:4004/tenants?ppid=${tenantId}`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -217,7 +217,7 @@ const getTenantConfirmation = async (tenantId, currentUser) => {
 };
 
 const getActiveTenantsForProperty = async (propertyId, currentUser) => {
-    const url = `http://tenant-service:4004/api/tenant-service/active-tenants/${propertyId}`;
+    const url = `http://tenant-service:4004/active-tenants/${propertyId}`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -241,7 +241,7 @@ const getActiveTenantsForProperty = async (propertyId, currentUser) => {
 };
 
 const sendNotification = async (currentUser, tenantId, title, message, type, method) => {
-    const url = 'http://notification-service:4009/api/notification-service';
+    const url = 'http://notification-service:4009';
     const data = {
         tenantId,
         title,
@@ -272,7 +272,7 @@ const sendNotification = async (currentUser, tenantId, title, message, type, met
 };
 
 const getStayRecordsFromTenantService = async (pppId, currentUser) => {
-    const url = `http://tenant-service:4004/api/tenant-service/stay-records/${pppId}`;
+    const url = `http://tenant-service:4004/stay-records/${pppId}`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -297,7 +297,7 @@ const getStayRecordsFromTenantService = async (pppId, currentUser) => {
 
 const removeAllTenantsFromProperty = async (propertyId, currentUser) => {
     console.log('removeAllTenantsFromProperty', propertyId);
-    const url = `http://tenant-service:4004/api/tenant-service/remove-all-tenants/${propertyId}`;
+    const url = `http://tenant-service:4004/remove-all-tenants/${propertyId}`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -367,8 +367,8 @@ const getInternalApiErrors = (req, res) => {
 // Health check for internal APIs
 const checkInternalApiHealth = async (req, res) => {
     const services = [
-        { name: 'tenant-service', url: 'http://tenant-service:4004/api/tenant-service/health' },
-        { name: 'notification-service', url: 'http://notification-service:4009/api/notification-service/health' }
+        { name: 'tenant-service', url: 'http://tenant-service:4004/health' },
+        { name: 'notification-service', url: 'http://notification-service:4009/health' }
     ];
 
     const healthResults = {};

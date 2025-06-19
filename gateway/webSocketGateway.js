@@ -2,10 +2,26 @@ const { Server } = require('socket.io');
 const Redis = require('ioredis');
 const express = require('express');
 require('dotenv').config();
+const fs = require('fs');
+const https = require('https');
+const http = require('http');
 
 // Create Express app for health checks
 const app = express();
-const server = require('http').createServer(app);
+let server;
+const USE_HTTPS = process.env.USE_HTTPS === 'true';
+
+if (USE_HTTPS && fs.existsSync('./cert.pem') && fs.existsSync('./key.pem')) {
+    const httpsOptions = {
+        key: fs.readFileSync('./key.pem'),
+        cert: fs.readFileSync('./cert.pem')
+    };
+    server = https.createServer(httpsOptions, app);
+    console.log('🔒 WebSocket Gateway using HTTPS');
+} else {
+    server = http.createServer(app);
+    console.log('🔓 WebSocket Gateway using HTTP');
+}
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -26,7 +42,11 @@ const io = new Server(server, {
             "http://127.0.0.1:5173",
             "http://127.0.0.1:5174",
             "http://127.0.0.1:5175",
-            process.env.FRONTEND_URL
+
+            'https://purple-pgs.space',
+            'https://owner.purple-pgs.space',
+            'https://tenant.purple-pgs.space',
+            'https://admin.purple-pgs.space'
         ],
         credentials: true
     }

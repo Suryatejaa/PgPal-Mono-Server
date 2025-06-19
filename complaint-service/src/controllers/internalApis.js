@@ -194,8 +194,8 @@ const makeInternalApiCall = async (
 // Enhanced API functions with monitoring
 const getOwnProperty = async (propertyId, currentUser, ppid) => {
     const url = ppid
-        ? `http://property-service:4002/api/property-service/property-ppid/${propertyId}`
-        : `http://property-service:4002/api/property-service/property/${propertyId}`;
+        ? `http://property-service:4002/property-ppid/${propertyId}`
+        : `http://property-service:4002/property/${propertyId}`;
 
     const headers = {
         'x-user': JSON.stringify(currentUser)
@@ -220,7 +220,7 @@ const getOwnProperty = async (propertyId, currentUser, ppid) => {
 };
 
 const getTenantConfirmation = async (tenantId, currentUser) => {
-    const url = `http://tenant-service:4004/api/tenant-service/tenants?ppid=${tenantId}`;
+    const url = `http://tenant-service:4004/tenants?ppid=${tenantId}`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -244,7 +244,7 @@ const getTenantConfirmation = async (tenantId, currentUser) => {
 };
 
 const getPropertyOwner = async (propertyId, currentUser) => {
-    const url = `http://property-service:4002/api/property-service/property-ppid/${propertyId}`;
+    const url = `http://property-service:4002/property-ppid/${propertyId}`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -268,7 +268,7 @@ const getPropertyOwner = async (propertyId, currentUser) => {
 };
 
 const sendNotification = async (currentUser, tenantId, title, message, type, method) => {
-    const url = 'http://notification-service:4009/api/notification-service';
+    const url = 'http://notification-service:4009';
     const data = {
         tenantId,
         title,
@@ -345,9 +345,9 @@ const getInternalApiErrors = (req, res) => {
 // Health check for internal APIs
 const checkInternalApiHealth = async (req, res) => {
     const services = [
-        { name: 'property-service', url: 'http://property-service:4002/api/property-service/health' },
-        { name: 'tenant-service', url: 'http://tenant-service:4004/api/tenant-service/health' },
-        { name: 'notification-service', url: 'http://notification-service:4009/api/notification-service/health' }
+        { name: 'property-service', url: 'http://property-service:4002/health' },
+        { name: 'tenant-service', url: 'http://tenant-service:4004/health' },
+        { name: 'notification-service', url: 'http://notification-service:4009/health' }
     ];
 
     const healthResults = {};
@@ -405,18 +405,3 @@ module.exports = {
     internalErrorTracker
 };
 
-
-// # Check internal API statistics
-// curl http://localhost:4006/api/complaint-service/internal-api/stats
-
-// # View internal API errors
-// curl http://localhost:4006/api/complaint-service/internal-api/errors?limit=20
-
-// # Check health of dependent services
-// curl http://localhost:4006/api/complaint-service/internal-api/health
-
-// # Filter errors by service
-// curl http://localhost:4006/api/complaint-service/internal-api/errors?service=property-service
-
-// # Filter errors by function
-//     curl http://localhost:4006/api/complaint-service/internal-api/errors?functionName=getOwnProperty

@@ -124,10 +124,7 @@ module.exports = {
                     return res.status(200).json(cached);
                 }
             }
-            const rules = await Rule.find({ propertyId: req.params.id });
-            if (!rules || rules.length === 0) {
-                return res.status(404).json({ error: 'Rules not found' });
-            }
+            const rules = await Rule.find({ propertyId: req.params.id });            
 
             await CacheHelper.set(cacheKey, rules, 600);
 

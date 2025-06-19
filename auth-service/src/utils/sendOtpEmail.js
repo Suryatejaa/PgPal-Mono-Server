@@ -21,7 +21,14 @@ const sendOtpEmail = async (email, otp) => {
         from: process.env.EMAIL,
         to: email,
         subject: 'OTP Verification for PG Paal',
-        text: `Your OTP is ${otp}`,
+        text: `
+        Dear User,
+
+        Your OTP is ${otp}. Please use this code to complete your verification.
+
+        Thank you,
+        Team Purple PG
+        `,
     };
     transporter.sendMail(mailOptions, (error, info) => {
         if (error) {

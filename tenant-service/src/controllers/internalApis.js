@@ -139,6 +139,7 @@ const makeInternalApiCall = async (
         const response = await axios(config);
         const duration = Date.now() - startTime;
 
+        console.log('Response from internal API:', response.data);
         // Log successful call
         console.log(`✅ [TENANT INTERNAL API] ${sourceService} -> ${targetService}: ${method} ${url} (${duration}ms)`);
 
@@ -164,6 +165,8 @@ const makeInternalApiCall = async (
         } else if (error.code === 'ECONNREFUSED') {
             errorMessage = 'Service unavailable';
         }
+
+        console.log('Error while making internal API call:', error.data)
 
         // Track error
         internalErrorTracker.addError({
@@ -194,8 +197,8 @@ const makeInternalApiCall = async (
 // Enhanced API functions with monitoring
 const getOwnProperty = async (propertyId, currentUser, ppid) => {
     const url = ppid
-        ? `http://property-service:4002/api/property-service/property-ppid/${propertyId}`
-        : `http://property-service:4002/api/property-service/property/${propertyId}`;
+        ? `http://property-service:4002/property-ppid/${propertyId}`
+        : `http://property-service:4002/property/${propertyId}`;
 
     const headers = {
         'x-user': JSON.stringify(currentUser)
@@ -220,7 +223,7 @@ const getOwnProperty = async (propertyId, currentUser, ppid) => {
 };
 
 const getUserByPhone = async (phone, currentUser) => {
-    const url = `http://auth-service:4001/api/auth-service/user?phnum=${phone}`;
+    const url = `http://auth-service:4001/user?phnum=${phone}`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -244,7 +247,7 @@ const getUserByPhone = async (phone, currentUser) => {
 };
 
 const changeBedStatus = async (roomId, bedId, status, currentUser) => {
-    const url = `http://room-service:4003/api/room-service/rooms/${roomId}/beds/${bedId}/status`;
+    const url = `http://room-service:4003/rooms/${roomId}/beds/${bedId}/status`;
     const data = { status };
     const headers = {
         'x-user': JSON.stringify(currentUser)
@@ -269,7 +272,7 @@ const changeBedStatus = async (roomId, bedId, status, currentUser) => {
 };
 
 const getRoomByNumber = async (propertyId, roomNumber, currentUser) => {
-    const url = `http://room-service:4003/api/room-service/${propertyId}/rooms`;
+    const url = `http://room-service:4003/${propertyId}/rooms`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -294,7 +297,7 @@ const getRoomByNumber = async (propertyId, roomNumber, currentUser) => {
 };
 
 const getUserByPpid = async (ppt, currentUser) => {
-    const url = `http://auth-service:4001/api/auth-service/user?ppid=${ppt}`;
+    const url = `http://auth-service:4001/user?ppid=${ppt}`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -318,7 +321,7 @@ const getUserByPpid = async (ppt, currentUser) => {
 };
 
 const assignBed = async (roomId, bedId, tenantPhone, rentPerBed, tenantPpt, currentUser) => {
-    const url = `http://room-service:4003/api/room-service/rooms/${roomId}/assign-bed`;
+    const url = `http://room-service:4003/rooms/${roomId}/assign-bed`;
     const data = { bedId, phone: tenantPhone, rentPerBed, tenantPpt };
     const headers = {
         'x-user': JSON.stringify(currentUser)
@@ -343,7 +346,7 @@ const assignBed = async (roomId, bedId, tenantPhone, rentPerBed, tenantPpt, curr
 };
 
 const clearBed = async (roomId, bedId, currentUser) => {
-    const url = `http://room-service:4003/api/room-service/rooms/${roomId}/clear-bed`;
+    const url = `http://room-service:4003/rooms/${roomId}/clear-bed`;
     const data = { bedId };
     const headers = {
         'x-user': JSON.stringify(currentUser)
@@ -368,7 +371,7 @@ const clearBed = async (roomId, bedId, currentUser) => {
 };
 
 const sendNotification = async (currentUser, tenantId, title, message, type, method) => {
-    const url = 'http://notification-service:4009/api/notification-service';
+    const url = 'http://notification-service:4009';
     const data = {
         tenantId,
         title,
@@ -445,10 +448,10 @@ const getInternalApiErrors = (req, res) => {
 // Health check for internal APIs
 const checkInternalApiHealth = async (req, res) => {
     const services = [
-        { name: 'property-service', url: 'http://property-service:4002/api/property-service/health' },
-        { name: 'auth-service', url: 'http://auth-service:4001/api/auth-service/health' },
-        { name: 'room-service', url: 'http://room-service:4003/api/room-service/health' },
-        { name: 'notification-service', url: 'http://notification-service:4009/api/notification-service/health' }
+        { name: 'property-service', url: 'http://property-service:4002/health' },
+        { name: 'auth-service', url: 'http://auth-service:4001/health' },
+        { name: 'room-service', url: 'http://room-service:4003/health' },
+        { name: 'notification-service', url: 'http://notification-service:4009/health' }
     ];
 
     const healthResults = {};

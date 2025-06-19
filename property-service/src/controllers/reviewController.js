@@ -276,7 +276,7 @@ module.exports = {
 
             const reviews = await Review.find({ propertyId: req.params.id });
             if (!reviews || reviews.length === 0) {
-                return res.status(404).json({ error: 'No reviews found for this property' });
+                return res.status(204).json({ error: 'No reviews found for this property' });
             }
 
             // Apply plan-based review limits

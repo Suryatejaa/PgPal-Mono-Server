@@ -742,6 +742,7 @@ exports.updateBeds = async (req, res) => {
 
 // PATCH /api/room-service/rooms/:roomId/beds/:bedObjectId/status
 exports.changeBedStatus = async (req, res) => {
+    console.log(`hit changeBedStatus`);
     const xUserHeader = req.headers['x-user'];
     if (!xUserHeader) {
         return res.status(401).json({ error: 'Unauthorized' });

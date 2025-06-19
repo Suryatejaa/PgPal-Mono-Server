@@ -3,9 +3,9 @@ const axios = require('axios');
 const getOwnProperty = async (propertyId, currentUser, ppid) => {
     let url;
     if (ppid) {
-        url = `http://property-service:4002/api/property-service/property-ppid/${propertyId}`;
+        url = `http://property-service:4002/property-ppid/${propertyId}`;
     } else {
-        url = `http://property-service:4002/api/property-service/property/${propertyId}`;
+        url = `http://property-service:4002/property/${propertyId}`;
     }
     //console.log(url)
     try {
@@ -23,7 +23,7 @@ const getOwnProperty = async (propertyId, currentUser, ppid) => {
 
 const getActiveTenantsForProperty = async (propertyId, currentUser) => {
     try {
-        const response = await axios.get(`http://tenant-service:4004/api/tenant-service/active-tenants/${propertyId}`, {
+        const response = await axios.get(`http://tenant-service:4004/active-tenants/${propertyId}`, {
             headers: {
                 'x-user': JSON.stringify(currentUser),
                 'x-internal-service': true
@@ -38,7 +38,7 @@ const getActiveTenantsForProperty = async (propertyId, currentUser) => {
 
 const getTenantConfirmation = async (tenantId, currentUser) => {
     try {
-        const response = await axios.get(`http://tenant-service:4004/api/tenant-service/tenants?ppid=${tenantId}`, {
+        const response = await axios.get(`http://tenant-service:4004/tenants?ppid=${tenantId}`, {
             headers: {
                 'x-user': JSON.stringify(currentUser),
                 'x-internal-service': true
@@ -53,7 +53,7 @@ const getTenantConfirmation = async (tenantId, currentUser) => {
 
 const getPropertyOwner = async (propertyId, currentUser) => {
     try {
-        const response = await axios.get(`http://property-service:4002/api/property-service/property-ppid/${propertyId}`, {
+        const response = await axios.get(`http://property-service:4002/property-ppid/${propertyId}`, {
             headers: {
                 'x-user': JSON.stringify(currentUser),
                 'x-internal-service': true
@@ -68,7 +68,7 @@ const getPropertyOwner = async (propertyId, currentUser) => {
 
 const getAllProperties = async (currentUser) => {
     try {
-        const response = await axios.get('http://property-service:4002/api/property-service/getAllProperties', {
+        const response = await axios.get('http://property-service:4002/getAllProperties', {
             headers: {                
                 'x-internal-service': true
             }
@@ -84,7 +84,7 @@ const getAllProperties = async (currentUser) => {
 const sendNotification = async (currentUser, tenantId, title, message, type, method) => {
 
     try {
-        const response = await axios.post('http://notification-service:4009/api/notification-service',
+        const response = await axios.post('http://notification-service:4009',
             {
                 tenantId,
                 title,

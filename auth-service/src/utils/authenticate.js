@@ -6,7 +6,7 @@ const authMiddleware = async (req, res, next) => {
     if (!token) {
         return res.status(401).json({ message: 'Authorization token is missing' });
     }
-    console.log(`Authorization token found: ${token}`);
+    // console.log(`Authorization token found: ${token}`);
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const user = await User.findById(decoded._id);

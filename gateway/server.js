@@ -460,7 +460,15 @@ Object.entries(SERVICES).forEach(([serviceName, config]) => {
         // Create a conditional auth middleware for auth-service
         const conditionalAuth = (req, res, next) => {
             // Skip auth for login, register, health
-            const publicPaths = ['/login', '/register', '/health'];
+            const publicPaths = [
+                '/login',
+                '/register',
+                '/refresh-token',
+                '/forgot-password-request',    // <-- FIX: Add this
+                '/forgot-password-verify-otp', // <-- FIX: Add this
+                '/forgot-password-reset',      // <-- FIX: Add this
+                '/health'
+            ];
             const isPublicPath = publicPaths.some(path => req.path.includes(path));
 
             if (isPublicPath) {
@@ -469,6 +477,29 @@ Object.entries(SERVICES).forEach(([serviceName, config]) => {
             }
 
             // Apply authentication for protected auth routes like /me, /protected
+            console.log(`🔒 [${serviceName}] Protected route: ${req.path}`);
+            return authenticate(req, res, next);
+        };
+
+        app.use(`/api/${serviceName}`, conditionalAuth, createServiceProxy(serviceName, config));
+    } else if (serviceName === 'property-service') {
+        // Create a conditional auth middleware for property-service
+        const conditionalAuth = (req, res, next) => {
+            // Public routes for property-service
+            const publicPaths = [
+                '/properties/nearby', // Public route for nearby properties
+                '/search',            // Public route for searching properties
+                '/health'
+            ];
+            // Use startsWith to correctly handle query parameters
+            const isPublicPath = publicPaths.some(path => req.path.startsWith(path));
+
+            if (isPublicPath) {
+                console.log(`🔓 [${serviceName}] Public route: ${req.path}`);
+                return next();
+            }
+
+            // Apply authentication for all other property-service routes
             console.log(`🔒 [${serviceName}] Protected route: ${req.path}`);
             return authenticate(req, res, next);
         };

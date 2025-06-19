@@ -194,8 +194,8 @@ const makeInternalApiCall = async (
 // Enhanced API functions with monitoring
 const getOwnProperty = async (propertyId, currentUser, ppid) => {
     const url = ppid
-        ? `http://property-service:4002/api/property-service/property-ppid/${propertyId}`
-        : `http://property-service:4002/api/property-service/property/${propertyId}`;
+        ? `http://property-service:4002/property-ppid/${propertyId}`
+        : `http://property-service:4002/property/${propertyId}`;
 
     const headers = {
         'x-user': JSON.stringify(currentUser)
@@ -220,7 +220,7 @@ const getOwnProperty = async (propertyId, currentUser, ppid) => {
 };
 
 const getTenantConfirmation = async (tenantId, currentUser) => {
-    const url = `http://tenant-service:4004/api/tenant-service/tenants?ppid=${tenantId}`;
+    const url = `http://tenant-service:4004/tenants?ppid=${tenantId}`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -244,7 +244,7 @@ const getTenantConfirmation = async (tenantId, currentUser) => {
 };
 
 const getPropertyOwner = async (propertyId, currentUser) => {
-    const url = `http://property-service:4002/api/property-service/property-ppid/${propertyId}`;
+    const url = `http://property-service:4002/property-ppid/${propertyId}`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -268,7 +268,7 @@ const getPropertyOwner = async (propertyId, currentUser) => {
 };
 
 const getTenantDocs = async (propertyId, currentUser) => {
-    const url = `http://tenant-service:4004/api/tenant-service/tenantDocs/${propertyId}`;
+    const url = `http://tenant-service:4004/tenantDocs/${propertyId}`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -292,7 +292,7 @@ const getTenantDocs = async (propertyId, currentUser) => {
 };
 
 const getRoomDocs = async (propertyId, currentUser) => {
-    const url = `http://room-service:4003/api/room-service/roomDocs/${propertyId}`;
+    const url = `http://room-service:4003/roomDocs/${propertyId}`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -316,7 +316,7 @@ const getRoomDocs = async (propertyId, currentUser) => {
 };
 
 const getBedDocs = async (propertyId, currentUser) => {
-    const url = `http://room-service:4003/api/room-service/bedDocs/${propertyId}`;
+    const url = `http://room-service:4003/bedDocs/${propertyId}`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -340,7 +340,7 @@ const getBedDocs = async (propertyId, currentUser) => {
 };
 
 const getCheckins = async (propertyId, period, currentUser) => {
-    const url = `http://tenant-service:4004/api/tenant-service/checkins/${propertyId}?period=${period}`;
+    const url = `http://tenant-service:4004/checkins/${propertyId}?period=${period}`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -364,7 +364,7 @@ const getCheckins = async (propertyId, period, currentUser) => {
 };
 
 const getVacates = async (propertyId, period, currentUser) => {
-    const url = `http://tenant-service:4004/api/tenant-service/vacates/${propertyId}?period=${period}`;
+    const url = `http://tenant-service:4004/vacates/${propertyId}?period=${period}`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -388,7 +388,7 @@ const getVacates = async (propertyId, period, currentUser) => {
 };
 
 const getComplaintStats = async (propertyId, currentUser) => {
-    const url = `http://complaint-service:4006/api/complaint-service/metrics/summary/${propertyId}`;
+    const url = `http://complaint-service:4006/metrics/summary/${propertyId}`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -413,7 +413,7 @@ const getComplaintStats = async (propertyId, currentUser) => {
 
 // Additional enhanced functions for comprehensive dashboard data
 const getPaymentStats = async (propertyId, period, currentUser) => {
-    const url = `http://payment-service:4010/api/payment-service/stats/${propertyId}?period=${period}`;
+    const url = `http://payment-service:4010/stats/${propertyId}?period=${period}`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -437,7 +437,7 @@ const getPaymentStats = async (propertyId, period, currentUser) => {
 };
 
 const getKitchenStats = async (propertyId, period, currentUser) => {
-    const url = `http://kitchen-service:4007/api/kitchen-service/stats/${propertyId}?period=${period}`;
+    const url = `http://kitchen-service:4007/stats/${propertyId}?period=${period}`;
     const headers = {
         'x-user': JSON.stringify(currentUser)
     };
@@ -507,12 +507,12 @@ const getInternalApiErrors = (req, res) => {
 // Health check for internal APIs
 const checkInternalApiHealth = async (req, res) => {
     const services = [
-        { name: 'property-service', url: 'http://property-service:4002/api/property-service/health' },
-        { name: 'tenant-service', url: 'http://tenant-service:4004/api/tenant-service/health' },
-        { name: 'room-service', url: 'http://room-service:4003/api/room-service/health' },
-        { name: 'complaint-service', url: 'http://complaint-service:4006/api/complaint-service/health' },
-        { name: 'payment-service', url: 'http://payment-service:4010/api/payment-service/health' },
-        { name: 'kitchen-service', url: 'http://kitchen-service:4007/api/kitchen-service/health' }
+        { name: 'property-service', url: 'http://property-service:4002/health' },
+        { name: 'tenant-service', url: 'http://tenant-service:4004/health' },
+        { name: 'room-service', url: 'http://room-service:4003/health' },
+        { name: 'complaint-service', url: 'http://complaint-service:4006/health' },
+        { name: 'payment-service', url: 'http://payment-service:4010/health' },
+        { name: 'kitchen-service', url: 'http://kitchen-service:4007/health' }
     ];
 
     const healthResults = {};
@@ -618,21 +618,3 @@ module.exports = {
     internalErrorTracker
 };
 
-
-// # Check dashboard service internal API statistics
-// curl http://localhost:4008/api/dashboard-service/internal-api/stats
-
-// # View internal API errors
-// curl http://localhost:4008/api/dashboard-service/internal-api/errors?limit=20
-
-// # Check health of all dependent services
-// curl http://localhost:4008/api/dashboard-service/internal-api/health
-
-// # Get aggregated dashboard data with error tracking
-// curl http://localhost:4008/api/dashboard-service/aggregate/PPP123?period=7d
-
-// # Filter errors by specific service
-// curl http://localhost:4008/api/dashboard-service/internal-api/errors?service=tenant-service
-
-// # Filter errors by function
-//     curl http://localhost:4008/api/dashboard-service/internal-api/errors?functionName=getTenantDocs
