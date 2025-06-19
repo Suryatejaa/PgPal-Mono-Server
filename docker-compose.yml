@@ -3,7 +3,7 @@ services:
     build: 
       context: ./auth-service
       dockerfile: dockerfile
-      env_file: .env
+      
     # image: ghcr.io/suryatejaa/pgpal-mono-server/auth-service:latest
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4001/health"]
@@ -39,7 +39,7 @@ services:
     build:
       context: ./property-service
       dockerfile: dockerfile
-      env_file: .env
+      
 
     # image: ghcr.io/suryatejaa/pgpal-mono-server/property-service:latest
     healthcheck:
@@ -67,7 +67,7 @@ services:
     build:
       context: ./room-service
       dockerfile: dockerfile
-      env_file: .env
+      
     # image: ghcr.io/suryatejaa/pgpal-mono-server/room-service:latest
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4003/health"]
@@ -158,7 +158,7 @@ services:
   tenant-service:
     build:
       context: ./tenant-service
-      env_file: .env
+      
       dockerfile: dockerfile
     # image: ghcr.io/suryatejaa/pgpal-mono-server/tenant-service:latest
     healthcheck:
@@ -187,7 +187,7 @@ services:
     build:
       context: ./tenant-service
       dockerfile: dockerfile
-      env_file: .env
+      
 
     # image: ghcr.io/suryatejaa/pgpal-mono-server/rent-service:latest
     healthcheck:
@@ -235,7 +235,7 @@ services:
   complaint-service:
     build:
       context: ./complaint-service
-      env_file: .env
+      
       dockerfile: dockerfile
     # image: ghcr.io/suryatejaa/pgpal-mono-server/complaint-service:latest
     healthcheck:
@@ -265,7 +265,7 @@ services:
     build:
       context: ./kitchen-service
       dockerfile: dockerfile
-      env_file: .env
+      
 
     # image: ghcr.io/suryatejaa/pgpal-mono-server/kitchen-service:latest
     healthcheck:
@@ -293,7 +293,7 @@ services:
     build:
       context: ./dashboard-service
       dockerfile: dockerfile
-      env_file: .env
+      
 
     # image: ghcr.io/suryatejaa/pgpal-mono-server/dashboard-service:latest
     healthcheck:
@@ -320,7 +320,7 @@ services:
     build:
       context: ./notification-service
       dockerfile: dockerfile
-      env_file: .env
+      
 
     # image: ghcr.io/suryatejaa/pgpal-mono-server/notification-service:latest
     healthcheck:
@@ -347,8 +347,7 @@ services:
     build:
       context: ./notification-service
       dockerfile: dockerfile
-      env_file: .env
-
+     
     # image: ghcr.io/suryatejaa/pgpal-mono-server/notification-worker:latest
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4009/health"]
@@ -385,7 +384,7 @@ services:
     build:
       context: ./gateway
       dockerfile: dockerfile
-      env_file: .env
+      
 
     # image: ghcr.io/suryatejaa/pgpal-mono-server/gateway:latest
     healthcheck:
@@ -401,7 +400,7 @@ services:
       - NODE_ENV=${NODE_ENV}
       - REDIS=${REDIS}  # Use Railway Redis from .env
       - PORT=4000
-      - USE_HTTPS=true
+      - USE_HTTPS=false
       - WEBSOCKET_PORT=4011
       - FRONTEND_URL=https://purple-pgs.space
       - CLIENT_URL=https://purple-pgs.space
