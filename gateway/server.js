@@ -173,8 +173,19 @@ const corsOptions = {
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
-        'Origin', 'X-Requested-With', 'Content-Type', 'Accept',
-        'Authorization', 'Cookie', 'x-user', 'x-internal-service'
+        'Origin',
+        'X-Requested-With',
+        'Content-Type',
+        'Accept',
+        'Authorization',
+        'Cookie',
+        'Set-Cookie',
+        'x-user',
+        'x-internal-service',
+        'x-debug',
+        'Cache-Control', // ✅ FIX: Add Cache-Control
+        'Pragma',
+        'Expires'
     ],
     exposedHeaders: ['Authorization', 'Set-Cookie', 'Refresh-Token']
 };
