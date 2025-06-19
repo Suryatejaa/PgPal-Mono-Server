@@ -3,20 +3,20 @@ services:
     build: 
       context: ./auth-service
       dockerfile: dockerfile
+    # 1. SET NETWORK MODE TO HOST to guarantee outbound connections work.
+    network_mode: "host"
     env_file:
       - .env
     restart: always
     healthcheck:
+      # Healthcheck now uses localhost because it's on the host network
       test: ["CMD", "curl", "-f", "http://localhost:4001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    ports:
-      - "4001:4001"
-    dns: 
-      - 8.8.8.8
-      - 1.1.1.1
+    # 2. REMOVED PORTS MAPPING - Not needed with network_mode: "host"
+    # 3. REMOVED DNS - Not needed with network_mode: "host"
     environment:
     - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_auth_service?retryWrites=true&w=majority
     - JWT_SECRET=${JWT_SECRET}
@@ -31,21 +31,18 @@ services:
     - PRIVATE_KEY_ID=${PRIVATE_KEY_ID}
     - PRIVATE_KEY=${PRIVATE_KEY}
     - WEBSOCKET_URL=ws://gateway:4011
-    - REDIS=${REDIS}  # Use Railway Redis from .env
+    - REDIS=${REDIS}
     - NODE_ENV=${NODE_ENV}
     - FRONTEND_URL=https://purple-pgs.space
     - CLIENT_URL=https://purple-pgs.space
     - COOKIE_DOMAIN=.purple-pgs.space
-    #depends_on:
-      # - mongo
 
   property-service:
     build:
       context: ./property-service
       dockerfile: dockerfile
-      
-
-    # image: ghcr.io/suryatejaa/pgpal-mono-server/property-service:latest
+    extra_hosts: # <-- ADD THIS BLOCK to tell this service how to find auth-service
+      - "auth-service:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4002/health"]
       interval: 30s
@@ -59,20 +56,18 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4002
       - WEBSOCKET_URL=ws://gateway:4011
-      - REDIS=${REDIS}  # Use Railway Redis from .env
+      - REDIS=${REDIS}
       - NODE_ENV=${NODE_ENV}
       - FRONTEND_URL=https://purple-pgs.space
       - CLIENT_URL=https://purple-pgs.space
       - COOKIE_DOMAIN=.purple-pgs.space
-    #depends_on:
-      # - mongo
 
   room-service:
     build:
       context: ./room-service
       dockerfile: dockerfile
-      
-    # image: ghcr.io/suryatejaa/pgpal-mono-server/room-service:latest
+    extra_hosts: # <-- ADD THIS BLOCK
+      - "auth-service:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4003/health"]
       interval: 30s
@@ -83,88 +78,22 @@ services:
       - "4003:4003"
     environment:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_room_service?retryWrites=true&w=majority
-      - REDIS=${REDIS}  # Use Railway Redis from .env
+      - REDIS=${REDIS}
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4003
-      - ADMIN_SESSION_TIMEOUT=3600000
-      - BCRYPT_ROUNDS=12
       - WEBSOCKET_URL=ws://gateway:4011
-      # Admin System Configuration
-      - ADMIN_RATE_LIMIT_WINDOW=900000
-      - ADMIN_RATE_LIMIT_MAX=100
-      - ADMIN_CACHE_TTL=300
-      - ADMIN_LOG_RETENTION_DAYS=90
-
-      # Email Configuration (for notifications)
-      - SMTP_HOST=smtp.gmail.com
-      - SMTP_PORT=587
-      - SMTP_SECURE=false
-      - SMTP_USER=admin@test.com
-      - SMTP_PASS=test-password
-      - EMAIL_FROM=noreply@pgpaal.com
-      - EMAIL_FROM_NAME=PG Paal Admin System
-
-      # Slack Integration (disabled for development)
-      - SLACK_WEBHOOK_URL=
-      - SLACK_CHANNEL=#admin-alerts
-      - SLACK_USERNAME=PG-Paal-Bot
-
-      # Webhook Notifications (disabled for development)
-      - WEBHOOK_URL=
-      - WEBHOOK_SECRET=development-webhook-secret
-
-      # File Storage Configuration
-      - EXPORT_DIR=./exports
-      - MAX_EXPORT_FILE_SIZE=50000000
-      - EXPORT_CLEANUP_INTERVAL=86400000
-
-# Performance & Monitoring
-      - HEALTH_CHECK_INTERVAL=300000
-      - PERFORMANCE_THRESHOLD_MS=5000
-      - MEMORY_THRESHOLD_MB=512
-
-# Feature Flags
-      - ENABLE_ADVANCED_ANALYTICS=true
-      - ENABLE_BULK_OPERATIONS=true
-      - ENABLE_SCHEDULED_REPORTS=false
-      - ENABLE_PERFORMANCE_MONITORING=true
-      - ENABLE_ACTIVITY_LOGGING=true
-      - ENABLE_REAL_TIME_UPDATES=false
-
-# Analytics Configuration
-      - ANALYTICS_RETENTION_DAYS=365
-      - ANALYTICS_BATCH_SIZE=1000
-      - ANALYTICS_CACHE_TTL=1800
-
-# Logging Configuration
-      - LOG_LEVEL=debug
-      - LOG_FORMAT=combined
-      - LOG_FILE_PATH=./logs/admin.log
-      - LOG_MAX_SIZE=10m
-      - LOG_MAX_FILES=5
-
-# Rate Limiting Configuration
-      - RATE_LIMIT_WINDOW_MS=900000
-      - RATE_LIMIT_MAX_REQUESTS=100
-      - RATE_LIMIT_SKIP_FAILED_REQUESTS=true
-
-# Cache Configuration
-      - CACHE_DEFAULT_TTL=300
-      - CACHE_MAX_SIZE=1000
-      - CACHE_CHECK_PERIOD=600
       - NODE_ENV=${NODE_ENV}
       - FRONTEND_URL=https://purple-pgs.space
       - CLIENT_URL=https://purple-pgs.space
       - COOKIE_DOMAIN=.purple-pgs.space
-    #depends_on:
-      # - mongo
+      # ... other env vars
 
   tenant-service:
     build:
       context: ./tenant-service
-      
       dockerfile: dockerfile
-    # image: ghcr.io/suryatejaa/pgpal-mono-server/tenant-service:latest
+    extra_hosts: # <-- ADD THIS BLOCK
+      - "auth-service:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4004/health"]
       interval: 30s
@@ -176,7 +105,7 @@ services:
     command: ["node", "index.js"]
     environment:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_tenant_service?retryWrites=true&w=majority
-      - REDIS=${REDIS}  # Use Railway Redis from .env
+      - REDIS=${REDIS}
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4004
       - EMAIL=${EMAIL}
@@ -191,9 +120,8 @@ services:
     build:
       context: ./tenant-service
       dockerfile: dockerfile
-      
-
-    # image: ghcr.io/suryatejaa/pgpal-mono-server/rent-service:latest
+    extra_hosts: # <-- ADD THIS BLOCK
+      - "auth-service:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4005/health"]
       interval: 30s
@@ -205,7 +133,7 @@ services:
     command: ["node", "rent-index.js"]
     environment:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_tenant_service?retryWrites=true&w=majority
-      - REDIS=${REDIS}  # Use Railway Redis from .env
+      - REDIS=${REDIS}
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4005
       - EMAIL=${EMAIL}
@@ -216,32 +144,12 @@ services:
       - CLIENT_URL=https://purple-pgs.space
       - COOKIE_DOMAIN=.purple-pgs.space
     
-    #depends_on:
-      # - mongo
-
-  # payment-service:
-  #   build:
-  #     context: ./payment-service
-  #     dockerfile: dockerfile
-  #   image: ghcr.io/suryatejaa/pgpal-mono-server/payment-service:latest
-  #   ports:
-  #     - "4010:4010"
-  #   environment:
-  #     - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_payment_service?retryWrites=true&w=majority
-  #     - REDIS=${REDIS}  # Use Railway Redis from .env
-  #     - NODE_ENV=${NODE_ENV}
-  #     - FRONTEND_URL=https://purple-pgs.space
-  #     - CLIENT_URL=https://purple-pgs.space
-  #     - COOKIE_DOMAIN=.purple-pgs.space
-  #   #depends_on:
-  #     # - mongo
-
   complaint-service:
     build:
       context: ./complaint-service
-      
       dockerfile: dockerfile
-    # image: ghcr.io/suryatejaa/pgpal-mono-server/complaint-service:latest
+    extra_hosts: # <-- ADD THIS BLOCK
+      - "auth-service:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4006/health"]
       interval: 30s
@@ -257,21 +165,18 @@ services:
       - EMAIL=echoliftagency@gmail.com
       - EMAIL_PASSWORD=dinh blaq osyc cpds
       - WEBSOCKET_URL=ws://gateway:4011
-      - REDIS=${REDIS}  # Use Railway Redis from .env
+      - REDIS=${REDIS}
       - NODE_ENV=${NODE_ENV}
       - FRONTEND_URL=https://purple-pgs.space
       - CLIENT_URL=https://purple-pgs.space
       - COOKIE_DOMAIN=.purple-pgs.space
-    #depends_on:
-      # - mongo
 
   kitchen-service:
     build:
       context: ./kitchen-service
       dockerfile: dockerfile
-      
-
-    # image: ghcr.io/suryatejaa/pgpal-mono-server/kitchen-service:latest
+    extra_hosts: # <-- ADD THIS BLOCK
+      - "auth-service:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4007/health"]
       interval: 30s
@@ -282,7 +187,7 @@ services:
       - "4007:4007"
     environment:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_kitchen_service?retryWrites=true&w=majority
-      - REDIS=${REDIS}  # Use Railway Redis from .env
+      - REDIS=${REDIS}
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4007
       - WEBSOCKET_URL=ws://gateway:4011
@@ -290,16 +195,13 @@ services:
       - FRONTEND_URL=https://purple-pgs.space
       - CLIENT_URL=https://purple-pgs.space
       - COOKIE_DOMAIN=.purple-pgs.space
-    #depends_on:
-      # - mongo
 
   dashboard-service:
     build:
       context: ./dashboard-service
       dockerfile: dockerfile
-      
-
-    # image: ghcr.io/suryatejaa/pgpal-mono-server/dashboard-service:latest
+    extra_hosts: # <-- ADD THIS BLOCK
+      - "auth-service:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4008/health"]
       interval: 30s
@@ -310,23 +212,20 @@ services:
       - "4008:4008"
     environment:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_dashboard_service?retryWrites=true&w=majority
-      - REDIS=${REDIS}  # Use Railway Redis from .env
+      - REDIS=${REDIS}
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4008
       - NODE_ENV=${NODE_ENV}
       - FRONTEND_URL=https://purple-pgs.space
       - CLIENT_URL=https://purple-pgs.space
       - COOKIE_DOMAIN=.purple-pgs.space
-    #depends_on:
-      # - mongo
 
   notification-service:
     build:
       context: ./notification-service
       dockerfile: dockerfile
-      
-
-    # image: ghcr.io/suryatejaa/pgpal-mono-server/notification-service:latest
+    extra_hosts: # <-- ADD THIS BLOCK
+      - "auth-service:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4009/health"]
       interval: 30s
@@ -337,22 +236,20 @@ services:
       - "4009:4009"
     environment:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_notification_service?retryWrites=true&w=majority
-      - REDIS=${REDIS}  # Use Railway Redis from .env
+      - REDIS=${REDIS}
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4009
       - NODE_ENV=${NODE_ENV}
       - FRONTEND_URL=https://purple-pgs.space
       - CLIENT_URL=https://purple-pgs.space
       - COOKIE_DOMAIN=.purple-pgs.space
-    #depends_on:
-      # - mongo 
 
   notification-worker:
     build:
       context: ./notification-service
       dockerfile: dockerfile
-     
-    # image: ghcr.io/suryatejaa/pgpal-mono-server/notification-worker:latest
+    extra_hosts: # <-- ADD THIS BLOCK
+      - "auth-service:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4009/health"]
       interval: 30s
@@ -362,7 +259,7 @@ services:
     command: node src/workers/notificationWorker.js
     environment:
       - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_notification_service?retryWrites=true&w=majority
-      - REDIS=${REDIS}  # Use Railway Redis from .env
+      - REDIS=${REDIS}
       - JWT_SECRET=${JWT_SECRET}
       - PORT=4009
       - NODE_ENV=${NODE_ENV}
@@ -372,25 +269,12 @@ services:
     depends_on:
       - notification-service
 
-  # websocket-service:
-  #   build:
-  #     context: ./websocket-service
-  #     dockerfile: dockerfile
-  #   image: ghcr.io/suryatejaa/pgpal-mono-server/websocket-service:latest
-  #   ports:
-  #     - "4011:4011"
-  #   environment:
-  #     - REDIS_URL=${REDIS}  # Use Railway Redis from .env
-  #     - NODE_ENV=${NODE_ENV}   
-  #   restart: unless-stopped
-
   gateway:
     build:
       context: ./gateway
       dockerfile: dockerfile
-      
-
-    # image: ghcr.io/suryatejaa/pgpal-mono-server/gateway:latest
+    extra_hosts: # <-- ADD THIS BLOCK
+      - "auth-service:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
       interval: 30s
@@ -402,9 +286,9 @@ services:
       - "4011:4011"  # WebSocket port
     environment:
       - NODE_ENV=${NODE_ENV}
-      - REDIS=${REDIS}  # Use Railway Redis from .env
+      - REDIS=${REDIS}
       - PORT=4000
-      - USE_HTTPS=false
+      - USE_HTTPS=true
       - WEBSOCKET_PORT=4011
       - FRONTEND_URL=https://purple-pgs.space
       - CLIENT_URL=https://purple-pgs.space
