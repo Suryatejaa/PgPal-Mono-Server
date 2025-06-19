@@ -475,10 +475,16 @@ Object.entries(SERVICES).forEach(([serviceName, config]) => {
                 '/login',
                 '/register',
                 '/refresh-token',
-                '/forgot-password-request',    // <-- FIX: Add this
-                '/forgot-password-verify-otp', // <-- FIX: Add this
-                '/forgot-password-reset',      // <-- FIX: Add this
-                '/health'
+                '/forgot-password-request',
+                '/forgot-password-verify-otp',
+                '/forgot-password-reset',
+                '/health',
+                '/otp/send',
+                '/otp/verify',
+                '/resend-otp',
+                '/check-usernames',
+                '/check-email',
+                '/check-phonenumber'
             ];
             const isPublicPath = publicPaths.some(path => req.path.includes(path));
 

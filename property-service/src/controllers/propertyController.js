@@ -1137,7 +1137,7 @@ module.exports = {
 
             const getStayRecords = await getStayRecordsFromTenantService(property.pgpalId, currentUser);
             if (!getStayRecords || getStayRecords.length === 0) {
-                return res.status(404).json({ error: 'No stay records found for this property' });
+                return res.status(204).json({ error: 'No stay records found for this property' });
             }
 
             // Calculate trend for last 6 months
