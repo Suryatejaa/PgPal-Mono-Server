@@ -471,7 +471,7 @@ const updateUser = async (req, res) => {
                 return res.status(400).json({ message: 'Phone number is already taken.' });
             }
             const user = await User.findByIdAndUpdate(userId, { phoneNumber }, { new: true });
-
+            if(user && !email) return res.status(200).json({ message: 'Phone number updated successfully.' });
         }
         // Email change: check if email is already taken
         if (email) {
@@ -508,7 +508,7 @@ const updateUser = async (req, res) => {
         }
 
         if (Object.keys(updateFields).length === 0) {
-            return res.status(400).json({ message: 'No valid fields to update.' });
+            return res.status(200).json({ message: 'No valid fields to update.' });
         }
 
         const user = await User.findByIdAndUpdate(userId, updateFields, { new: true });
