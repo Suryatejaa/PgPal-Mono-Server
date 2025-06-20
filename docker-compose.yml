@@ -3,20 +3,20 @@ services:
     build: 
       context: ./auth-service
       dockerfile: dockerfile
-    # 1. SET NETWORK MODE TO HOST to guarantee outbound connections work.
-    network_mode: "host"
+    ports: # ADDED BACK
+      - "4001:4001"
+    dns: # THE DEFINITIVE FIX
+      - 8.8.8.8
+      - 1.1.1.1
     env_file:
       - .env
     restart: always
     healthcheck:
-      # Healthcheck now uses localhost because it's on the host network
       test: ["CMD", "curl", "-f", "http://localhost:4001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    # 2. REMOVED PORTS MAPPING - Not needed with network_mode: "host"
-    # 3. REMOVED DNS - Not needed with network_mode: "host"
     environment:
     - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_auth_service?retryWrites=true&w=majority
     - JWT_SECRET=${JWT_SECRET}
@@ -36,13 +36,16 @@ services:
     - FRONTEND_URL=https://purple-pgs.space
     - CLIENT_URL=https://purple-pgs.space
     - COOKIE_DOMAIN=.purple-pgs.space
+    - RESEND_API_KEY=${RESEND_API_KEY}
+    - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL}
 
   property-service:
     build:
       context: ./property-service
       dockerfile: dockerfile
-    extra_hosts: # <-- ADD THIS BLOCK to tell this service how to find auth-service
-      - "auth-service:host-gateway"
+    dns: # THE DEFINITIVE FIX
+      - 8.8.8.8
+      - 1.1.1.1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4002/health"]
       interval: 30s
@@ -66,8 +69,9 @@ services:
     build:
       context: ./room-service
       dockerfile: dockerfile
-    extra_hosts: # <-- ADD THIS BLOCK
-      - "auth-service:host-gateway"
+    dns: # THE DEFINITIVE FIX
+      - 8.8.8.8
+      - 1.1.1.1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4003/health"]
       interval: 30s
@@ -92,8 +96,9 @@ services:
     build:
       context: ./tenant-service
       dockerfile: dockerfile
-    extra_hosts: # <-- ADD THIS BLOCK
-      - "auth-service:host-gateway"
+    dns: # THE DEFINITIVE FIX
+      - 8.8.8.8
+      - 1.1.1.1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4004/health"]
       interval: 30s
@@ -120,8 +125,9 @@ services:
     build:
       context: ./tenant-service
       dockerfile: dockerfile
-    extra_hosts: # <-- ADD THIS BLOCK
-      - "auth-service:host-gateway"
+    dns: # THE DEFINITIVE FIX
+      - 8.8.8.8
+      - 1.1.1.1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4005/health"]
       interval: 30s
@@ -148,8 +154,9 @@ services:
     build:
       context: ./complaint-service
       dockerfile: dockerfile
-    extra_hosts: # <-- ADD THIS BLOCK
-      - "auth-service:host-gateway"
+    dns: # THE DEFINITIVE FIX
+      - 8.8.8.8
+      - 1.1.1.1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4006/health"]
       interval: 30s
@@ -175,8 +182,9 @@ services:
     build:
       context: ./kitchen-service
       dockerfile: dockerfile
-    extra_hosts: # <-- ADD THIS BLOCK
-      - "auth-service:host-gateway"
+    dns: # THE DEFINITIVE FIX
+      - 8.8.8.8
+      - 1.1.1.1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4007/health"]
       interval: 30s
@@ -200,8 +208,9 @@ services:
     build:
       context: ./dashboard-service
       dockerfile: dockerfile
-    extra_hosts: # <-- ADD THIS BLOCK
-      - "auth-service:host-gateway"
+    dns: # THE DEFINITIVE FIX
+      - 8.8.8.8
+      - 1.1.1.1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4008/health"]
       interval: 30s
@@ -224,8 +233,9 @@ services:
     build:
       context: ./notification-service
       dockerfile: dockerfile
-    extra_hosts: # <-- ADD THIS BLOCK
-      - "auth-service:host-gateway"
+    dns: # THE DEFINITIVE FIX
+      - 8.8.8.8
+      - 1.1.1.1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4009/health"]
       interval: 30s
@@ -248,8 +258,9 @@ services:
     build:
       context: ./notification-service
       dockerfile: dockerfile
-    extra_hosts: # <-- ADD THIS BLOCK
-      - "auth-service:host-gateway"
+    dns: # THE DEFINITIVE FIX
+      - 8.8.8.8
+      - 1.1.1.1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4009/health"]
       interval: 30s
@@ -273,8 +284,9 @@ services:
     build:
       context: ./gateway
       dockerfile: dockerfile
-    extra_hosts: # <-- ADD THIS BLOCK
-      - "auth-service:host-gateway"
+    dns: # THE DEFINITIVE FIX
+      - 8.8.8.8
+      - 1.1.1.1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
       interval: 30s

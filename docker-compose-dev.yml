@@ -1,0 +1,289 @@
+services:
+  auth-service:
+    build: 
+      context: ./auth-service
+      dockerfile: dockerfile
+    # REVERTED: Removed network_mode: "host"
+    ports: # REVERTED: Added ports back
+      - "4001:4001"
+    env_file:
+      - .env
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    environment:
+    - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_auth_service?retryWrites=true&w=majority
+    - JWT_SECRET=${JWT_SECRET}
+    - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET}
+    - PORT=4001
+    - EMAIL=${EMAIL}
+    - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+    - BASE_URL=http://localhost:8080
+    - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+    - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+    - GOOGLE_CALLBACK_URL=http://localhost:4000/api/auth-service/google/callback
+    - PRIVATE_KEY_ID=${PRIVATE_KEY_ID}
+    - PRIVATE_KEY=${PRIVATE_KEY}
+    - WEBSOCKET_URL=ws://gateway:4011
+    - REDIS=${REDIS}
+    - NODE_ENV=${NODE_ENV}
+    - FRONTEND_URL=https://purple-pgs.space
+    - CLIENT_URL=https://purple-pgs.space
+    - COOKIE_DOMAIN=.purple-pgs.space
+
+  property-service:
+    build:
+      context: ./property-service
+      dockerfile: dockerfile
+    # REVERTED: Removed extra_hosts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    ports:
+      - "4002:4002"
+    environment:
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_property_service?retryWrites=true&w=majority 
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=4002
+      - WEBSOCKET_URL=ws://gateway:4011
+      - REDIS=${REDIS}
+      - NODE_ENV=${NODE_ENV}
+      - FRONTEND_URL=https://purple-pgs.space
+      - CLIENT_URL=https://purple-pgs.space
+      - COOKIE_DOMAIN=.purple-pgs.space
+
+  room-service:
+    build:
+      context: ./room-service
+      dockerfile: dockerfile
+    # REVERTED: Removed extra_hosts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    ports:
+      - "4003:4003"
+    environment:
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_room_service?retryWrites=true&w=majority
+      - REDIS=${REDIS}
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=4003
+      - WEBSOCKET_URL=ws://gateway:4011
+      - NODE_ENV=${NODE_ENV}
+      - FRONTEND_URL=https://purple-pgs.space
+      - CLIENT_URL=https://purple-pgs.space
+      - COOKIE_DOMAIN=.purple-pgs.space
+
+  tenant-service:
+    build:
+      context: ./tenant-service
+      dockerfile: dockerfile
+    # REVERTED: Removed extra_hosts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    ports:
+      - "4004:4004"
+    command: ["node", "index.js"]
+    environment:
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_tenant_service?retryWrites=true&w=majority
+      - REDIS=${REDIS}
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=4004
+      - EMAIL=${EMAIL}
+      - WEBSOCKET_URL=ws://gateway:4011
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - NODE_ENV=${NODE_ENV}
+      - FRONTEND_URL=https://purple-pgs.space
+      - CLIENT_URL=https://purple-pgs.space
+      - COOKIE_DOMAIN=.purple-pgs.space
+    
+  rent-service:
+    build:
+      context: ./tenant-service
+      dockerfile: dockerfile
+    # REVERTED: Removed extra_hosts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    ports:
+      - "4005:4005"
+    command: ["node", "rent-index.js"]
+    environment:
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_tenant_service?retryWrites=true&w=majority
+      - REDIS=${REDIS}
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=4005
+      - EMAIL=${EMAIL}
+      - WEBSOCKET_URL=ws://gateway:4011
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - NODE_ENV=${NODE_ENV}
+      - FRONTEND_URL=https://purple-pgs.space
+      - CLIENT_URL=https://purple-pgs.space
+      - COOKIE_DOMAIN=.purple-pgs.space
+    
+  complaint-service:
+    build:
+      context: ./complaint-service
+      dockerfile: dockerfile
+    # REVERTED: Removed extra_hosts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    ports:
+      - "4006:4006"
+    environment:
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_complaints_service?retryWrites=true&w=majority
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=4006
+      - EMAIL=echoliftagency@gmail.com
+      - EMAIL_PASSWORD=dinh blaq osyc cpds
+      - WEBSOCKET_URL=ws://gateway:4011
+      - REDIS=${REDIS}
+      - NODE_ENV=${NODE_ENV}
+      - FRONTEND_URL=https://purple-pgs.space
+      - CLIENT_URL=https://purple-pgs.space
+      - COOKIE_DOMAIN=.purple-pgs.space
+
+  kitchen-service:
+    build:
+      context: ./kitchen-service
+      dockerfile: dockerfile
+    # REVERTED: Removed extra_hosts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4007/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    ports:
+      - "4007:4007"
+    environment:
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_kitchen_service?retryWrites=true&w=majority
+      - REDIS=${REDIS}
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=4007
+      - WEBSOCKET_URL=ws://gateway:4011
+      - NODE_ENV=${NODE_ENV}
+      - FRONTEND_URL=https://purple-pgs.space
+      - CLIENT_URL=https://purple-pgs.space
+      - COOKIE_DOMAIN=.purple-pgs.space
+
+  dashboard-service:
+    build:
+      context: ./dashboard-service
+      dockerfile: dockerfile
+    # REVERTED: Removed extra_hosts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    ports:
+      - "4008:4008"
+    environment:
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_dashboard_service?retryWrites=true&w=majority
+      - REDIS=${REDIS}
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=4008
+      - NODE_ENV=${NODE_ENV}
+      - FRONTEND_URL=https://purple-pgs.space
+      - CLIENT_URL=https://purple-pgs.space
+      - COOKIE_DOMAIN=.purple-pgs.space
+
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: dockerfile
+    # REVERTED: Removed extra_hosts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4009/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    ports:
+      - "4009:4009"
+    environment:
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_notification_service?retryWrites=true&w=majority
+      - REDIS=${REDIS}
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=4009
+      - NODE_ENV=${NODE_ENV}
+      - FRONTEND_URL=https://purple-pgs.space
+      - CLIENT_URL=https://purple-pgs.space
+      - COOKIE_DOMAIN=.purple-pgs.space
+
+  notification-worker:
+    build:
+      context: ./notification-service
+      dockerfile: dockerfile
+    # REVERTED: Removed extra_hosts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4009/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    command: node src/workers/notificationWorker.js
+    environment:
+      - MONGO_URI=mongodb+srv://${MONGO_USER}:${MONGO_PASS}@${MONGO_CLUSTER}/pgpaal_notification_service?retryWrites=true&w=majority
+      - REDIS=${REDIS}
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=4009
+      - NODE_ENV=${NODE_ENV}
+      - FRONTEND_URL=https://purple-pgs.space
+      - CLIENT_URL=https://purple-pgs.space
+      - COOKIE_DOMAIN=.purple-pgs.space
+    depends_on:
+      - notification-service
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: dockerfile
+    # REVERTED: Removed extra_hosts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    ports:
+      - "4000:4000"
+      - "4011:4011"  # WebSocket port
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - REDIS=${REDIS}
+      - PORT=4000
+      - USE_HTTPS=false
+      - WEBSOCKET_PORT=4011
+      - FRONTEND_URL=https://purple-pgs.space
+      - CLIENT_URL=https://purple-pgs.space
+      - ADMIN_URL=https://admin.purple-pgs.space
+      - OWNER_URL=https://owner.purple-pgs.space
+      - TENANT_URL=https://tenant.purple-pgs.space
+      - COOKIE_DOMAIN=.purple-pgs.space
+    restart: unless-stopped
+
+volumes:
+  mongo-data:

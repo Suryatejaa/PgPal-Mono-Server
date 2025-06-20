@@ -136,10 +136,9 @@ app.use((error, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 4001;
-const server = app.listen(PORT,  () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Auth Service running on port ${PORT}`);
     console.log(`🔍 Health check: http://localhost:${PORT}/health`);
-    // ... any other startup logic
 });
 
 // Graceful shutdown
